@@ -1,3 +1,5 @@
+# Still in test phase, beware!
+
 # PiSelfhosting
 
 ## Self-Hosted Services for Raspberry Pi with Docker
