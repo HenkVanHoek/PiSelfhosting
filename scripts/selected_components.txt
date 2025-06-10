@@ -1,0 +1,1 @@
+"mariadb" "mosquitto" "nextcloud" "homeassistant" "frigate" "pihole" "portainer" "phpmyadmin" "nginxproxymanager" "dashy" "docker" "piselfhosting-docs"

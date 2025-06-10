@@ -1,0 +1,25 @@
+# scripts/templates/frigate/docker-compose.yml.template
+services:
+  frigate:
+    container_name: piselfhosting-frigate
+    image: ghcr.io/blakeblackshear/frigate:stable
+    privileged: true # Required for direct hardware access (e.g., /dev/bus/usb for Coral)
+    restart: unless-stopped
+    shm_size: "512mb" # Shared memory for FFmpeg
+    devices:
+      - /dev/bus/usb:/dev/bus/usb # For Coral TPU
+    volumes:
+      - ./config:/config
+      - /etc/localtime:/etc/localtime:ro
+      - /media/frigate:/media/frigate # Storage for recordings and cache
+    ports:
+      - "5000:5000"  # Web UI port
+      - "1935:1935" # RTMP port (for re-streaming cameras)
+    environment:
+      - FRIGATE_RTSP_PASSWORD=${FRIGATE_RTSP_PASSWORD} # Used in Frigate config for internal re-streaming
+    networks:
+      - piselfhosting_net
+networks:
+  piselfhosting_net:
+    external: true
+

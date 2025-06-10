@@ -1,0 +1,24 @@
+# For full documentation, see: https://dashy.to/docs/configuring
+# And for all icons, see: https://docs.dashy.to/icons
+
+# Algemene informatie over je dashboard
+pageInfo:
+  title: Mijn PiSelfhosting Dashboard
+  description: Een overzicht van al mijn zelf-gehoste diensten
+  navLinks:
+    - title: GitHub
+      path: https://github.com/jouw-gebruikersnaam/jouw-repo # Pas dit aan naar je eigen GitHub repo
+    - title: Documentatie
+      path: https://dashy.to/docs/
+  footerText: Powered by Dashy
+
+# Algemene app configuratie
+appConfig:
+  theme: 'material' # Probeer ook 'dark', 'nord', 'dracula' voor andere thema's
+  layout: 'auto' # 'auto', 'horizontal', 'grid'
+  iconSize: 'medium'
+  language: 'en' # Expliciete taalinstelling
+  # De run-dashy-tile-config-tool.sh script zal de 'sections' hieronder vullen.
+  # Deze template begint met een lege sectie om te voorkomen dat Dashy vastloopt.
+sections: [] # Deze sectie wordt gevuld door het Python script
+

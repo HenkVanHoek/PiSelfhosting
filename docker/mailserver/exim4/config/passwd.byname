@@ -1,0 +1,4 @@
+# Exim4 plaintext passwords for AUTH (less secure, ensure strong file permissions)
+# Format: username:password
+# Please manually add users and plaintext passwords here for Exim4 if needed for SMTP AUTH.
+# Example: user1:plain_password_for_user1

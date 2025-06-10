@@ -1,0 +1,106 @@
+<!-- scripts/templates/piselfhosting-docs/html/index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PiSelfhosting Documentation</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; color: #334155; }
+        .container { max-width: 960px; margin: 0 auto; padding: 2rem; }
+        h1, h2 { color: #1e293b; }
+        a { color: #3b82f6; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <header class="bg-blue-600 text-white p-6 shadow-md">
+        <div class="container flex justify-between items-center">
+            <h1 class="text-3xl font-bold">PiSelfhosting Docs</h1>
+            <nav>
+                <ul class="flex space-x-4">
+                    <li><a href="#" class="text-white hover:text-blue-200 transition-colors">Home</a></li>
+                    <li><a href="#setup" class="text-white hover:text-blue-200 transition-colors">Setup Guide</a></li>
+                    <li><a href="#components" class="text-white hover:text-blue-200 transition-colors">Components</a></li>
+                    <li><a href="#faq" class="text-white hover:text-blue-200 transition-colors">FAQ</a></li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+
+    <main class="container py-8">
+        <section id="welcome" class="bg-white p-8 rounded-lg shadow-md mb-8">
+            <h2 class="text-2xl font-semibold mb-4">Welcome to PiSelfhosting Documentation!</h2>
+            <p class="text-gray-700 leading-relaxed">
+                This website provides a comprehensive guide to setting up, configuring, and managing your self-hosted services
+                on a Raspberry Pi (or any Linux-based system) using Docker. Our goal is to make self-hosting accessible and easy to maintain.
+            </p>
+            <p class="mt-4 text-gray-700 leading-relaxed">
+                Use the navigation above to explore setup instructions, component details, and frequently asked questions.
+            </p>
+        </section>
+
+        <section id="setup" class="bg-white p-8 rounded-lg shadow-md mb-8">
+            <h2 class="text-2xl font-semibold mb-4">Setup Guide</h2>
+            <p class="text-gray-700">Follow these steps to get your PiSelfhosting environment up and running:</p>
+            <ol class="list-decimal list-inside space-y-2 mt-4 text-gray-700">
+                <li>**Prepare your Raspberry Pi:** Install a fresh OS (e.g., Raspberry Pi OS Lite).</li>
+                <li>**Clone the PiSelfhosting repository:** <code>git clone https://github.com/your-username/PiSelfhosting.git</code></li>
+                <li>**Navigate to the scripts directory:** <code>cd ~/PiSelfhosting/scripts</code></li>
+                <li>**Run the initial setup script:** <code>bash setup.sh</code> (This will configure your .env file and select components).</li>
+                <li>**Deploy your selected components:** <code>bash deploy.sh</code> (This generates Docker Compose files and initial configs).</li>
+                <li>**Start all services:** <code>bash start-all.sh</code></li>
+                <li>**Configure Nginx Proxy Manager:** Access NPM UI at <code>http://[your-domain-or-ip]:81</code> to set up reverse proxies and SSL certificates.</li>
+                <li>**Access your services:** Use the URLs configured in NPM or direct ports if no proxy is used.</li>
+            </ol>
+        </section>
+
+        <section id="components" class="bg-white p-8 rounded-lg shadow-md mb-8">
+            <h2 class="text-2xl font-semibold mb-4">Managed Components</h2>
+            <p class="text-gray-700">PiSelfhosting helps you manage various services, including:</p>
+            <ul class="list-disc list-inside space-y-2 mt-4 text-gray-700">
+                <li>**MariaDB:** Database server for web applications.</li>
+                <li>**Mosquitto:** MQTT broker for IoT communication.</li>
+                <li>**Nextcloud:** Private cloud storage.</li>
+                <li>**Mailserver (Exim4/Dovecot):** Your own email server.</li>
+                <li>**Home Assistant:** Home automation platform.</li>
+                <li>**Frigate:** AI-powered NVR for security cameras.</li>
+                <li>**Pi-hole:** Network-wide ad blocking.</li>
+                <li>**Portainer:** Web UI for Docker management.</li>
+                <li>**phpMyAdmin:** Web interface for MariaDB.</li>
+                <li>**Nginx Proxy Manager:** Reverse proxy with SSL certificate management (essential for secure access).</li>
+                <li>**Dashy:** Your personal dashboard to access all services.</li>
+                <li>**Docker Monitor:** Basic real-time Docker statistics.</li>
+            </ul>
+            <p class="mt-4 text-gray-700">Each component has its own dedicated directory under <code>~/PiSelfhosting/docker/</code> for Docker Compose files and configuration.</p>
+        </section>
+
+        <section id="faq" class="bg-white p-8 rounded-lg shadow-md mb-8">
+            <h2 class="text-2xl font-semibold mb-4">Frequently Asked Questions</h2>
+            <div class="space-y-4 text-gray-700">
+                <div>
+                    <h3 class="text-xl font-medium">Q: How do I update my services?</h3>
+                    <p>A: You can use <code>bash ~/PiSelfhosting/scripts/restart-all.sh</code> to pull the latest images and restart selected services.</p>
+                </div>
+                <div>
+                    <h3 class="text-xl font-medium">Q: My domain's SSL certificate isn't working.</h3>
+                    <p>A: Ensure ports 80 and 443 are forwarded to your Nginx Proxy Manager container. Check your domain's A record points to your public IP. Use the SSL Certificate Manager tool (<code>bash ~/PiSelfhosting/scripts/run-ssl-cert-manager.sh</code>) for guidance.</p>
+                </div>
+                <div>
+                    <h3 class="text-xl font-medium">Q: How can I change a service's configuration after deployment?</h3>
+                    <p>A: Configuration files are located in <code>~/PiSelfhosting/docker/[service-name]/config/</code> (or similar). Edit them, then restart the specific service using <code>bash ~/PiSelfhosting/scripts/restart-all.sh [service-name]</code>.</p>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer class="bg-gray-800 text-white p-6 text-center">
+        <div class="container">
+            <p>&copy; 2024 PiSelfhosting. All rights reserved.</p>
+        </div>
+    </footer>
+</body>
+</html>
+

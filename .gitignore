@@ -1,0 +1,14 @@
+.idea/
+__pycache__/
+*.pyc
+*.log
+*.bak
+.env
+.env.*
+backups/
+certs/
+docker/**/config.yml
+docker/**/docker-compose.yml
+docker/**/initdb.d/*
+scripts/update-docker-stats.sh
+

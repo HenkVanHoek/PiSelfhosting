@@ -1,0 +1,20 @@
+# Use a lightweight Python 3.9 image as base
+FROM python:3.9-slim-buster
+
+# Install ffmpeg (which includes ffprobe, needed for RTSP stream testing),
+# libxml2-dev, libxslt1-dev (needed for lxml, a dependency of onvif-zeep),
+# and build-essential for compilation purposes.
+RUN apt-get update && apt-get install -y ffmpeg libxml2-dev libxslt1-dev build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python dependencies (pyyaml, onvif-zeep, lxml)
+# lxml is a dependency that provides fast XML processing and is required for onvif-zeep.
+RUN pip install pyyaml onvif-zeep lxml
+
+# Set the working directory inside the container
+WORKDIR /app
+
+# The entrypoint is now determined by the shell script that runs the container,
+# which will mount and execute the specific tool.
+# This Dockerfile now serves as a general base image for configuration scripts.
+

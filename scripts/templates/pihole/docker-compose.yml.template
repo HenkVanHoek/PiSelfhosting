@@ -1,0 +1,35 @@
+# scripts/templates/pihole/docker-compose.yml.template
+services:
+  pihole:
+    container_name: piselfhosting-pihole
+    image: pihole/pihole:latest
+    restart: unless-stopped
+    environment:
+      - TZ=Europe/Amsterdam # Tijdzone aanpassen indien nodig
+      - WEBPASSWORD=${PIHOLE_PASSWORD}
+      - DNSMASQ_LISTENING=all # Luister op alle interfaces
+      - FTLCONF_PIHOLE_DNS_PORT=53 # Expliciet de DNS poort
+    volumes:
+      - pihole_etc:/etc/pihole
+      - pihole_dnsmasq:/etc/dnsmasq.d
+    # Let op: Poorten 53/tcp en 53/udp moeten op de host vrij zijn of gemapt worden
+    # als je Pi-hole als je primaire DNS-server wilt gebruiken.
+    ports:
+      - "53:53/tcp"
+      - "53:53/udp"
+      - "8082:80" # Pi-hole web UI op poort 8082 (standaard Pi-hole is 80)
+    cap_add:
+      - NET_ADMIN # Nodig voor bepaalde Pi-hole functionaliteit
+    networks:
+      - piselfhosting_net
+
+volumes:
+  pihole_etc:
+    name: piselfhosting-pihole-etc
+  pihole_dnsmasq:
+    name: piselfhosting-pihole-dnsmasq
+
+networks:
+  piselfhosting_net:
+    external: true
+

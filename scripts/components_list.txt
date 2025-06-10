@@ -1,0 +1,60 @@
+# Define the order in which components should appear in the setup script's checklist.
+# This helps maintain a logical flow during setup.
+COMPONENTS_ORDER=mariadb,mosquitto,nextcloud,mailserver,homeassistant,frigate,pihole,portainer,phpmyadmin,nginxproxymanager,dashy,docker,piselfhosting-docs
+
+# Component Definitions
+# Each component should have a [name], description, and default_selected.
+# default_selected can be ON or OFF.
+
+[mariadb]
+description=MariaDB Database Server
+default_selected=ON
+
+[mosquitto]
+description=Mosquitto MQTT Broker
+default_selected=ON
+
+[nextcloud]
+description=Nextcloud (Self-hosted Cloud Storage)
+default_selected=OFF
+
+[mailserver]
+description=Mailserver (Exim4, Dovecot)
+default_selected=OFF
+
+[homeassistant]
+description=Home Assistant (Home Automation)
+default_selected=OFF
+
+[frigate]
+description=Frigate (AI-powered NVR)
+default_selected=OFF
+
+[pihole]
+description=Pi-hole (Network-wide Ad Blocking)
+default_selected=OFF
+
+[portainer]
+description=Portainer (Docker Management UI)
+default_selected=ON
+
+[phpmyadmin]
+description=phpMyAdmin (MariaDB Web Interface)
+default_selected=OFF
+
+[nginxproxymanager]
+description=Nginx Proxy Manager (Reverse Proxy, SSL Mgmt)
+default_selected=ON
+
+[dashy]
+description=Dashy (Personal Dashboard)
+default_selected=ON
+
+[docker]
+description=Docker Monitor (Simple Docker Stats Page)
+default_selected=ON
+
+[piselfhosting-docs]
+description=PiSelfhosting Documentation Website
+default_selected=ON
+

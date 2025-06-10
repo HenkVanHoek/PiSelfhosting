@@ -1,0 +1,25 @@
+# /home/PiSelfhosting/scripts/templates/dashy/config/conf.yml.template
+# For full documentation, see: https://dashy.to/docs/configuring
+# And for all icons, see: https://docs.dashy.to/icons
+
+# General information about your dashboard
+pageInfo:
+  title: My PiSelfhosting Dashboard
+  description: An overview of all my self-hosted services
+  navLinks:
+    - title: GitHub
+      path: https://github.com/your-username/your-repo # Adapt this to your own GitHub repo
+    - title: Documentation
+      path: https://dashy.to/docs/
+  footerText: Powered by Dashy
+
+# General app configuration
+appConfig:
+  theme: 'material' # Try 'dark', 'nord', 'dracula' for other themes
+  layout: 'auto' # 'auto', 'horizontal', 'grid'
+  iconSize: 'medium'
+  language: 'en' # Explicit language setting
+  # The run-dashy-tile-config-tool.sh script will populate the 'sections' below.
+  # This template starts with an empty section to prevent Dashy from crashing.
+sections: [] # This section will be populated by the Python script
+

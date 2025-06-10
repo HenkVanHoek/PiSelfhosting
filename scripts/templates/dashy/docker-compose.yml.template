@@ -1,0 +1,28 @@
+# scripts/templates/dashy/docker-compose.yml.template
+services:
+  dashy:
+    container_name: piselfhosting-dashy
+    image: lissy93/dashy:2.1.1
+    restart: unless-stopped
+    ports:
+      - "8080:80" # Dashy HTTP poort
+      - "4443:443" # Dashy HTTPS poort
+    volumes:
+      - ./config:/app/public/conf # Mount de config directory
+    environment:
+      - PUID=${PUID} # Gebruikers-ID van de host, voor bestandspermissies
+      - PGID=${PGID} # Groeps-ID van de host
+      - TZ=Europe/Amsterdam # Tijdzone aanpassen indien nodig
+      - NODE_ENV=production
+    extra_hosts:
+      # Dit voegt een entry toe aan /etc/hosts in de container,
+      # zodat services via de DOMAIN kunnen worden benaderd als ze via Nginx Proxy Manager lopen.
+      # HOST_IP wordt dynamisch ingevuld door deploy.sh.
+      - "${DOMAIN}:${HOST_IP}"
+    networks:
+      - piselfhosting_net
+
+networks:
+  piselfhosting_net:
+    external: true
+

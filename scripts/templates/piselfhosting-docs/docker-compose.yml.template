@@ -1,0 +1,17 @@
+# scripts/templates/piselfhosting-docs/docker-compose.yml.template
+services:
+  piselfhosting-docs:
+    image: nginx:alpine
+    container_name: piselfhosting-docs
+    restart: unless-stopped
+    volumes:
+      - ./html:/usr/share/nginx/html:ro
+    ports:
+      - "8089:80" # Je kunt hier een specifieke poort kiezen die niet conflicteert, bijv. 8089
+    networks:
+      - piselfhosting_net
+
+networks:
+  piselfhosting_net:
+    external: true
+

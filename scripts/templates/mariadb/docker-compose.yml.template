@@ -1,0 +1,27 @@
+# scripts/templates/mariadb/docker-compose.yml.template
+services:
+  mariadb:
+    image: mariadb:11
+    container_name: piselfhosting-mariadb
+    restart: unless-stopped
+    ports:
+      - "3306:3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=${DB_PASS}
+      - MYSQL_DATABASE=piselfhosting
+      - MYSQL_USER=${DB_USER}
+      - MYSQL_PASSWORD=${DB_PASS}
+    volumes:
+      - mariadb_data:/var/lib/mysql
+      - ./initdb.d:/docker-entrypoint-initdb.d
+    networks:
+      - piselfhosting_net
+
+volumes:
+  mariadb_data:
+    name: piselfhosting-mariadb-data
+
+networks:
+  piselfhosting_net:
+    external: true
+
