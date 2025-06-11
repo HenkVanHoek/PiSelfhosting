@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PiSelfhosting Documentation</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; color: #334155; }
+        .container { max-width: 960px; margin: 0 auto; padding: 2rem; }
+        h1, h2 { color: #1e293b; }
+        a { color: #3b82f6; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .nav-link-group { margin-top: 1rem; }
+        .nav-link-group h3 { font-weight: 600; color: #4a5568; margin-bottom: 0.5rem; }
+        .nav-link-group ul { list-style: none; padding-left: 0; }
+        .nav-link-group ul li a { display: block; padding: 0.25rem 0; color: #4a5568; }
+        .nav-link-group ul li a:hover { color: #3b82f6; text-decoration: underline; }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <header class="bg-blue-600 text-white p-6 shadow-md">
+        <div class="container flex justify-between items-center">
+            <h1 class="text-3xl font-bold">PiSelfhosting Docs</h1>
+            <nav>
+                <ul class="flex space-x-4">
+                    <li><a href="index.html" class="text-white hover:text-blue-200 transition-colors">Home</a></li>
+                    <li><a href="core-components.html" class="text-white hover:text-blue-200 transition-colors">Core Components</a></li>
+                    <li><a href="how-to-expand.html" class="text-white hover:text-blue-200 transition-colors">How to Expand</a></li>
+                    <li><a href="tools-and-utilities.html" class="text-white hover:text-blue-200 transition-colors">Tools & Utilities</a></li>
+                    </ul>
+            </nav>
+        </div>
+    </header>
+
+    <main class="container py-8">
+        <section id="welcome" class="bg-white p-8 rounded-lg shadow-md mb-8">
+            <h2 class="text-2xl font-semibold mb-4">Welcome to PiSelfhosting Documentation!</h2>
+            <p class="text-gray-700 leading-relaxed">
+                This website provides a comprehensive guide to setting up, configuring, and managing your self-hosted services
+                on a Raspberry Pi (or any Linux-based system) using Docker. Our goal is to make self-hosting accessible and easy to maintain.
+            </p>
+            <p class="mt-4 text-gray-700 leading-relaxed">
+                Use the navigation above and the sections below to explore setup instructions, component details, and frequently asked questions.
+            </p>
+        </section>
+
+        <section id="setup" class="bg-white p-8 rounded-lg shadow-md mb-8">
+            <h2 class="text-2xl font-semibold mb-4">Quick Setup Guide</h2>
+            <p class="text-gray-700">Follow these steps to get your PiSelfhosting environment up and running:</p>
+            <ol class="list-decimal list-inside space-y-2 mt-4 text-gray-700">
+                <li><strong>Prepare your Raspberry Pi:</strong> Install a fresh OS (e.g., Raspberry Pi OS Lite).</li>
+                <li><strong>Clone the PiSelfhosting repository:</strong> <code>git clone https://github.com/your-username/PiSelfhosting.git</code></li>
+                <li><strong>Navigate to the scripts directory:</strong> <code>cd ~/PiSelfhosting/scripts</code></li>
+                <li><strong>Run the initial setup script:</strong> <code>bash setup.sh</code> (This will configure your .env file and select components).</li>
+                <li><strong>Deploy your selected components:</strong> <code>bash deploy.sh</code> (This generates Docker Compose files and initial configs).</li>
+                <li><strong>Start all services:</strong> <code>bash start-all.sh</code></li>
+                <li><strong>Configure Nginx Proxy Manager:</strong> Access NPM UI at <code>http://[your-domain-or-ip]:81</code> to set up reverse proxies and SSL certificates.</li>
+                <li><strong>Access your services:</strong> Use the URLs configured in NPM or direct ports if no proxy is used.</li>
+            </ol>
+            <p class="mt-4 text-gray-700">For more in-depth details about the core components, visit the <a href="core-components.html">Core Components</a> page.</p>
+        </section>
+
+        <section id="components" class="bg-white p-8 rounded-lg shadow-md mb-8">
+            <h2 class="text-2xl font-semibold mb-4">Managed Components & Services</h2>
+            <p class="text-gray-700">PiSelfhosting helps you manage various services. Click on a service below for detailed documentation:</p>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
+                <div class="nav-link-group">
+                    <h3>Essential Infrastructure</h3>
+                    <ul>
+                        <li><a href="service-mariadb.html">MariaDB</a></li>
+                        <li><a href="service-mosquitto.html">Mosquitto</a></li>
+                        <li><a href="service-nginxproxymanager.html">Nginx Proxy Manager</a></li>
+                        <li><a href="service-portainer.html">Portainer</a></li>
+                    </ul>
+                </div>
+                <div class="nav-link-group">
+                    <h3>Applications</h3>
+                    <ul>
+                        <li><a href="service-dashy.html">Dashy</a></li>
+                        <li><a href="service-frigate.html">Frigate</a></li>
+                        <li><a href="service-homeassistant.html">Home Assistant</a></li>
+                        <li><a href="service-mailserver.html">Mailserver</a></li>
+                        <li><a href="service-nextcloud.html">Nextcloud</a></li>
+                        <li><a href="service-phpmyadmin.html">phpMyAdmin</a></li>
+                        <li><a href="service-pihole.html">Pi-hole</a></li>
+                    </ul>
+                </div>
+                <div class="nav-link-group">
+                    <h3>System Tools & Docs</h3>
+                    <ul>
+                        <li><a href="service-docker-monitor.html">Docker Monitor</a></li>
+                        <li><a href="service-piselfhosting-docs.html">PiSelfhosting Docs Site</a></li>
+                    </ul>
+                </div>
+            </div>
+            <p class="mt-6 text-gray-700">For more information on adding services not listed here, see the <a href="how-to-expand.html">How to Expand</a> section.</p>
+        </section>
+
+        <section id="faq" class="bg-white p-8 rounded-lg shadow-md mb-8">
+            <h2 class="text-2xl font-semibold mb-4">Frequently Asked Questions</h2>
+            <div class="space-y-4 text-gray-700">
+                <div>
+                    <h3 class="text-xl font-medium">Q: How do I update my services?</h3>
+                    <p>A: You can use <code>bash ~/PiSelfhosting/scripts/restart-all.sh</code> to pull the latest images and restart selected services.</p>
+                </div>
+                <div>
+                    <h3 class="text-xl font-medium">Q: My domain's SSL certificate isn't working.</h3>
+                    <p>A: Ensure ports 80 and 443 are forwarded to your Nginx Proxy Manager container. Check your domain's A record points to your public IP. Use the <a href="tools-and-utilities.html#ssl-cert-manager">SSL Certificate Manager tool</a> for guidance.</p>
+                </div>
+                <div>
+                    <h3 class="text-xl font-medium">Q: How can I change a service's configuration after deployment?</h3>
+                    <p>A: Configuration files are located in <code>~/PiSelfhosting/docker/[service-name]/config/</code> (or similar). Edit them, then restart the specific service using <code>bash ~/PiSelfhosting/scripts/restart-all.sh [service-name]</code>.</p>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer class="bg-gray-800 text-white p-6 text-center">
+        <div class="container">
+            <p>&copy; 2025 PiSelfhosting. All rights reserved.</p>
+        </div>
+    </footer>
+</body>
+</html>

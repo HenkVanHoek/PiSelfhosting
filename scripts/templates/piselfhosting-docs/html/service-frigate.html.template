@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PiSelfhosting - Frigate Service Documentation</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; color: #334155; }
+        .container { max-width: 960px; margin: 0 auto; padding: 2rem; }
+        h1, h2, h3 { color: #1e293b; }
+        a { color: #3b82f6; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .code { background-color: #f3f4f6; padding: 0.25rem 0.5rem; border-radius: 0.25rem; font-family: monospace; }
+        .code-block { background-color: #e2e8f0; padding: 1rem; border-radius: 0.5rem; overflow-x: auto; font-family: monospace; }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <header class="bg-blue-600 text-white p-6 shadow-md">
+        <div class="container flex justify-between items-center">
+            <h1 class="text-3xl font-bold">PiSelfhosting - Frigate Service</h1>
+            <nav>
+                <ul class="flex space-x-4">
+                    <li><a href="index.html" class="text-white hover:text-blue-200 transition-colors">Home</a></li>
+                    <li><a href="core-components.html" class="text-white hover:text-blue-200 transition-colors">Core Components</a></li>
+                    <li><a href="service-frigate.html" class="text-white hover:text-blue-200 transition-colors">Frigate</a></li>
+                    <li><a href="how-to-expand.html" class="text-white hover:text-blue-200 transition-colors">How to Expand</a></li>
+                    <li><a href="tools-and-utilities.html" class="text-white hover:text-blue-200 transition-colors">Tools & Utilities</a></li>
+                    </ul>
+            </nav>
+        </div>
+    </header>
+
+    <main class="container py-8">
+        <section id="frigate-overview" class="bg-white p-8 rounded-lg shadow-md mb-8">
+            <h2 class="text-2xl font-semibold mb-4">Frigate: AI-Powered NVR</h2>
+            <p class="text-gray-700 leading-relaxed">
+                Frigate is an open-source Network Video Recorder (NVR) with a focus on real-time AI object detection. It's designed for local processing, ensuring your camera feeds never leave your home. Frigate excels at minimizing false positives by using advanced AI to identify relevant objects like people, cars, and animals, rather than relying solely on motion detection.
+            </p>
+            <p class="mt-4 text-gray-700 leading-relaxed">
+                Within the PiSelfhosting project, Frigate provides a powerful and customizable solution for managing and monitoring your IP cameras. It integrates seamlessly with other services, particularly MQTT for notifications and Home Assistant for automation.
+            </p>
+        </section>
+
+        ---
+
+        <section id="frigate-functionality" class="bg-white p-8 rounded-lg shadow-md mb-8">
+            <h2 class="text-2xl font-semibold mb-4">Detailed Functionality</h2>
+            <h3 class="text-xl font-semibold mt-6 mb-2">Key Features:</h3>
+            <ul class="list-disc list-inside space-y-2 mt-4 text-gray-700">
+                <li><strong>Real-time Object Detection:</strong> Frigate uses AI models to detect objects in real-time, reducing false positives compared to traditional motion detection.</li>
+                <li><strong>Multi-Camera Support:</strong> Manage multiple IP cameras simultaneously.</li>
+                <li><strong>Customizable Zones:</strong> Define specific areas within the camera's view for focused object detection and alerting.</li>
+                <li><strong>Hardware Acceleration:</strong> Supports hardware accelerators like Google Coral and GPUs for improved performance.</li>
+                <li><strong>MQTT Integration:</strong>  Publishes events and object detections via MQTT, enabling integration with other systems.</li>
+                <li><strong>Home Assistant Integration:</strong> Provides a custom component for tight integration with Home Assistant.</li>
+                <li><strong>Recording:</strong> Captures and stores video clips based on detection events or 24/7.</li>
+                <li><strong>Web Interface:</strong> User-friendly web interface for configuration and monitoring.</li>
+                <li><strong>API:</strong> Provides an API for accessing events, clips, and other data.</li>
+            </ul>
+
+            <h3 class="text-xl font-semibold mt-6 mb-2">PiSelfhosting Integration:</h3>
+            <p class="text-gray-700 leading-relaxed">
+                The PiSelfhosting project simplifies the deployment and configuration of Frigate through the following:
+            </p>
+            <ul class="list-disc list-inside space-y-2 mt-4 text-gray-700">
+                 <li><strong>Docker Compose Template:</strong> The <code class="code">docker-compose.yml.template</code> file in <code class="code">/home/PiSelfhosting/scripts/templates/frigate/</code> defines the Frigate service, including:
+                    <ul class="list-disc list-inside space-y-2 mt-2 text-gray-700">
+                        <li>Image: <code class="code">blakeblackshear/frigate:stable</code> (or a specific version).</li>
+                        <li>Ports: Mapping for the web UI (default 5000) and optional ports for hardware acceleration.</li>
+                        <li>Volumes:  Mapping for the configuration file (<code class="code">config.yml</code>) and media storage.</li>
+                        <li>Environment variables:  Configuration options passed to the Frigate container.</li>
+                        <li>Hardware acceleration: Configuration for Coral USB accelerator or GPU.</li>
+                        <li>MQTT:  Configuration for connecting to the Mosquitto MQTT broker.</li>
+                    </ul>
+                </li>
+                <li><strong>Configuration Tool:</strong> The <code class="code">frigate_camera_config_tool.py</code> script and <code class="code">run-frigate-camera-config-tool.sh</code> wrapper automate camera configuration, including:
+                    <ul class="list-disc list-inside space-y-2 mt-2 text-gray-700">
+                        <li>ONVIF camera discovery.</li>
+                        <li>RTSP stream testing.</li>
+                        <li>Camera preset selection from the <code class="code">community_cameras.json</code> file.</li>
+                        <li>Dynamic updates to the Frigate <code class="code">config.yml</code>.</li>
+                    </ul>
+                </li>
+            </ul>
+
+            <h3 class="text-xl font-semibold mt-6 mb-2">Expanding with New Services/Applications:</h3>
+            <p class="text-gray-700 leading-relaxed">
+                PiSelfhosting is designed to be extensible.  Here's how you can integrate Frigate with services not directly managed by the project:
+            </p>
+            <ol class="list-decimal list-inside space-y-2 mt-4 text-gray-700">
+                <li><strong>MQTT Integration:</strong> Frigate publishes a wealth of data via MQTT.  You can subscribe to these topics from other applications:
+                    <ul class="list-disc list-inside space-y-2 mt-2 text-gray-700">
+                        <li><code class="code">frigate/events</code>:  Detailed information about detected objects, including bounding box coordinates, labels, and timestamps.</li>
+                         <li><code class="code">frigate/<i>camera_name</i>/<i>object_name</i>/snapshot</code>:  JPEG encoded images of detected objects.</li>
+                        <li><code class="code">frigate/<i>camera_name</i>/<i>object_name</i>/active</code>:  Count of active objects for a specific camera and object type.</li>
+                        <li><a href="https://docs.frigate.video/integrations/mqtt/" target="_blank">Refer to the Frigate MQTT documentation</a> for a complete list of topics.</li>
+                    </ul>
+                    <p class="mt-2 text-gray-700">Example: You could use Node-RED to subscribe to Frigate's MQTT topics and trigger actions based on detected objects (e.g., send a notification, control lights, etc.).</p>
+                </li>
+                <li><strong>Frigate API:</strong> Frigate provides an HTTP API for accessing events, clips, and snapshots.
+                     <p class="mt-2 text-gray-700"><a href="https://docs.frigate.video/integrations/api/event-events-get/" target="_blank">Frigate API Documentation</a></p>
+                    <p class="mt-2 text-gray-700">Example:  You could write a custom script to retrieve recent events and display them on a dashboard.</p>
+                </li>
+                 <li><strong>Home Assistant Integration:</strong> While PiSelfhosting doesn't directly manage Home Assistant, the tight integration between Frigate and Home Assistant makes it a natural extension.  You can use the Home Assistant Frigate integration to:
+                    <ul class="list-disc list-inside space-y-2 mt-2 text-gray-700">
+                        <li>View live camera streams.</li>
+                        <li>Browse recordings and snapshots.</li>
+                        <li>Receive notifications based on events.</li>
+                        <li>Automate actions based on object detection (e.g., turn on lights when a person is detected).</li>
+                    </ul>
+                     <p class="mt-2 text-gray-700"><a href="https://docs.frigate.video/integrations/home-assistant/" target="_blank">Frigate Home Assistant Integration Documentation</a></p>
+                </li>
+            </ol>
+        </section>
+
+        <section id="frigate-configuration" class="bg-white p-8 rounded-lg shadow-md mb-8">
+            <h2 class="text-2xl font-semibold mb-4">Configuration Details</h2>
+            <p class="text-gray-700 leading-relaxed">
+                The primary configuration for Frigate is located in the <code class="code">config.yml</code> file.  The PiSelfhosting project provides a basic template, but you'll likely need to customize it for your specific cameras and needs.  Key configuration areas include:
+            </p>
+            <ul class="list-disc list-inside space-y-2 mt-4 text-gray-700">
+                <li><strong>Cameras:</strong>  Defining your cameras, including RTSP stream URLs, resolutions, frame rates, and zones.  <a href="https://docs.frigate.video/frigate/camera_setup" target="_blank">Frigate Camera Setup Documentation</a></li>
+                <li><strong>Objects:</strong>  Specifying which objects to detect (person, car, etc.) and tuning detection parameters.</li>
+                <li><strong>Zones:</strong> Defining areas of interest within the camera's view. <a href="https://docs.frigate.video/configuration/zones" target="_blank">Frigate Zones Documentation</a></li>
+                <li><strong>Record:</strong>  Configuring recording behavior (24/7, based on events, etc.).</li>
+                <li><strong>FFmpeg:</strong>  Tuning FFmpeg input and output arguments for optimal performance and compatibility. <a href="https://docs.frigate.video/configuration/ffmpeg_presets/" target="_blank">Frigate FFmpeg Presets Documentation</a></li>
+                <li><strong>Hardware Acceleration:</strong> Configuring Coral USB accelerator or GPU for object detection.</li>
+                <li><strong>MQTT:</strong>  Configuring the MQTT connection for integration with other systems.</li>
+            </ul>
+        </section>
+
+        <section id="frigate-troubleshooting" class="bg-white p-8 rounded-lg shadow-md mb-8">
+            <h2 class="text-2xl font-semibold mb-4">Troubleshooting</h2>
+            <p class="text-gray-700 leading-relaxed">
+                If you encounter issues with Frigate, consider the following:
+            </p>
+            <ul class="list-disc list-inside space-y-2 mt-4 text-gray-700">
+                <li><strong>Check the Frigate logs:</strong>  Use <code class="code">docker logs piselfhosting-frigate</code> to view the container's logs for errors.</li>
+                <li><strong>Verify your camera streams:</strong> Ensure your RTSP streams are working correctly.</li>
+                <li><strong>Review the Frigate configuration:</strong> Double-check your <code class="code">config.yml</code> for any errors.</li>
+                <li><strong>Consult the Frigate documentation:</strong> The official Frigate documentation is a valuable resource. <a href="https://docs.frigate.video/" target="_blank">Frigate Documentation</a></li>
+            </ul>
+        </section>
+    </main>
+
+    <footer class="bg-gray-800 text-white p-6 text-center">
+        <div class="container">
+            <p>&copy; 2025 PiSelfhosting. All rights reserved.</p>
+        </div>
+    </footer>
+</body>
+</html>

@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PiSelfhosting - Mailserver Service Documentation</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; color: #334155; }
+        .container { max-width: 960px; margin: 0 auto; padding: 2rem; }
+        h1, h2, h3 { color: #1e293b; }
+        a { color: #3b82f6; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .code { background-color: #f3f4f6; padding: 0.25rem 0.5rem; border-radius: 0.25rem; font-family: monospace; }
+        .code-block { background-color: #e2e8f0; padding: 1rem; border-radius: 0.5rem; overflow-x: auto; font-family: monospace; }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <header class="bg-blue-600 text-white p-6 shadow-md">
+        <div class="container flex justify-between items-center">
+            <h1 class="text-3xl font-bold">PiSelfhosting - Mailserver Service</h1>
+            <nav>
+                <ul class="flex space-x-4">
+                    <li><a href="index.html" class="text-white hover:text-blue-200 transition-colors">Home</a></li>
+                    <li><a href="core-components.html" class="text-white hover:text-blue-200 transition-colors">Core Components</a></li>
+                    <li><a href="service-frigate.html" class="text-white hover:text-blue-200 transition-colors">Frigate</a></li>
+                    <li><a href="how-to-expand.html" class="text-white hover:text-blue-200 transition-colors">How to Expand</a></li>
+                    <li><a href="tools-and-utilities.html" class="text-white hover:text-blue-200 transition-colors">Tools & Utilities</a></li>
+                    </ul>
+            </nav>
+        </div>
+    </header>
+
+    <main class="container py-8">
+        <section id="mailserver-overview" class="bg-white p-8 rounded-lg shadow-md mb-8">
+            <h2 class="text-2xl font-semibold mb-4">Mailserver: Your Own Email Solution</h2>
+            <p class="text-gray-700 leading-relaxed">
+                Hosting your own mail server gives you complete control over your email communications, enhancing privacy and flexibility. This setup typically involves several components: a Mail Transfer Agent (MTA) like Exim or Postfix to send and receive emails, and a Mail Delivery Agent (MDA) like Dovecot to retrieve emails for clients via IMAP/POP3.
+            </p>
+            <p class="mt-4 text-gray-700 leading-relaxed">
+                While setting up a mail server can be complex, running it within PiSelfhosting provides a structured environment. This component aims to enable you to run a personal email server, separate from commercial providers.
+            </p>
+        </section>
+
+        ---
+
+        <section id="mailserver-functionality" class="bg-white p-8 rounded-lg shadow-md mb-8">
+            <h2 class="text-2xl font-semibold mb-4">Detailed Functionality</h2>
+            <h3 class="text-xl font-semibold mt-6 mb-2">Key Features (General Mailserver):</h3>
+            <ul class="list-disc list-inside space-y-2 mt-4 text-gray-700">
+                <li><strong>SMTP:</strong> Protocol for sending and receiving email between servers.</li>
+                <li><strong>IMAP/POP3:</strong> Protocols for email clients to retrieve messages from the server.</li>
+                <li><strong>User Management:</strong> Create and manage email accounts.</li>
+                <li><strong>Spam & Virus Filtering:</strong> Integration with tools to combat unwanted email.</li>
+                <li><strong>SSL/TLS Encryption:</strong> Secure communication for all email traffic.</li>
+                <li><strong>Authentication:</strong> Secure login for users and external servers.</li>
+            </ul>
+
+            <h3 class="text-xl font-semibold mt-6 mb-2">PiSelfhosting Integration:</h3>
+            <p class="text-gray-700 leading-relaxed">
+                The PiSelfhosting project includes a template for a comprehensive mail server solution, likely leveraging a battle-tested Docker image that bundles Exim4 (MTA) and Dovecot (IMAP/POP3 MDA):
+            </p>
+            <ul class="list-disc list-inside space-y-2 mt-4 text-gray-700">
+                 <li><strong>Docker Compose Template:</strong> The <code class="code">docker-compose.yml.template</code> file in <code class="code">/home/PiSelfhosting/scripts/templates/mailserver/</code> (once provided) will define the Mailserver service, including:
+                    <ul class="list-disc list-inside space-y-2 mt-2 text-gray-700">
+                        <li>Image: Likely a robust, all-in-one mail server image (e.g., from <a href="https://github.com/docker-mailserver/docker-mailserver" target="_blank">Docker-Mailserver</a>).</li>
+                        <li>Ports: Mapping for standard email ports (25 for SMTP, 143 for IMAP, 587 for Submission, 465 for SMTPS, 993 for IMAPS).</li>
+                        <li>Volumes: Persistent volumes for mail data, configuration, and logs.</li>
+                        <li>Environment variables: Crucial for setting up the domain, initial users, and various mail server parameters.</li>
+                        <li>SSL/TLS Certificate Integration: Provision for mounting your SSL certificates (obtained via the SSL Certificate Manager) to secure mail traffic.</li>
+                    </ul>
+                </li>
+                <li><strong>Configuration Tool:</strong> The <code class="code">run-mailserver-config-tool.sh</code> script (which calls <code class="code">mailserver_config_tool.py</code>) is intended to assist with generating the necessary configuration files for the mail server components, ensuring proper domain and user setup.</li>
+                <li><strong>DNS Configuration:</strong> Setting up a mail server requires careful external DNS configuration (MX, A, SPF, DKIM, DMARC records). While PiSelfhosting deploys the container, you will need to configure your domain's DNS settings manually.</li>
+            </ul>
+
+            <h3 class="text-xl font-semibold mt-6 mb-2">Configuration Details:</h3>
+            <p class="text-gray-700 leading-relaxed">
+                Configuring a robust mail server is one of the more complex self-hosting tasks. The PiSelfhosting setup aims to provide a solid foundation, but further manual configuration steps will be essential:
+            </p>
+            <ul class="list-disc list-inside space-y-2 mt-4 text-gray-700">
+                <li><strong>Main Configuration Files:</strong> These will be located within the mailserver's mounted configuration volume (e.g., <code class="code">/home/PiSelfhosting/docker/mailserver/config/</code>), containing settings for Exim, Dovecot, Postfix, etc., depending on the chosen Docker image.</li>
+                <li><strong>User Accounts:</strong> You'll typically manage email accounts via the mail server's internal commands or a web-based admin interface (if provided by the Docker image).</li>
+                <li><strong>SSL Certificates:</strong> It's critical to secure your mail server with valid SSL/TLS certificates. You can obtain these using the <a href="run-ssl-cert-manager.html">SSL Certificate Manager tool</a> and then ensure they are correctly mounted into the mail server container and configured within its settings.</li>
+                <li><strong>DNS Records:</strong> Proper DNS records (MX, A, SPF, DKIM, DMARC) are absolutely essential for email deliverability and to prevent your emails from being marked as spam. This must be configured with your domain registrar/DNS provider.</li>
+            </ul>
+        </section>
+
+        <section id="mailserver-troubleshooting" class="bg-white p-8 rounded-lg shadow-md mb-8">
+            <h2 class="text-2xl font-semibold mb-4">Troubleshooting</h2>
+            <p class="text-gray-700 leading-relaxed">
+                Mail server issues can be tricky. Here are common areas to check:
+            </p>
+            <ul class="list-disc list-inside space-y-2 mt-4 text-gray-700">
+                <li><strong>Check Mailserver logs:</strong> Use <code class="code">docker logs piselfhosting-mailserver</code> for detailed insights into email flow and errors.</li>
+                <li><strong>Verify Port Accessibility:</strong> Ensure all necessary email ports (25, 143, 587, 465, 993) are correctly forwarded from your router to your Raspberry Pi and are not blocked by a firewall.</li>
+                <li><strong>DNS Records:</strong> This is the most common source of mail delivery issues. Use online tools (e.g., <a href="https://mxtoolbox.com/" target="_blank">MXToolbox</a>) to verify your MX, A, SPF, DKIM, and DMARC records.</li>
+                <li><strong>SSL Certificates:</strong> Ensure your certificates are valid, correctly configured, and mounted into the container.</li>
+                <li><strong>Spam Filters/Blacklists:</strong> Check if your IP address or domain is on any blacklists.</li>
+                <li><strong>Official Docker Mailserver Documentation:</strong> If using a common Docker Mailserver image, refer to its extensive documentation for in-depth setup and troubleshooting guides.</li>
+            </ul>
+        </section>
+    </main>
+
+    <footer class="bg-gray-800 text-white p-6 text-center">
+        <div class="container">
+            <p>&copy; 2025 PiSelfhosting. All rights reserved.</p>
+        </div>
+    </footer>
+</body>
+</html>

@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PiSelfhosting - MariaDB Service Documentation</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; color: #334155; }
+        .container { max-width: 960px; margin: 0 auto; padding: 2rem; }
+        h1, h2, h3 { color: #1e293b; }
+        a { color: #3b82f6; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .code { background-color: #f3f4f6; padding: 0.25rem 0.5rem; border-radius: 0.25rem; font-family: monospace; }
+        .code-block { background-color: #e2e8f0; padding: 1rem; border-radius: 0.5rem; overflow-x: auto; font-family: monospace; }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <header class="bg-blue-600 text-white p-6 shadow-md">
+        <div class="container flex justify-between items-center">
+            <h1 class="text-3xl font-bold">PiSelfhosting - MariaDB Service</h1>
+            <nav>
+                <ul class="flex space-x-4">
+                    <li><a href="index.html" class="text-white hover:text-blue-200 transition-colors">Home</a></li>
+                    <li><a href="core-components.html" class="text-white hover:text-blue-200 transition-colors">Core Components</a></li>
+                    <li><a href="service-frigate.html" class="text-white hover:text-blue-200 transition-colors">Frigate</a></li>
+                    <li><a href="how-to-expand.html" class="text-white hover:text-blue-200 transition-colors">How to Expand</a></li>
+                    <li><a href="tools-and-utilities.html" class="text-white hover:text-blue-200 transition-colors">Tools & Utilities</a></li>
+                    </ul>
+            </nav>
+        </div>
+    </header>
+
+    <main class="container py-8">
+        <section id="mariadb-overview" class="bg-white p-8 rounded-lg shadow-md mb-8">
+            <h2 class="text-2xl font-semibold mb-4">MariaDB: The Reliable Database Server</h2>
+            <p class="text-gray-700 leading-relaxed">
+                MariaDB is a popular open-source relational database management system (RDBMS). It's a community-developed fork of MySQL, known for its performance, reliability, and robust feature set. Many web applications and services rely on a database like MariaDB to store and manage their data.
+            </p>
+            <p class="mt-4 text-gray-700 leading-relaxed">
+                In the PiSelfhosting project, MariaDB serves as the central database backend for various applications, including **Nextcloud** and **Nginx Proxy Manager**.
+            </p>
+        </section>
+
+        ---
+
+        <section id="mariadb-functionality" class="bg-white p-8 rounded-lg shadow-md mb-8">
+            <h2 class="text-2xl font-semibold mb-4">Detailed Functionality</h2>
+            <h3 class="text-xl font-semibold mt-6 mb-2">Key Features:</h3>
+            <ul class="list-disc list-inside space-y-2 mt-4 text-gray-700">
+                <li><strong>Relational Database:</strong> Stores structured data in tables with rows and columns, enabling efficient querying and data management.</li>
+                <li><strong>ACID Compliance:</strong> Ensures data integrity and reliability through Atomicity, Consistency, Isolation, and Durability.</li>
+                <li><strong>Scalability:</strong> Capable of handling a wide range of workloads, from small personal projects to large-scale applications.</li>
+                <li><strong>Security:</strong> Provides robust security features, including user authentication, access control, and encryption.</li>
+                <li><strong>Open Source:</strong> Being open-source, it benefits from community contributions and a transparent development model.</li>
+            </ul>
+
+            <h3 class="text-xl font-semibold mt-6 mb-2">PiSelfhosting Integration:</h3>
+            <p class="text-gray-700 leading-relaxed">
+                The PiSelfhosting project streamlines the deployment of MariaDB as a backend for your services:
+            </p>
+            <ul class="list-disc list-inside space-y-2 mt-4 text-gray-700">
+                 <li><strong>Docker Compose Template:</strong> The <code class="code">docker-compose.yml.template</code> file in <code class="code">/home/PiSelfhosting/scripts/templates/mariadb/</code> defines the MariaDB service. Key aspects include:
+                    <ul class="list-disc list-inside space-y-2 mt-2 text-gray-700">
+                        <li>Image: <code class="code">mariadb:latest</code> (or a specific version).</li>
+                        <li>Ports: While not directly exposed to the host by default, the database is accessible internally on port 3306 within the <code class="code">piselfhosting_net</code> Docker network.</li>
+                        <li>Volumes: A named volume (<code class="code">mariadb_data</code>) is used to ensure persistent storage of all your database files. This is critical to prevent data loss.</li>
+                        <li>Environment variables:  The root password for MariaDB is set using the <code class="code">MYSQL_ROOT_PASSWORD</code> variable, derived from your <code class="code">DB_PASS</code> in the <code class="code">.env</code> file.</li>
+                    </ul>
+                </li>
+                <li><strong>Dependency for Other Services:</strong> MariaDB is a prerequisite for services like **Nextcloud** and **Nginx Proxy Manager**. The <code class="code">depends_on</code> directive in their respective Docker Compose files ensures that MariaDB starts before them, establishing proper service order.</li>
+                <li><strong>User Management:</strong> The <code class="code">setup.sh</code> script collects a generic database username (<code class="code">DB_USER</code>) and password (<code class="code">DB_PASS</code>) which are then used by applications like Nextcloud and Nginx Proxy Manager to connect to MariaDB with specific user accounts.</li>
+            </ul>
+
+            <h3 class="text-xl font-semibold mt-6 mb-2">Configuration Details:</h3>
+            <p class="text-gray-700 leading-relaxed">
+                The primary configuration for MariaDB is handled via environment variables in its Docker Compose definition. For advanced tuning or specific MariaDB settings, you would typically:
+            </p>
+            <ul class="list-disc list-inside space-y-2 mt-4 text-gray-700">
+                <li><strong>Custom <code class="code">.cnf</code> files:</strong> Mount custom <code class="code">.cnf</code> configuration files into the container's <code class="code">/etc/mysql/conf.d/</code> directory.</li>
+                <li><strong>Environment Variables:</strong> Refer to the official MariaDB Docker image documentation for a full list of supported environment variables that can control various database behaviors.</li>
+            </ul>
+        </section>
+
+        <section id="mariadb-troubleshooting" class="bg-white p-8 rounded-lg shadow-md mb-8">
+            <h2 class="text-2xl font-semibold mb-4">Troubleshooting</h2>
+            <p class="text-gray-700 leading-relaxed">
+                If you encounter issues with MariaDB or services failing to connect to it:
+            </p>
+            <ul class="list-disc list-inside space-y-2 mt-4 text-gray-700">
+                <li><strong>Check MariaDB logs:</strong> Use <code class="code">docker logs piselfhosting-mariadb</code> to see if the database container started correctly and for any connection errors.</li>
+                <li><strong>Verify <code class="code">.env</code> credentials:</strong> Ensure that the <code class="code">DB_USER</code> and <code class="code">DB_PASS</code> variables in your <code class="code">/home/PiSelfhosting/.env</code> file match what applications are attempting to use.</li>
+                <li><strong>Container Network:</strong> Confirm that other services are on the same <code class="code">piselfhosting_net</code> Docker network and correctly reference <code class="code">mariadb</code> as the host.</li>
+                <li><strong>phpMyAdmin:</strong> If you've deployed phpMyAdmin, use it to verify user accounts, databases, and permissions directly.</li>
+                <li><strong>Official Documentation:</strong> Consult the <a href="https://hub.docker.com/_/mariadb" target="_blank">official MariaDB Docker Hub page</a> and MariaDB documentation for specific error messages.</li>
+            </ul>
+        </section>
+    </main>
+
+    <footer class="bg-gray-800 text-white p-6 text-center">
+        <div class="container">
+            <p>&copy; 2025 PiSelfhosting. All rights reserved.</p>
+        </div>
+    </footer>
+</body>
+</html>

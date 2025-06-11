@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PiSelfhosting - Core Components Documentation</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; color: #334155; }
+        .container { max-width: 960px; margin: 0 auto; padding: 2rem; }
+        h1, h2, h3 { color: #1e293b; }
+        a { color: #3b82f6; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .code { background-color: #f3f4f6; padding: 0.25rem 0.5rem; border-radius: 0.25rem; font-family: monospace; }
+        .code-block { background-color: #e2e8f0; padding: 1rem; border-radius: 0.5rem; overflow-x: auto; font-family: monospace; }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <header class="bg-blue-600 text-white p-6 shadow-md">
+        <div class="container flex justify-between items-center">
+            <h1 class="text-3xl font-bold">PiSelfhosting - Core Components</h1>
+            <nav>
+                <ul class="flex space-x-4">
+                    <li><a href="index.html" class="text-white hover:text-blue-200 transition-colors">Home</a></li>
+                    <li><a href="core-components.html" class="text-white hover:text-blue-200 transition-colors">Core Components</a></li>
+                    <li><a href="service-frigate.html" class="text-white hover:text-blue-200 transition-colors">Frigate</a></li>
+                    <li><a href="how-to-expand.html" class="text-white hover:text-blue-200 transition-colors">How to Expand</a></li>
+                    <li><a href="tools-and-utilities.html" class="text-white hover:text-blue-200 transition-colors">Tools & Utilities</a></li>
+                    </ul>
+            </nav>
+        </div>
+    </header>
+
+    <main class="container py-8">
+        <section id="core-overview" class="bg-white p-8 rounded-lg shadow-md mb-8">
+            <h2 class="text-2xl font-semibold mb-4">Understanding the Core of PiSelfhosting</h2>
+            <p class="text-gray-700 leading-relaxed">
+                The PiSelfhosting project is built on a set of core scripts and configuration files that automate the deployment and management of your self-hosted services. These components work together to provide a streamlined, command-line driven experience for setting up your Raspberry Pi as a versatile home server.
+            </p>
+            <p class="mt-4 text-gray-700 leading-relaxed">
+                By understanding these core elements, you'll gain insight into how your PiSelfhosting environment is structured and how to effectively manage it.
+            </p>
+        </section>
+
+        ---
+
+        <section id="setup-sh" class="bg-white p-8 rounded-lg shadow-md mb-8">
+            <h2 class="text-2xl font-semibold mb-4"><code>setup.sh</code>: The Initial Setup Wizard</h2>
+            <p class="text-gray-700 leading-relaxed">
+                The <code class="code">setup.sh</code> script is your starting point for building the PiSelfhosting environment. It's designed as an interactive wizard that guides you through the initial configuration steps.
+            </p>
+            <h3 class="text-xl font-semibold mt-4 mb-2">Detailed Functionality:</h3>
+            <ul class="list-disc list-inside space-y-2 text-gray-700">
+                <li><strong>Prerequisite Installation:</strong> It first checks for and installs necessary tools like <code class="code">whiptail</code>, which is used to create the interactive text-based user interface.</li>
+                <li><strong>Environment Variable Collection:</strong> The script prompts you for essential network and service-specific details, such as your main domain name, database credentials, Nextcloud admin details, Pi-hole password, Frigate RTSP credentials, and MQTT user/passwords.</li>
+                <li><strong><code class="code">.env</code> File Generation:</strong> All collected environment variables are securely stored in the <code class="code">.env</code> file located in your base project directory (<code class="code">/home/PiSelfhosting/.env</code>). This file is crucial as Docker Compose services will automatically load these variables.</li>
+                <li><strong>Docker & Docker Compose Installation (on Host):</strong> This script plays a vital role in setting up the foundational Docker environment on your **Raspberry Pi's operating system (host)**. It ensures that the Docker engine (Docker CE) and the Docker Compose V2 plugin are installed and configured. This is a one-time setup on the host itself, independent of the individual Docker containers that will run your services.</li>
+                <li><strong>Component Selection:</strong> Using a <code class="code">whiptail</code> checklist, the script allows you to select which PiSelfhosting services you want to deploy from the list defined in <code class="code">components_list.txt</code>. Your choices are saved to <code class="code">selected_components.txt</code>.</li>
+            </ul>
+            <p class="mt-4 text-gray-700 leading-relaxed">
+                To run the setup script: <code class="code">bash /home/PiSelfhosting/scripts/setup.sh</code>
+            </p>
+        </section>
+
+        ---
+
+        <section id="deploy-sh" class="bg-white p-8 rounded-lg shadow-md mb-8">
+            <h2 class="text-2xl font-semibold mb-4"><code>deploy.sh</code>: Orchestrating Your Services</h2>
+            <p class="text-gray-700 leading-relaxed">
+                After <code class="code">setup.sh</code> has configured your environment and selected components, the <code class="code">deploy.sh</code> script takes over to bring your self-hosted services to life using Docker.
+            </p>
+            <h3 class="text-xl font-semibold mt-4 mb-2">Detailed Functionality:</h3>
+            <ul class="list-disc list-inside space-y-2 text-gray-700">
+                <li><strong>Environment Loading:</strong> It loads all previously configured environment variables from your <code class="code">.env</code> file, making them available for container configuration.</li>
+                <li><strong>Pre-Deployment Cleanup:</strong> The script performs a thorough cleanup, stopping and removing any existing PiSelfhosting Docker containers, volumes, and networks. This ensures a clean and consistent deployment every time.</li>
+                <li><strong>Unified Docker Compose File Generation:</strong> This is a key innovation. Instead of managing individual Docker Compose files for each service, <code class="code">deploy.sh</code> dynamically generates a **single, unified <code class="code">docker-compose.yml</code> file** in your base directory (<code class="code">/home/PiSelfhosting/docker-compose.yml</code>). This file includes definitions for *all selected* services.</li>
+                <li><strong>Configuration from Templates:</strong> It processes Docker Compose templates and service-specific configuration templates (e.g., for Frigate or Mosquitto) by filling in placeholders with your environment variables.</li>
+                <li><strong>Component-Specific Actions:</strong> The script handles any special requirements for individual services, such as creating specific directories or setting permissions.</li>
+                <li><strong>Helper Script Generation:</strong> <code class="code">deploy.sh</code> generates several essential helper scripts (<code class="code">start-all.sh</code>, <code class="code">stop-all.sh</code>, <code class="code">restart-all.sh</code>, <code class="code">remove-component.sh</code>, <code class="code">get_docker_compose_cmd.sh</code>) to simplify future management of your services.</li>
+            </ul>
+            <p class="mt-4 text-gray-700 leading-relaxed">
+                To deploy your services: <code class="code">bash /home/PiSelfhosting/scripts/deploy.sh</code>
+            </p>
+        </section>
+
+        ---
+
+        <section id="components-list-txt" class="bg-white p-8 rounded-lg shadow-md mb-8">
+            <h2 class="text-2xl font-semibold mb-4"><code>components_list.txt</code>: Defining Your Services</h2>
+            <p class="text-gray-700 leading-relaxed">
+                The <code class="code">components_list.txt</code> file acts as a manifest for all available PiSelfhosting services. It's read by the <code class="code">setup.sh</code> script to present component choices to the user.
+            </p>
+            <h3 class="text-xl font-semibold mt-4 mb-2">Detailed Functionality:</h3>
+            <ul class="list-disc list-inside space-y-2 text-gray-700">
+                <li><strong>Component Order:</strong> The <code class="code">COMPONENTS_ORDER</code> line at the top specifies the exact sequence in which services appear in the interactive selection menu.</li>
+                <li><strong>Service Definitions:</strong> Each service is defined in its own bracketed section (e.g., <code class="code">[frigate]</code>).
+                    <ul class="list-disc list-inside space-y-1 mt-1 text-gray-700">
+                        <li><code class="code">description</code>: A human-readable title for the service displayed in the setup wizard.</li>
+                        <li><code class="code">default_selected</code>: Specifies whether the service is 'ON' or 'OFF' by default in the selection menu.</li>
+                        <li>Additional attributes (e.g., <code class="code">dashy_tile_section</code>, <code class="code">dashy_tile_icon</code>, <code class="code">dashy_tile_url_suffix</code>, <code class="code">dashy_tile_status_check</code>, <code class="code">config_paths</code>) are used by other scripts (like <code class="code">dashy_tile_config_tool.py</code> and <code class="code">deploy.sh</code>) to further configure the service or its integration with Dashy.</li>
+                    </ul>
+                </li>
+            </ul>
+            <p class="mt-4 text-gray-700 leading-relaxed">
+                Example entry from <code class="code">components_list.txt</code>:
+            </p>
+            <div class="code-block">
+<pre>
+[frigate]
+description=Frigate (AI-powered NVR)
+default_selected=OFF
+dashy_tile_section=Smart Home
+dashy_tile_icon=fa-solid fa-video
+dashy_tile_url_suffix=:5000
+dashy_tile_status_check=True
+</pre>
+            </div>
+        </section>
+
+        ---
+
+        <section id="config-tool-base-dockerfile" class="bg-white p-8 rounded-lg shadow-md mb-8">
+            <h2 class="text-2xl font-semibold mb-4"><code>config_tool_base_dockerfile</code>: The Toolkit's Foundation</h2>
+            <p class="text-gray-700 leading-relaxed">
+                This Dockerfile is central to all Python-based configuration tools within PiSelfhosting (like those for Dashy, Frigate, Mailserver, and SSL). It defines a lightweight, self-contained environment for these tools to run reliably.
+            </p>
+            <h3 class="text-xl font-semibold mt-4 mb-2">Detailed Functionality:</h3>
+            <ul class="list-disc list-inside space-y-2 text-gray-700">
+                <li><strong>Base Image:</strong> Uses a lean Python 3.9 image (<code class="code">python:3.9-slim-buster</code>) to provide the necessary Python runtime.</li>
+                <li><strong>System Dependencies:</strong> Installs crucial operating system packages such as <code class="code">ffmpeg</code> (which includes <code class="code">ffprobe</code> for RTSP stream testing in the Frigate tool), <code class="code">libxml2-dev</code>, <code class="code">libxslt1-dev</code> (for <code class="code">lxml</code>), and <code class="code">build-essential</code> for compilation.</li>
+                <li><strong>Python Libraries:</strong> Installs essential Python libraries via <code class="code">pip</code>, including <code class="code">pyyaml</code> (for configuration file parsing), <code class="code">onvif-zeep</code> (for ONVIF camera discovery), and <code class="code">lxml</code>.</li>
+                <li><strong>Isolated Environment:</strong> By encapsulating the tools and their dependencies, this Dockerfile ensures that the configuration scripts run consistently regardless of your host system's specific setup, preventing dependency conflicts.</li>
+            </ul>
+            <p class="mt-4 text-gray-700 leading-relaxed">
+                This Docker image is built by the wrapper scripts (e.g., <code class="code">run-frigate-camera-config-tool.sh</code>) before executing their respective Python tools.
+            </p>
+        </section>
+
+        ---
+
+        <section id="helper-scripts" class="bg-white p-8 rounded-lg shadow-md mb-8">
+            <h2 class="text-2xl font-semibold mb-4">Helper Scripts: Daily Management Tools</h2>
+            <p class="text-gray-700 leading-relaxed">
+                The <code class="code">deploy.sh</code> script automatically generates several helper scripts to simplify the daily management of your PiSelfhosting services. These are located in the <code class="code">/home/PiSelfhosting/scripts/</code> directory.
+            </p>
+            <h3 class="text-xl font-semibold mt-4 mb-2">Detailed Functionality:</h3>
+            <ul class="list-disc list-inside space-y-2 text-gray-700">
+                <li><strong><code class="code">start-all.sh</code>:</strong>
+                    <ul>
+                        <li>Starts all selected PiSelfhosting services.</li>
+                        <li>Ensures the <code class="code">piselfhosting_net</code> Docker network exists.</li>
+                        <li>Performs a clean shutdown and removal of old containers before starting new ones, ensuring fresh deployments.</li>
+                        <li>Automatically pulls the latest Docker images for your selected services (if <code class="code">--build</code> is used in <code class="code">deploy.sh</code>, which it is).</li>
+                        <li>Usage: <code class="code">bash /home/PiSelfhosting/scripts/start-all.sh</code></li>
+                    </ul>
+                </li>
+                <li><strong><code class="code">stop-all.sh</code>:</strong>
+                    <ul>
+                        <li>Gracefully stops all running PiSelfhosting Docker containers.</li>
+                        <li>Usage: <code class="code">bash /home/PiSelfhosting/scripts/stop-all.sh</code></li>
+                    </ul>
+                </li>
+                <li><strong><code class="code">restart-all.sh</code>:</strong>
+                    <ul>
+                        <li>A convenience script that calls <code class="code">stop-all.sh</code> followed by <code class="code">start-all.sh</code>.</li>
+                        <li>Useful for applying configuration changes or updating services.</li>
+                        <li>Can restart specific services: <code class="code">bash /home/PiSelfhosting/scripts/restart-all.sh frigate</code></li>
+                        <li>Usage: <code class="code">bash /home/PiSelfhosting/scripts/restart-all.sh</code></li>
+                    </ul>
+                </li>
+                <li><strong><code class="code">remove-component.sh</code>:</strong>
+                    <ul>
+                        <li>An interactive script that allows you to selectively remove specific PiSelfhosting services from your deployment.</li>
+                        <li>It will stop and remove the container, its associated volumes, and update the <code class="code">selected_components.txt</code> file.</li>
+                        <li>Usage: <code class="code">bash /home/PiSelfhosting/scripts/remove-component.sh</code></li>
+                    </ul>
+                </li>
+                <li><strong><code class="code">get_docker_compose_cmd.sh</code>:</strong>
+                    <ul>
+                        <li>A small internal helper script used by other management scripts.</li>
+                        <li>It determines the correct Docker Compose command to use on your system (<code class="code">docker compose</code> for V2 plugin or <code class="code">docker-compose</code> for V1 standalone).</li>
+                        <li>You won't typically run this directly.</li>
+                    </ul>
+                </li>
+            </ul>
+        </section>
+    </main>
+
+    <footer class="bg-gray-800 text-white p-6 text-center">
+        <div class="container">
+            <p>&copy; 2025 PiSelfhosting. All rights reserved.</p>
+        </div>
+    </footer>
+</body>
+</html>

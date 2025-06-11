@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PiSelfhosting - Docker Monitor Service Documentation</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; color: #334155; }
+        .container { max-width: 960px; margin: 0 auto; padding: 2rem; }
+        h1, h2, h3 { color: #1e293b; }
+        a { color: #3b82f6; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .code { background-color: #f3f4f6; padding: 0.25rem 0.5rem; border-radius: 0.25rem; font-family: monospace; }
+        .code-block { background-color: #e2e8f0; padding: 1rem; border-radius: 0.5rem; overflow-x: auto; font-family: monospace; }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <header class="bg-blue-600 text-white p-6 shadow-md">
+        <div class="container flex justify-between items-center">
+            <h1 class="text-3xl font-bold">PiSelfhosting - Docker Monitor Service</h1>
+            <nav>
+                <ul class="flex space-x-4">
+                    <li><a href="index.html" class="text-white hover:text-blue-200 transition-colors">Home</a></li>
+                    <li><a href="core-components.html" class="text-white hover:text-blue-200 transition-colors">Core Components</a></li>
+                    <li><a href="service-frigate.html" class="text-white hover:text-blue-200 transition-colors">Frigate</a></li>
+                    <li><a href="how-to-expand.html" class="text-white hover:text-blue-200 transition-colors">How to Expand</a></li>
+                    <li><a href="tools-and-utilities.html" class="text-white hover:text-blue-200 transition-colors">Tools & Utilities</a></li>
+                    </ul>
+            </nav>
+        </div>
+    </header>
+
+    <main class="container py-8">
+        <section id="docker-monitor-overview" class="bg-white p-8 rounded-lg shadow-md mb-8">
+            <h2 class="text-2xl font-semibold mb-4">Docker Monitor: Simple Docker Stats Page</h2>
+            <p class="text-gray-700 leading-relaxed">
+                The Docker Monitor service provides a very lightweight and quick way to view the status of your Docker containers via a web browser. Instead of logging into your Raspberry Pi and running <code>docker ps</code>, you get a simple, auto-refreshing HTML page displaying key information about your running services.
+            </p>
+            <p class="mt-4 text-gray-700 leading-relaxed">
+                This service is designed for a quick overview and acts as a basic health check for your PiSelfhosting environment without requiring complex monitoring tools.
+            </p>
+        </section>
+
+        ---
+
+        <section id="docker-monitor-functionality" class="bg-white p-8 rounded-lg shadow-md mb-8">
+            <h2 class="text-2xl font-semibold mb-4">Detailed Functionality</h2>
+            <h3 class="text-xl font-semibold mt-6 mb-2">Key Features:</h3>
+            <ul class="list-disc list-inside space-y-2 mt-4 text-gray-700">
+                <li><strong>Web-based Display:</strong> View container status from any device on your network via a web browser.</li>
+                <li><strong>Auto-Refresh:</strong> The page automatically updates every 60 seconds, providing near real-time data.</li>
+                <li><strong>Key Metrics:</strong> Displays container ID, Name, Image, Command, Creation Time, Status, and Ports.</li>
+                <li><strong>Lightweight:</strong> Uses a static HTML file and a simple Nginx server, consuming minimal resources.</li>
+                <li><strong>Responsive Design:</strong> The HTML styling adjusts for various screen sizes, including mobile devices.</li>
+            </ul>
+
+            <h3 class="text-xl font-semibold mt-6 mb-2">PiSelfhosting Integration:</h3>
+            <p class="text-gray-700 leading-relaxed">
+                The Docker Monitor service is integrated into PiSelfhosting as follows:
+            </p>
+            <ul class="list-disc list-inside space-y-2 mt-4 text-gray-700">
+                 <li><strong>Docker Compose Definition:</strong> The <code>deploy.sh</code> script dynamically adds the Docker Monitor's service definition into the main, unified <code>docker-compose.yml</code> file when 'docker-monitor' is selected as a component. This typically involves:
+                    <ul class="list-disc list-inside space-y-2 mt-2 text-gray-700">
+                        <li>Using a lightweight Nginx image like <code>nginx:alpine</code>.</li>
+                        <li>Mapping to a specific port on your host (e.g., 8088), allowing you to access the web page.</li>
+                        <li>Mounting a local <code>html</code> directory (where the generated HTML file resides) to Nginx's web root within the container.</li>
+                    </ul>
+                </li>
+                <li><strong>Update Script:</strong> The <code>update-docker-stats.sh</code> script is responsible for generating the <code>index.html</code> file with the latest Docker stats.
+                    <ul class="list-disc list-inside space-y-2 mt-2 text-gray-700">
+                        <li>This script runs <code>docker ps --format ...</code> to gather container data.</li>
+                        <li>It then embeds this data into an HTML structure.</li>
+                        <li>For continuous updates, you are instructed to set up a <a href="https://en.wikipedia.org/wiki/Cron" target="_blank">Cron job</a> to execute <code>update-docker-stats.sh</code> periodically (e.g., every 5 minutes).</li>
+                    </ul>
+                </li>
+            </ul>
+
+            <h3 class="text-xl font-semibold mt-6 mb-2">Access & Usage:</h3>
+            <p class="text-gray-700 leading-relaxed">
+                Once deployed and the update script is running via cron, you can access your Docker stats page:
+            </p>
+            <ul class="list-disc list-inside space-y-2 mt-4 text-gray-700">
+                <li><strong>Access URL:</strong> Navigate to <code>http://[your-pi-ip]:8088</code> (or the port you configured) in your web browser.</li>
+                <li><strong>Updates:</strong> The page will automatically refresh to show the latest statistics.</li>
+            </ul>
+        </section>
+
+        <section id="docker-monitor-troubleshooting" class="bg-white p-8 rounded-lg shadow-md mb-8">
+            <h2 class="text-2xl font-semibold mb-4">Troubleshooting</h2>
+            <p class="text-gray-700 leading-relaxed">
+                If your Docker Monitor page isn't working or updating:
+            </p>
+            <ul class="list-disc list-inside space-y-2 mt-4 text-gray-700">
+                <li><strong>Check Docker Monitor logs:</strong> Use <code>docker logs piselfhosting-docker-monitor</code> to see if the Nginx web server is running correctly.</li>
+                <li><strong>Verify <code>update-docker-stats.sh</code> execution:</strong> Ensure the script is actually running. You can try running it manually: <code>bash /home/PiSelfhosting/scripts/update-docker-stats.sh</code> and check for errors.</li>
+                <li><strong>Cron Job:</strong> Confirm your cron job is correctly set up using <code>crontab -l</code> and that it has executable permissions.</li>
+                <li><strong>File Permissions:</strong> Ensure the <code>/home/PiSelfhosting/docker/docker-monitor/html</code> directory and the <code>index.html</code> file have correct read/write permissions for the user running the cron job and the Nginx container.</li>
+                <li><strong>Port Conflicts:</strong> Ensure the port for Docker Monitor (e.g., 8088) is not in use by another application.</li>
+            </ul>
+        </section>
+    </main>
+
+    <footer class="bg-gray-800 text-white p-6 text-center">
+        <div class="container">
+            <p>&copy; 2025 PiSelfhosting. All rights reserved.</p>
+        </div>
+    </footer>
+</body>
+</html>

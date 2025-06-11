@@ -1,6 +1,6 @@
 # Define the order in which components should appear in the setup script's checklist.
 # This helps maintain a logical flow during setup.
-COMPONENTS_ORDER=mariadb,mosquitto,nextcloud,mailserver,homeassistant,frigate,pihole,portainer,phpmyadmin,nginxproxymanager,dashy,docker,piselfhosting-docs
+COMPONENTS_ORDER=mariadb,mosquitto,nextcloud,mailserver,homeassistant,frigate,pihole,portainer,phpmyadmin,nginxproxymanager,dashy,docker-monitor,piselfhosting-docs
 
 # Component Definitions
 # Each component should have a [name], description, and default_selected.
@@ -50,11 +50,15 @@ default_selected=ON
 description=Dashy (Personal Dashboard)
 default_selected=ON
 
-[docker]
+[docker-monitor]
 description=Docker Monitor (Simple Docker Stats Page)
 default_selected=ON
+dashy_tile_section=General Services
+dashy_tile_icon=fas fa-chart-line
+dashy_tile_url_suffix=:8088
+dashy_tile_status_check=True
 
 [piselfhosting-docs]
 description=PiSelfhosting Documentation Website
 default_selected=ON
-
+config_paths=html/index.html,html/core-components.html,html/service-dashy.html,html/service-frigate.html,html/service-homeassistant.html,html/service-mariadb.html,html/service-mailserver.html,html/service-mosquitto.html,html/service-nginxproxymanager.html,html/service-nextcloud.html,html/service-phpmyadmin.html,html/service-pihole.html,html/service-piselfhosting-docs.html,html/service-portainer.html,html/tools-and-utilities.html,html/how-to-expand.html

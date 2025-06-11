@@ -167,8 +167,9 @@ fi
 
 current_component_name_setup_script=""
 while IFS='=' read -r key value || [ -n "$key" ]; do
-    key=$(echo "$key" | xargs)
-    value=$(echo "$value" | xargs)
+    # Use sed for robust whitespace trimming
+    key=$(echo "$key" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+    value=$(echo "$value" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
 
     if [[ "$key" =~ ^\[(.+)\]$ ]]; then # New component section
         current_component_name_setup_script="${BASH_REMATCH[1]}"
@@ -178,23 +179,81 @@ while IFS='=' read -r key value || [ -n "$key" ]; do
 done < "$COMPONENTS_LIST_FILE"
 
 
+# --- Docker and Docker Compose Check/Installation ---
+ensure_docker_and_compose() {
+    echo "--- Ensuring Docker CE and Docker Compose V2 are installed ---"
+    if ! command -v docker &> /dev/null; then
+        echo "Info: 'docker' not found. Installing Docker CE..."
+        sudo apt-get update
+        sudo apt-get install -y ca-certificates curl gnupg
+        sudo install -m 0755 -d /etc/apt/keyrings
+        curl -fsSL https://download.docker.com/linux/raspbian/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+        sudo chmod a+r /etc/apt/keyrings/docker.gpg
+        echo \
+            "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/raspbian \
+            $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+            sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+        sudo apt-get update
+        sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+        echo "✅ Docker CE installed."
+    else
+        echo "Info: 'docker' is already installed."
+    fi
+
+    if ! docker compose version &>/dev/null; then
+        echo "Info: Docker Compose V2 plugin not found. Installing..."
+        sudo apt-get install -y docker-compose-plugin
+        echo "✅ Docker Compose V2 plugin installed."
+    else
+        echo "Info: Docker Compose V2 plugin is already installed."
+    fi
+
+    if ! id -nG "$(whoami)" | grep -qw "docker"; then
+        echo "Adding current user '$(whoami)' to the 'docker' group..."
+        sudo usermod -aG docker "$(whoami)"
+        echo "Please log out and log back in (or reboot) for the changes to take effect."
+    fi
+    echo "--- Docker CE and Docker Compose V2 check/install complete ---"
+}
+ensure_docker_and_compose # Call the function to ensure Docker is installed here
+
 # --- Component selection via whiptail checklist ---
 echo "--- Select components to install ---"
 declare -a menu_options=()
 
-# Always add 'docker' as an option and mark it as ON
-menu_options+=("docker" "Docker CE and Docker Compose V2 (essential)" ON)
+# Read previously selected components for default checking
+declare -A PREVIOUSLY_SELECTED_COMPONENTS
+if [ -f "$COMPONENTS_FILE" ]; then
+    # Read components, remove quotes, and split into array
+    read -r -a PREV_CHOICES <<< "$(cat "$COMPONENTS_FILE" | tr -d '"')"
+    for comp in "${PREV_CHOICES[@]}"; do
+        PREVIOUSLY_SELECTED_COMPONENTS["$comp"]="true"
+    done
+    echo "Info: Loaded previously selected components from $COMPONENTS_FILE."
+else
+    echo "Info: No previous component selections found. All components will be OFF by default."
+fi
 
-# Add other components based on components_list.txt
+# Add components based on components_list.txt and set default state
 for comp_name in "${ALL_COMPONENT_NAMES_ORDERED_SETUP_SCRIPT[@]}"; do
-    if [ "$comp_name" != "docker" ]; then # Skip 'docker', it's already added
-        local display_name="${COMPONENT_DATA_SETUP_SCRIPT["${comp_name}_display_name"]}"
-        local description="${COMPONENT_DATA_SETUP_SCRIPT["${comp_name}_description"]}"
-        if [ -n "$display_name" ] && [ -n "$description" ]; then
-            menu_options+=("$comp_name" "$display_name - $description" OFF) # Default to OFF
-        fi
+    description="${COMPONENT_DATA_SETUP_SCRIPT["${comp_name}_description"]}" # Use description
+    default_state="OFF"
+
+    # Check if this component was previously selected
+    if [ "${PREVIOUSLY_SELECTED_COMPONENTS["$comp_name"]}" = "true" ]; then
+        default_state="ON"
+    fi
+
+    if [ -n "$description" ]; then # Check only for description
+        menu_options+=("$comp_name" "$description" "$default_state") # Use description as the item text
     fi
 done
+
+# Check if there are any options to display
+if [ ${#menu_options[@]} -eq 0 ]; then
+    echo "❌ No components defined in components_list.txt or all are filtered out. Setup aborted."
+    exit 1
+fi
 
 # Let the user choose components
 CHOICES=$(whiptail --title "PiSelfhosting Component Selection" --checklist \
@@ -207,12 +266,26 @@ if [ $? -ne 0 ]; then
 fi
 
 # Save the selected components to a file
-echo "$CHOICES" > "$COMPONENTS_FILE"
+# --- FIX: Removed the line that incorrectly filtered out "docker" (Docker Monitor) ---
+# CHOICES_CLEANED=$(echo "$CHOICES" | sed 's/"docker"//g' | tr -d '"')
+CHOICES_CLEANED=$(echo "$CHOICES" | tr -d '"') # This line now correctly keeps "docker" if selected.
+
+# Split the cleaned string into an array, then re-join with spaces for saving
+# This ensures that if the user selected Docker (which is automatically installed anyway), it doesn't appear
+# in the selected_components.txt, as it's not a 'service' component.
+declare -a FINAL_SELECTED_COMPONENTS_ARRAY=()
+if [ -n "$CHOICES_CLEANED" ]; then
+    IFS=' ' read -r -a FINAL_SELECTED_COMPONENTS_ARRAY <<< "$CHOICES_CLEANED"
+fi
+
+# Re-add quotes around each item and join them with spaces before saving to file
+# This is crucial for read-r -a in deploy.sh to correctly parse individual items
+printf '"%s" ' "${FINAL_SELECTED_COMPONENTS_ARRAY[@]}" > "$COMPONENTS_FILE"
 echo "✅ Selected components saved to $COMPONENTS_FILE."
 
-echo -e "\n--- Setup complete ---"
+
+echo -e "\n--- PiSelfhosting Setup Complete ---"
 echo "You have configured your essential variables and selected your components."
 echo "The next step is to run the deployment script:"
-echo "  bash $SCRIPTS_DIR/deploy.sh"
+echo "    bash $SCRIPTS_DIR/deploy.sh"
 echo "This will set up the Docker environment and deploy the selected services."
-

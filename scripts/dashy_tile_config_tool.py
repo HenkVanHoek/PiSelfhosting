@@ -28,7 +28,7 @@ def parse_components_list():
             line = line.strip()
             if not line or line.startswith('#'):
                 continue
-            
+
             if line.startswith('[') and line.endswith(']'):
                 current_component_name = line[1:-1]
                 component_data[current_component_name] = {}
@@ -65,21 +65,16 @@ def update_dashy_config():
 
     all_components_data = parse_components_list()
     selected_components = get_selected_components()
-    
-    # Add docker-monitor to selected_components if 'docker' is selected, as it's a dependency
-    # The 'docker' component now specifically refers to Docker Monitor in components_list.txt.
-    # So this block needs to reflect that, or 'docker-monitor' should be a separate selectable.
-    # Given the current components_list.txt, 'docker' means 'docker-monitor'.
-    if 'docker' in selected_components and 'docker-monitor' not in selected_components:
-        selected_components.add('docker-monitor')
 
+    # The 'docker' component is now 'docker-monitor' in components_list.txt.
+    # So no special handling needed here for component name mapping.
 
     try:
         with open(DASHY_CONFIG_PATH, 'r') as f:
             dashy_data = yaml.safe_load(f)
             if dashy_data is None:
                 dashy_data = {}
-        
+
         print(f"Existing Dashy config loaded from {DASHY_CONFIG_PATH}")
 
         # Ensure pageInfo is correctly set in English
@@ -107,7 +102,7 @@ def update_dashy_config():
 
         # Define desired order of sections
         section_order = ['General Services', 'Smart Home', 'Network Services', 'Storage & Network']
-        
+
         sections_dict = {
             'General Services': {'name': 'General Services', 'icon': 'fa-solid fa-server', 'items': []},
             'Smart Home': {'name': 'Smart Home', 'icon': 'fa-solid fa-house', 'items': []},
@@ -117,49 +112,14 @@ def update_dashy_config():
 
         for comp_name in selected_components:
             comp_info = all_components_data.get(comp_name, {})
-            
-            # The 'docker' component in components_list.txt actually maps to 'docker-monitor' service.
-            # We need to map the comp_name 'docker' to 'docker-monitor' for URL/icon/description.
-            # Or ideally, components_list.txt should explicitly list 'docker-monitor' if that's the service name.
-            # For now, let's just make sure the correct tile is added.
-            if comp_name == 'docker': # The 'docker' component from components_list.txt is for Docker Monitor
-                comp_name_for_tile = 'docker-monitor'
-                comp_info = all_components_data.get(comp_name_for_tile, {}) # Get info for docker-monitor
-                
-                # Manual override for docker-monitor, as its name in components_list.txt is just "docker"
-                # This ensures the correct display name and URL suffix are used.
-                if not comp_info: # If docker-monitor is not explicitly defined, use a fallback
-                    comp_info = {
-                        'description': 'Docker Monitor (Simple Docker Stats Page)',
-                        'dashy_tile_section': 'General Services',
-                        'dashy_tile_icon': 'fas fa-chart-line',
-                        'dashy_tile_url_suffix': ':8088',
-                        'dashy_tile_status_check': 'True'
-                    }
-                
-                section_name = comp_info.get('dashy_tile_section', 'General Services')
-                if section_name not in sections_dict:
-                    sections_dict[section_name] = {'name': section_name, 'icon': 'fas fa-box', 'items': []}
-                    if section_name not in section_order:
-                        section_order.append(section_name)
 
-                tile_url = f"http://{domain}{comp_info['dashy_tile_url_suffix']}"
-                status_check = comp_info.get('dashy_tile_status_check', 'True').lower() == 'true'
-
-                sections_dict[section_name]['items'].append({
-                    'title': 'Docker Monitor', # Explicitly set title
-                    'description': 'Real-time Docker Statistics',
-                    'icon': comp_info.get('dashy_tile_icon', 'fas fa-chart-line'),
-                    'url': tile_url,
-                    'statusCheck': status_check
-                })
-                print(f"Info: Adding tile for 'Docker Monitor' (from 'docker' component) to '{section_name}' section.")
-                continue # Skip the general processing below for 'docker'
-
+            # --- Removed the specific 'if comp_name == 'docker':' block ---
+            # --- The component name in components_list.txt is now 'docker-monitor',
+            # --- so it will be processed like any other component using its config_paths.
 
             if comp_info.get('dashy_tile_section') and comp_info.get('dashy_tile_url_suffix'):
                 section_name = comp_info['dashy_tile_section']
-                
+
                 if section_name not in sections_dict:
                     print(f"Warning: Component '{comp_name}' defines unknown Dashy section '{section_name}'. Adding it as a new section.")
                     sections_dict[section_name] = {'name': section_name, 'icon': 'fas fa-box', 'items': []}
@@ -167,7 +127,7 @@ def update_dashy_config():
                         section_order.append(section_name)
 
                 tile_url = f"http://{domain}{comp_info['dashy_tile_url_suffix']}"
-                
+
                 status_check = comp_info.get('dashy_tile_status_check', 'True').lower() == 'true'
 
                 sections_dict[section_name]['items'].append({
@@ -187,12 +147,12 @@ def update_dashy_config():
                 section['items'].sort(key=lambda x: x['title'])
                 if section['items']: # Only add section if it has items
                     final_sections.append(section)
-        
+
         dashy_data['sections'] = final_sections
 
 
         with open(DASHY_CONFIG_PATH, 'w') as f:
-            yaml.dump(dashy_data, f, indent=2, sort_keys=False) 
+            yaml.dump(dashy_data, f, indent=2, sort_keys=False)
         print(f"✅ Dashy conf.yml successfully updated at: {DASHY_CONFIG_PATH}")
 
     except yaml.YAMLError as e:
@@ -209,4 +169,3 @@ if __name__ == "__main__":
     print("Please restart Dashy to apply changes:")
     print(f"  bash {os.path.join(host_base_dir, 'scripts', 'restart-all.sh')} dashy")
     print("  (This script can be run at any time to synchronize Dashy tiles).")
-
