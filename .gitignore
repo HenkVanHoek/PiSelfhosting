@@ -13,4 +13,5 @@ docker/**/initdb.d/*
 scripts/update-docker-stats.sh
 docker/mosquitto/data/
 docker/mosquitto/log/
-/homePiSelfhosting/docker-compose.yml
+docker/docker-compose.yml
+docker/piselfhosting-docs/html/*.html
