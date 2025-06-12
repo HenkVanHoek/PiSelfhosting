@@ -6,28 +6,36 @@
 set -e
 
 BASE_DIR="/home/PiSelfhosting"
-ENV_FILE="$BASE_DIR/.env" # FIX: Correct variable expansion in generated script
+echo "DEBUG: \$BASEDIR:" $BASE_DIR
+ENV_FILE="\$BASE_DIR/.env"
+echo "DEBUG: \$ENV_FILE: " $ENV_FILE
+
+ENV_FILE=$BASE_DIR"/.env"
+
+echo "DEBUG: \$ENV_FILE: " $ENV_FILE
+
 NETWORK_NAME="piselfhosting_net" # Use the NETWORK_NAME variable from deploy.sh
 
 # --- Load environment variables ---
-echo "Info: Loading environment variables from $ENV_FILE and exporting them..."
-if [ -f "$ENV_FILE" ]; then # FIX: Correct variable expansion in generated script
+echo "Info: Loading environment variables from \$ENV_FILE and exporting them..."
+if [ -f "$ENV_FILE" ]; then
     set -a # Automatically export all subsequent assignments
-    source "$ENV_FILE" # FIX: Correct variable expansion in generated script
+    source "$ENV_FILE"
     set +a # Disable auto-export
     echo "✅ Environment variables loaded."
 else
-    echo "❌ Error: .env file not found at $ENV_FILE. Please run setup.sh first."
+    echo "❌ Error: .env file not found at \$ENV_FILE. Please run setup.sh first."
     exit 1
 fi
+echo "DEBUG: After loading environment variables."
 
 # --- Create Docker network if it doesn't exist ---
-if ! docker network inspect "$NETWORK_NAME" &>/dev/null; then
-    echo "Info: Docker network '$NETWORK_NAME' not found. Creating..."
-    docker network create "$NETWORK_NAME"
-    echo "✅ Docker network '$NETWORK_NAME' created."
+if ! docker network inspect "\$NETWORK_NAME" &>/dev/null; then
+    echo "Info: Docker network '\$NETWORK_NAME' not found. Creating..."
+    docker network create "\$NETWORK_NAME"
+    echo "✅ Docker network '\$NETWORK_NAME' created."
 else
-    echo "Info: Docker network '$NETWORK_NAME' already exists."
+    echo "Info: Docker network '\$NETWORK_NAME' already exists."
 fi
 
 echo "🚀 Starting PiSelfhosting containers in dependency order..."
@@ -50,50 +58,52 @@ export COMPOSE_PROJECT_NAME="piselfhosting"
 
 # Use the Docker Compose command determined by get_docker_compose_cmd.sh
 # The helper script is called dynamically inside start-all.sh itself.
-DOCKER_COMPOSE_COMMAND_PATH="$BASE_DIR/scripts/get_docker_compose_cmd.sh" # FIX: Correct variable expansion
-DOCKER_COMPOSE_EXEC_CMD="$("$DOCKER_COMPOSE_COMMAND_PATH")" # FIX: Correct command substitution and variable expansion
+DOCKER_COMPOSE_COMMAND_PATH="\$BASE_DIR/scripts/get_docker_compose_cmd.sh"
+echo "DEBUG: DOCKER_COMPOSE_COMMNAND_PATH: DOCKER_COMPOSE_COMMAND_PATH
+DOCKER_COMPOSE_EXEC_CMD=$("\$DOCKER_COMPOSE_COMMAND_PATH")
 
 # Use docker compose down to stop and remove services managed by this project
 # --remove-orphans ensures any containers that are no longer defined in the compose file
 # but were part of the project are also removed.
-MAIN_COMPOSE_FILE="$BASE_DIR/docker-compose.yml" # FIX: Correct variable expansion
-if [ -f "$MAIN_COMPOSE_FILE" ]; then
+MAIN_COMPOSE_FILE="\$BASE_DIR/docker-compose.yml"
+if [ -f "\$MAIN_COMPOSE_FILE" ]; then
     echo "Info: Running 'docker compose down --volumes --remove-orphans' on the unified docker-compose.yml..."
-    (cd "$BASE_DIR" && ${DOCKER_COMPOSE_EXEC_CMD} -f "$MAIN_COMPOSE_FILE" down --volumes --remove-orphans) || {
+    (cd "\$BASE_DIR" && \${DOCKER_COMPOSE_EXEC_CMD} -f "\$MAIN_COMPOSE_FILE" down --volumes --remove-orphans) || {
         echo "⚠️ Could not cleanly bring down the unified project. Some containers/volumes might remain."
     }
 else
-    echo "Warning: docker-compose.yml not found at $MAIN_COMPOSE_FILE. Cannot perform clean shutdown of compose services."
+    echo "Warning: docker-compose.yml not found at \$MAIN_COMPOSE_FILE. Cannot perform clean shutdown of compose services."
 fi
 
 # --- Read selected components for starting ---
 # This part is for the 'up' command, using the specific selected components from selected_components.txt
-COMPONENTS_FILE="$BASE_DIR/scripts/selected_components.txt" # FIX: Correct variable expansion
-if [ ! -f "$COMPONENTS_FILE" ]; then # FIX: Correct variable expansion
-    echo "❌ Error: selected_components.txt not found at $COMPONENTS_FILE. Please run setup.sh first." # FIX: Correct variable expansion
+COMPONENTS_FILE="\$BASE_DIR/scripts/selected_components.txt"
+if [ ! -f "\$COMPONENTS_FILE" ]; then
+    echo "❌ Error: selected_components.txt not found at \$COMPONENTS_FILE. Please run setup.sh first."
     exit 1
 fi
-
-read -r -a SELECTED_COMPONENTS_ARRAY <<< "$(cat "$COMPONENTS_FILE" | tr -d '"')" # FIX: Correct command substitution and variable expansion
+echo "$COMPONENTS_FILE: "$COMPONENTS_FILE"
+echo "cat " $COMPONENTS_FILE | tr -d '"'
+read -r -a SELECTED_COMPONENTS_ARRAY <<< "\$(cat "\$COMPONENTS_FILE" | tr -d '"')"
 if [ ${#SELECTED_COMPONENTS_ARRAY[@]} -eq 0 ]; then
-    echo "Info: No components selected in $COMPONENTS_FILE. Nothing to start."
+    echo "Info: No components selected in \$COMPONENTS_FILE. Nothing to start."
     exit 0
 fi
-
+echo "DEBUG: After selecting components to process"
 # Translate selected component names to service names if necessary (e.g., component_name -> docker-compose_service_name)
 declare -a SERVICES_TO_START_ARGS=()
 for comp_name in "\${SELECTED_COMPONENTS_ARRAY[@]}"; do
     # For PiSelfhosting, component name generally matches Docker Compose service name,
     # so we can use \$comp_name directly as the service name in the up command.
-    SERVICES_TO_START_ARGS+=("$comp_name") # FIX: Correct variable expansion
+    SERVICES_TO_START_ARGS+=("\$comp_name")
 done
 
 echo "Starting all selected services as a single Docker Compose project..."
-if ${DOCKER_COMPOSE_EXEC_CMD} -f "$MAIN_COMPOSE_FILE" up -d --build --remove-orphans ${SERVICES_TO_START_ARGS[*]}; then
+if \${DOCKER_COMPOSE_EXEC_CMD} -f "\$MAIN_COMPOSE_FILE" up -d --build --remove-orphans \${SERVICES_TO_START_ARGS[*]}; then
     echo "✅ All selected PiSelfhosting containers started successfully."
     echo -e "\n--- PiSelfhosting Services Started ---"
     echo "You can check the status of your containers with: docker ps"
-    echo "Or view logs with: ${DOCKER_COMPOSE_EXEC_CMD} logs -f"
+    echo "Or view logs with: \${DOCKER_COMPOSE_EXEC_CMD} logs -f"
     echo "If you selected Portainer, you can access its UI (usually on port 9000 or a subdomain)."
     echo "Access your services via the domain you set during setup (e.g., Dashy at dashboard.\$DOMAIN)."
 else

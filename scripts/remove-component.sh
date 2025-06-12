@@ -9,72 +9,71 @@ set -e
 
 BASE_DIR="/home/PiSelfhosting"
 SCRIPTS_DIR="$BASE_DIR/scripts"
-ENV_FILE="$BASE_DIR/.env"
-COMPONENTS_FILE="$SCRIPTS_DIR/selected_components.txt"
+ENV_FILE="\$BASE_DIR/.env"
+COMPONENTS_FILE="\$SCRIPTS_DIR/selected_components.txt"
 DOCKER_COMPOSE_DIR="$BASE_DIR/docker"
-MAIN_COMPOSE_FILE="$BASE_DIR/docker-compose.yml"
+MAIN_COMPOSE_FILE="\$BASE_DIR/docker-compose.yml"
 
 # Load environment variables
-if [ -f "$ENV_FILE" ]; then
+if [ -f "\$ENV_FILE" ]; then
     set -a
-    source "$ENV_FILE"
+    source "\$ENV_FILE"
     set +a
-else
-    echo "❌ Error: .env file not found at $ENV_FILE. Please run setup.sh first."
-    exit 1
 fi
 
 # Set the COMPOSE_PROJECT_NAME for consistent Docker Compose operations
 export COMPOSE_PROJECT_NAME="piselfhosting"
 
 # Get the docker compose command string
-DOCKER_COMPOSE_COMMAND_PATH="$BASE_DIR/scripts/get_docker_compose_cmd.sh"
-DOCKER_COMPOSE_EXEC_CMD=$("$DOCKER_COMPOSE_COMMAND_PATH")
+DOCKER_COMPOSE_COMMAND_PATH="\$BASE_DIR/scripts/get_docker_compose_cmd.sh"
+DOCKER_COMPOSE_EXEC_CMD=\$("\$DOCKER_COMPOSE_COMMAND_PATH")
 
-if [ -z "$DOCKER_COMPOSE_EXEC_CMD" ]; then
+if [ -z "\$DOCKER_COMPOSE_EXEC_CMD" ]; then
     echo "❌ Docker Compose not found. Cannot remove components."
     exit 1
 fi
 
 echo "--- Remove PiSelfhosting Component ---"
 
-if [ ! -f "$COMPONENTS_FILE" ]; then
+if [ ! -f "\$COMPONENTS_FILE" ]; then
     echo "❌ Error: selected_components.txt not found. No components to remove."
     exit 1
 fi
 
-read -r -a SELECTED_COMPONENTS <<< "$(cat "$COMPONENTS_FILE" | tr -d '"')"
+read -r -a SELECTED_COMPONENTS <<< "\$(cat "\$COMPONENTS_FILE" | tr -d '"')"
 
-if [ ${#SELECTED_COMPONENTS[@]} -eq 0 ]; then
+if [ \${#SELECTED_COMPONENTS[@]} -eq 0 ]; then
     echo "Info: No components are currently selected/installed. Nothing to remove."
     exit 0
 fi
 
 local remove_options=()
-for comp in "${SELECTED_COMPONENTS[@]}"; do
-    remove_options+=("$comp" "" "OFF")
+for comp in "\${SELECTED_COMPONENTS[@]}"; do
+    remove_options+=("\$comp" "" "OFF")
 done
 
-if [ ${#remove_options[@]} -eq 0 ]; then
+if [ \${#remove_options[@]} -eq 0 ]; then
     echo "Info: No removable components found."
     exit 0
 fi
 
-REMOVE_CHOICES=$(whiptail --title "Remove PiSelfhosting Component" --checklist "Choose components to remove (use space to select/deselect, Enter to confirm):" 20 78 10 "${remove_options[@]}" 3>&1 1>&2 2>&3)
+REMOVE_CHOICES=\$(whiptail --title "Remove PiSelfhosting Component" --checklist \
+"Choose components to remove (use space to select/deselect, Enter to confirm):" 20 78 10 \
+"\${remove_options[@]}" 3>&1 1>&2 2>&3)
 
-if [ $? -ne 0 ]; then
+if [ \$? -ne 0 ]; then
     echo "Component removal canceled."
     exit 0
 fi
 
 # Convert chosen components to an array
 local COMPONENTS_TO_REMOVE=()
-if [ -n "$REMOVE_CHOICES" ]; then
+if [ -n "\$REMOVE_CHOICES" ]; then
     # Remove quotes and split by spaces
-    COMPONENTS_TO_REMOVE=($(echo "$REMOVE_CHOICES" | tr -d '"'))
+    COMPONENTS_TO_TOREMOVE=(\$(echo "\$REMOVE_CHOICES" | tr -d '"')) # FIX: Typo in variable name
 fi
 
-if [ ${#COMPONENTS_TO_REMOVE[@]} -eq 0 ]; then
+if [ \${#COMPONENTS_TO_REMOVE[@]} -eq 0 ]; then
     echo "No components selected for removal."
     exit 0
 fi
@@ -82,34 +81,34 @@ fi
 echo "--- Removing selected components ---"
 
 local new_selected_components=()
-for comp in "${SELECTED_COMPONENTS[@]}"; do
+for comp in "\${SELECTED_COMPONENTS[@]}"; do
     local found_to_remove=false
-    for to_remove in "${COMPONENTS_TO_REMOVE[@]}"; do
-        if [ "$comp" == "$to_remove" ]; then
+    for to_remove in "\${COMPONENTS_TO_REMOVE[@]}"; do
+        if [ "\$comp" == "\$to_remove" ]; then
             found_to_remove=true
-            echo "Stopping and removing container for '$comp'..."
+            echo "Stopping and removing container for '\$comp'..."
             # For PiSelfhosting, component name generally matches Docker Compose service name,
-            # so we can use $comp directly as the service name in rm command.
-            if ${DOCKER_COMPOSE_EXEC_CMD} -f "$MAIN_COMPOSE_FILE" rm -s -v -f "$comp"; then # -s for stop, -v for volumes, -f for force
-                echo "✅ Container and associated volumes for '$comp' removed."
+            # so we can use \$comp directly as the service name in rm command.
+            if \${DOCKER_COMPOSE_EXEC_CMD} -f "\$MAIN_COMPOSE_FILE" rm -s -v -f "\$comp"; then # -s for stop, -v for volumes, -f for force
+                echo "✅ Container and associated volumes for '\$comp' removed."
             else
-                echo "⚠️ Failed to remove container/volumes for '$comp'. Manual cleanup might be needed."
+                echo "⚠️ Failed to remove container/volumes for '\$comp'. Manual cleanup might be needed."
             fi
             # Remove its docker-compose.yml and config directory
-            if [ -d "$DOCKER_COMPOSE_DIR/$comp" ]; then
-                echo "Removing component directory: $DOCKER_COMPOSE_DIR/$comp"
-                sudo rm -rf "$DOCKER_COMPOSE_DIR/$comp"
+            if [ -d "\$DOCKER_COMPOSE_DIR/\$comp" ]; then
+                echo "Removing component directory: \$DOCKER_COMPOSE_DIR/\$comp"
+                sudo rm -rf "\$DOCKER_COMPOSE_DIR/\$comp"
             fi
             break
         fi
     done
-    if [ "$found_to_remove" = false ]; then
-        new_selected_components+=("$comp")
+    if [ "\$found_to_remove" = false ]; then
+        new_selected_components+=("\$comp")
     fi
 done
 
 # Update selected_components.txt
-printf '"%s" ' "${new_selected_components[@]}" > "$COMPONENTS_FILE"
+printf '"%s" ' "\${new_selected_components[@]}" > "\$COMPONENTS_FILE"
 echo "✅ selected_components.txt updated."
 
 echo -e "\n--- Component removal complete ---"

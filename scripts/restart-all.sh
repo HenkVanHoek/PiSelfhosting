@@ -3,9 +3,9 @@
 # Location: /home/PiSelfhosting/scripts/restart-all.sh
 
 BASE_DIR="/home/PiSelfhosting"
-SCRIPTS_DIR="$BASE_DIR/scripts"
+SCRIPTS_DIR="\$BASE_DIR/scripts"
 
 echo "🔄 Restarting all PiSelfhosting services..."
-"$SCRIPTS_DIR/stop-all.sh" "$@"
-"$SCRIPTS_DIR/start-all.sh" "$@"
+"\$SCRIPTS_DIR/stop-all.sh" "\$@"
+"\$SCRIPTS_DIR/start-all.sh" "\$@"
 echo "✅ Restart complete."

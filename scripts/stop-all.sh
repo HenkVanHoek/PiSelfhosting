@@ -6,28 +6,28 @@
 set -e
 
 BASE_DIR="/home/PiSelfhosting"
-ENV_FILE="$BASE_DIR/.env"
+ENV_FILE="\$BASE_DIR/.env"
 
 # Load environment variables
-if [ -f "$ENV_FILE" ]; then
+if [ -f "\$ENV_FILE" ]; then
     set -a
-    source "$ENV_FILE"
+    source "\$ENV_FILE"
     set +a
 fi
 
 # Set the COMPOSE_PROJECT_NAME for consistent Docker Compose operations
 export COMPOSE_PROJECT_NAME="piselfhosting"
 
-DOCKER_COMPOSE_COMMAND_PATH="$BASE_DIR/scripts/get_docker_compose_cmd.sh"
-DOCKER_COMPOSE_EXEC_CMD=$("$DOCKER_COMPOSE_COMMAND_PATH")
+DOCKER_COMPOSE_COMMAND_PATH="\$BASE_DIR/scripts/get_docker_compose_cmd.sh"
+DOCKER_COMPOSE_EXEC_CMD=\$("\$DOCKER_COMPOSE_COMMAND_PATH")
 
 echo "🛑 Stopping all PiSelfhosting containers..."
-MAIN_COMPOSE_FILE="$BASE_DIR/docker-compose.yml"
-if [ -f "$MAIN_COMPOSE_FILE" ]; then
-    (cd "$BASE_DIR" && ${DOCKER_COMPOSE_EXEC_CMD} -f "$MAIN_COMPOSE_FILE" down) || {
+MAIN_COMPOSE_FILE="\$BASE_DIR/docker-compose.yml"
+if [ -f "\$MAIN_COMPOSE_FILE" ]; then
+    (cd "\$BASE_DIR" && \${DOCKER_COMPOSE_EXEC_CMD} -f "\$MAIN_COMPOSE_FILE" down) || {
         echo "⚠️ Failed to stop some services. Check logs."
     }
 else
-    echo "Warning: docker-compose.yml not found at $MAIN_COMPOSE_FILE. Cannot stop services."
+    echo "Warning: docker-compose.yml not found at \$MAIN_COMPOSE_FILE. Cannot stop services."
 fi
 echo "✅ All selected containers stopped."

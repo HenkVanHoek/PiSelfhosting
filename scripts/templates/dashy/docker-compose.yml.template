@@ -5,19 +5,19 @@ services:
     image: lissy93/dashy:2.1.1
     restart: unless-stopped
     ports:
-      - "8080:80" # Dashy HTTP poort
-      - "4443:443" # Dashy HTTPS poort
+      - "8080:80" # Dashy HTTP port
+      - "4443:443" # Dashy HTTPS port
     volumes:
-      - ./config:/app/public/conf # Mount de config directory
+      - ./config:/app/public/conf # Mount the config directory
     environment:
-      - PUID=${PUID} # Gebruikers-ID van de host, voor bestandspermissies
-      - PGID=${PGID} # Groeps-ID van de host
-      - TZ=Europe/Amsterdam # Tijdzone aanpassen indien nodig
+      - PUID=${PUID} # Host user ID, for file permissions
+      - PGID=${PGID} # Host group ID
+      - TZ=Europe/Amsterdam # Adjust timezone if necessary
       - NODE_ENV=production
     extra_hosts:
-      # Dit voegt een entry toe aan /etc/hosts in de container,
-      # zodat services via de DOMAIN kunnen worden benaderd als ze via Nginx Proxy Manager lopen.
-      # HOST_IP wordt dynamisch ingevuld door deploy.sh.
+      # This adds an entry to /etc/hosts in the container,
+      # so services can be accessed via the DOMAIN if they run through Nginx Proxy Manager.
+      # HOST_IP is dynamically filled by deploy.sh.
       - "${DOMAIN}:${HOST_IP}"
     networks:
       - piselfhosting_net
@@ -25,4 +25,3 @@ services:
 networks:
   piselfhosting_net:
     external: true
-
