@@ -57,7 +57,7 @@ load_env_if_exists
 
 # Ask for DOMAIN
 if [ -z "${DOMAIN}" ]; then
-    DOMAIN=$(whiptail --inputbox "Enter the main domain name you want to use for your services (e.g., 'myserver.com' or 'home.arpa'). This will be used for Nginx Proxy Manager and Dashy." 10 60 "myserver.com" 3>&1 1>&2 2>&3)
+    DOMAIN=$(whiptail --inputbox "Enter the main domain name you want to use for your services (e.g., 'myserver.com' or 'home.arpa'). This will be used for Nginx Proxy Manager and Dashy." 10 60 "${DOMAIN:-henkenyvonne.nl}" 3>&1 1>&2 2>&3)
     if [ $? -ne 0 ]; then echo "❌ Canceled. Exiting."; exit 1; fi
 fi
 
@@ -265,22 +265,9 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-# Save the selected components to a file
-# --- FIX: Removed the line that incorrectly filtered out "docker" (Docker Monitor) ---
-# CHOICES_CLEANED=$(echo "$CHOICES" | sed 's/"docker"//g' | tr -d '"')
-CHOICES_CLEANED=$(echo "$CHOICES" | tr -d '"') # This line now correctly keeps "docker" if selected.
-
-# Split the cleaned string into an array, then re-join with spaces for saving
-# This ensures that if the user selected Docker (which is automatically installed anyway), it doesn't appear
-# in the selected_components.txt, as it's not a 'service' component.
-declare -a FINAL_SELECTED_COMPONENTS_ARRAY=()
-if [ -n "$CHOICES_CLEANED" ]; then
-    IFS=' ' read -r -a FINAL_SELECTED_COMPONENTS_ARRAY <<< "$CHOICES_CLEANED"
-fi
-
-# Re-add quotes around each item and join them with spaces before saving to file
-# This is crucial for read-r -a in deploy.sh to correctly parse individual items
-printf '"%s" ' "${FINAL_SELECTED_COMPONENTS_ARRAY[@]}" > "$COMPONENTS_FILE"
+# Remove double quotes and save the selected components to a file, separated by spaces
+# The tr -d '"' command ensures no double quotes remain.
+echo "$CHOICES" | tr -d '"' > "$COMPONENTS_FILE"
 echo "✅ Selected components saved to $COMPONENTS_FILE."
 
 

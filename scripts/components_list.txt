@@ -1,6 +1,6 @@
 # Define the order in which components should appear in the setup script's checklist.
 # This helps maintain a logical flow during setup.
-COMPONENTS_ORDER=mariadb,mosquitto,nextcloud,mailserver,homeassistant,frigate,pihole,portainer,phpmyadmin,nginxproxymanager,dashy,docker-monitor,piselfhosting-docs
+COMPONENTS_ORDER=mariadb,mosquitto,traefik,nextcloud,mailserver,homeassistant,frigate,pihole,portainer,phpmyadmin,nginxproxymanager,dashy,docker-monitor,piselfhosting-docs
 
 # Component Definitions
 # Each component should have a [name], description, and default_selected.
@@ -41,6 +41,13 @@ default_selected=ON
 [phpmyadmin]
 description=phpMyAdmin (MariaDB Web Interface)
 default_selected=OFF
+
+[traefik]
+description=Traefik (Cloud Native Reverse Proxy & Load Balancer)
+default_selected=ON # Set this to ON so the setup script includes it by default
+has_web_interface=TRUE
+web_interface_port=8080 # This is the internal port for Traefik's API/Dashboard
+web_interface_subdomain=traefik.henkenyvonne.nl
 
 [nginxproxymanager]
 description=Nginx Proxy Manager (Reverse Proxy, SSL Mgmt)

@@ -14,7 +14,7 @@ Welcome to PiSelfhosting! This project provides a set of automated scripts and c
 * **User-Friendly Tools:** Interactive Python scripts for common tasks like camera configuration, dashboard tile management, and SSL certificate setup.
 * **Centralized `.env`:** Manage all your environment variables from a single `.env` file.
 * **Dependency Management:** Services are started and managed in the correct order to ensure dependencies are met.
-* **Nginx Proxy Manager Integration:** Easily configure reverse proxies and obtain free SSL certificates with Let's Encrypt.
+* **Nginx Proxy Manager Integration:** Easily configure reverse proxies and obtain free SSL certificates with Let's Encrypt. Includes automated database setup for NPM.
 
 ## 🛠️ Prerequisites
 
@@ -81,6 +81,23 @@ The `scripts/` directory contains various Python-based tools to help you configu
     ```
     *Automatically populate your Dashy dashboard with tiles for your installed services.*
 
+* **Nginx Proxy Manager Database Setup:**
+    ```bash
+    bash scripts/run-npm-db-setup.sh
+    ```
+    *This script automates the creation of the `npm_database` in MariaDB and grants necessary permissions to your `pihost` user. It requires `DB_ROOT_PASS` to be set in your `.env` file for MariaDB root access. After running this script, you will need to perform the initial login to the Nginx Proxy Manager web interface and secure your administrator account.*
+
+    **Manual Post-Setup Steps for Nginx Proxy Manager:**
+    1.  **Initial Login to Nginx Proxy Manager UI:**
+        Open your web browser and go to: `http://<YOUR_PI_IP_ADDRESS>:81`
+        Use the default credentials for the first login:
+        * **Email:** `admin@example.com`
+        * **Password:** `changeme`
+    2.  **Change Default Credentials (CRITICAL!):**
+        Upon successful login, you will be prompted to change the default email and password. This is essential for your security. Choose a strong, unique password and use a valid email address for the admin account.
+    3.  **Configure Your Proxy Hosts:**
+        After securing your account, proceed to configure your proxy hosts. This involves adding new Proxy Hosts for services like Dashy, Nextcloud, etc., forwarding traffic to the correct internal Docker service names/ports, and requesting SSL Certificates (e.g., using Let's Encrypt) for your domains.
+
 * **Mailserver Configuration:**
     ```
     bash scripts/run-mailserver-config-tool.sh
@@ -92,6 +109,13 @@ The `scripts/` directory contains various Python-based tools to help you configu
     bash scripts/run-ssl-cert-manager.sh
     ```
     *Provides guidance on obtaining and managing SSL certificates (via Nginx Proxy Manager or self-signed) for your services.*
+
+## 🔄 Updating Services
+
+To update all your installed Docker containers to their latest images:
+
+*This script will stop all services, pull the latest images, recreate containers, and then start them in the correct order. You can also specify individual services, e.g., `bash scripts/restart-all.sh frigate`.*
+
 
 ## ➕ Adding/Removing Components
 
@@ -106,15 +130,6 @@ The `scripts/` directory contains various Python-based tools to help you configu
     bash scripts/remove-component.sh
     ```
     *This interactive script allows you to select and completely remove a service, its Docker container, and associated data volumes.*
-
-## 🔄 Updating Services
-
-To update all your installed Docker containers to their latest images:
-
-```
-bash scripts/restart-all.sh
-```
-*This script will stop all services, pull the latest images, recreate containers, and then start them in the correct order. You can also specify individual services, e.g., `bash scripts/restart-all.sh frigate`.*
 
 ## Troubleshooting
 
