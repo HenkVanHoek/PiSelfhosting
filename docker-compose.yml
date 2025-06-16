@@ -1,0 +1,106 @@
+networks:
+  piselfhosting_net:
+    external: true
+services:
+  mariadb:
+    image: mariadb:11
+    container_name: piselfhosting-mariadb
+    restart: unless-stopped
+    ports:
+      - "3306:3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=${DB_PASS}
+      - MYSQL_DATABASE=piselfhosting
+      - MYSQL_USER=${DB_USER}
+      - MYSQL_PASSWORD=${DB_PASS}
+    volumes:
+      - mariadb_data:/var/lib/mysql
+      - ./initdb.d:/docker-entrypoint-initdb.d
+    networks:
+      - piselfhosting_net
+  phpmyadmin:
+    image: arm64v8/phpmyadmin:latest # Specifieke image voor ARM-architectuur
+    container_name: piselfhosting-phpmyadmin
+    restart: unless-stopped
+    environment:
+      PMA_HOST: mariadb # Hostnaam van de MariaDB-service
+      PMA_PORT: 3306
+      MYSQL_ROOT_PASSWORD: ${DB_PASS} # Gebruik het root wachtwoord uit .env
+      # PMA_USER: ${DB_USER} # Optioneel: specifieke P_USER als je geen root gebruikt
+      # PMA_PASSWORD: ${DB_PASS} # Optioneel: specifieke P_PASSWORD
+    ports:
+      - "8083:80" # phpMyAdmin web UI poort
+    depends_on:
+      - mariadb # Zorgt ervoor dat mariadb eerst start
+    networks:
+      - piselfhosting_net
+  nginxproxymanager:
+    container_name: piselfhosting-nginxproxymanager
+    image: 'jc21/nginx-proxy-manager:latest'
+    restart: unless-stopped
+    ports:
+      - '80:80' # Primaire HTTP poort voor Nginx Proxy Manager
+      - '443:443' # Primaire HTTPS poort voor Nginx Proxy Manager
+      - '81:81' # Admin UI poort voor Nginx Proxy Manager
+    volumes:
+      - npm_data:/data
+      - npm_letsencrypt:/etc/letsencrypt
+    environment:
+      DB_MYSQL_HOST: mariadb # Hostnaam van de MariaDB-service
+      DB_MYSQL_PORT: 3306
+      DB_MYSQL_USER: ${DB_USER}
+      DB_MYSQL_PASSWORD: ${DB_PASS}
+      DB_MYSQL_NAME: npm_database # Naam van de database voor NPM
+    depends_on:
+      - mariadb # Zorgt ervoor dat mariadb eerst start
+    networks:
+      - piselfhosting_net
+  dashy:
+    container_name: piselfhosting-dashy
+    image: lissy93/dashy:2.1.1
+    restart: unless-stopped
+    ports:
+      - "8080:80" # Dashy HTTP port
+      - "4443:443" # Dashy HTTPS port
+    volumes:
+      - ./config:/app/public/conf # Mount the config directory
+    environment:
+      - PUID=1000 # Host user ID, for file permissions
+      - PGID=1000 # Host group ID
+      - TZ=Europe/Amsterdam # Adjust timezone if necessary
+      - NODE_ENV=production
+    extra_hosts:
+      # This adds an entry to /etc/hosts in the container,
+      # so services can be accessed via the DOMAIN if they run through Nginx Proxy Manager.
+      # HOST_IP is dynamically filled by deploy.sh.
+      - "${DOMAIN}:192.168.178.118"
+    networks:
+      - piselfhosting_net
+  docker-monitor:
+    container_name: piselfhosting-docker-monitor
+    image: nginx:alpine
+    restart: unless-stopped
+    volumes:
+      - ./docker-monitor/html:/usr/share/nginx/html:ro
+    ports:
+      - "8088:80"
+    networks:
+      - piselfhosting_net
+  piselfhosting-docs:
+    image: nginx:alpine
+    container_name: piselfhosting-docs
+    restart: unless-stopped
+    volumes:
+      - ./html:/usr/share/nginx/html:ro
+    ports:
+      - "8089:80" # You can choose a specific port here that does not conflict, e.g., 8089
+    networks:
+      - piselfhosting_net
+
+volumes:
+  npm_letsencrypt:
+    name: piselfhosting-npm-letsencrypt
+  mariadb_data:
+    name: piselfhosting-mariadb-data
+  npm_data:
+    name: piselfhosting-npm-data

@@ -1,1 +1,1 @@
-"dashy" "docker-monitor" "piselfhosting-docs" 
+"mariadb" "phpmyadmin" "nginxproxymanager" "dashy" "docker-monitor" "piselfhosting-docs" 
