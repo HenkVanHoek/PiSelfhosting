@@ -5,7 +5,7 @@
 # This script deploys and configures selected Docker services based on templates.
 
 # Stop the script if any command fails (use set -x for debugging, set -e for production)
-set -e # Keep set -x for final confirmation of successful run. Change back to set -e after.
+set -x # Keep set -x for final confirmation of successful run. Change back to set -e after.
 
 # Define base directories and important file paths
 export BASE_DIR="/home/PiSelfhosting"
@@ -129,9 +129,7 @@ perform_full_cleanup() {
         # but kept for backward compatibility during transitions.
         local individual_compose_files=()
         if [ -f "$SELECTED_COMPONENTS_FILE" ]; then # Ensure selected_components.txt exists before reading
-            # Adjusted line for reading selected_components.txt
-            read -r -a SELECTED_COMPONENTS_ARRAY <<< "$(cat "$SELECTED_COMPONENTS_FILE")"
-            for comp in "${SELECTED_COMPONENTS_ARRAY[@]}"; do
+            for comp in $(cat "$SELECTED_COMPONENTS_FILE" | tr -d '"'); do
                 if [ -f "$DOCKER_COMPOSE_DIR/$comp/docker-compose.yml" ]; then
                     individual_compose_files+=("-f" "$DOCKER_COMPOSE_DIR/$comp/docker-compose.yml")
                 fi
@@ -296,7 +294,7 @@ if [ ! -f "\${COMPONENTS_FILE}" ]; then # ESCAPE
     exit 1
 fi
 
-read -r -a SELECTED_COMPONENTS_ARRAY <<< "\$(cat "\${COMPONENTS_FILE}")" # ESCAPE
+read -r -a SELECTED_COMPONENTS_ARRAY <<< "\$(cat "\${COMPONENTS_FILE}" | tr -d '"')" # ESCAPE
 if [ \${#SELECTED_COMPONENTS_ARRAY[@]} -eq 0 ]; then
     echo "Info: No components selected in \${COMPONENTS_FILE}. Nothing to start." # ESCAPE
     exit 0
@@ -423,8 +421,7 @@ if [ ! -f "\${COMPONENTS_FILE}" ]; then # ESCAPE
     exit 1
 fi
 
-# Aangepaste regel voor remove-component.sh:
-read -r -a SELECTED_COMPONENTS <<< "\$(cat "\${COMPONENTS_FILE}")" # ESCAPE
+read -r -a SELECTED_COMPONENTS <<< "\$(cat "\${COMPONENTS_FILE}" | tr -d '"')" # ESCAPE
 if [ \${#SELECTED_COMPONENTS[@]} -eq 0 ]; then
     echo "Info: No components are currently selected/installed. Nothing to remove."
     exit 0
@@ -454,7 +451,6 @@ fi
 declare -a COMPONENTS_TO_REMOVE=()
 if [ -n "\$REMOVE_CHOICES" ]; then
     # Remove quotes and split by spaces
-    # Aangepaste regel voor remove-component.sh:
     COMPONENTS_TO_REMOVE=(\$(echo "\$REMOVE_CHOICES" | tr -d '"'))
 fi
 
@@ -491,7 +487,6 @@ for comp in "\${SELECTED_COMPONENTS[@]}"; do
 done
 
 # Update selected_components.txt
-# Aangepaste regel voor remove-component.sh:
 printf '%s ' "\${new_selected_components[@]}" > "\${COMPONENTS_FILE}" # ESCAPE
 echo "✅ selected_components.txt updated."
 
@@ -552,8 +547,7 @@ fi
 # --- Read selected components from previous run (if any) for accurate deploy ---
 declare -a SELECTED_COMPONENTS_ARRAY=()
 if [ -f "$SELECTED_COMPONENTS_FILE" ]; then
-    # Aangepaste regel in de hoofdlogica:
-    read -r -a SELECTED_COMPONENTS_ARRAY <<< "$(cat "$SELECTED_COMPONENTS_FILE")"
+    read -r -a SELECTED_COMPONENTS_ARRAY <<< "$(cat "$SELECTED_COMPONENTS_FILE" | tr -d '"')"
 fi
 
 # --- Perform Cleanup ---
@@ -612,7 +606,7 @@ for comp in "${COMPONENTS_ORDER[@]}"; do
                 echo "    image: nginx:alpine"
                 echo "    restart: unless-stopped"
                 echo "    volumes:"
-                echo "      - ./docker-monitor/html:/usr/share/nginx/html:ro"
+                echo "      - $DOCKER_COMPOSE_DIR/docker-monitor/html:/usr/share/nginx/html:ro"
                 echo "    ports:"
                 echo "      - \"8088:80\""
                 echo "    networks:"
