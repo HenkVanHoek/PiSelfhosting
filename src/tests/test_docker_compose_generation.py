@@ -197,3 +197,151 @@ def test_generate_docker_compose_for_single_service(
     written_content = mock_file_content_buffer.getvalue()  # Get content from our buffer
 
     assert yaml.safe_load(written_content) == yaml.safe_load(expected_homeassistant_compose_content)
+
+    @pytest.fixture
+    def mock_mariadb_template_content():
+        """Mock content for mariadb's docker-compose.template.yml."""
+        return """
+    services:
+      mariadb:
+        container_name: mariadb
+        image: mariadb:10.11
+        volumes:
+          - ./docker/mariadb/data:/var/lib/mysql
+        environment:
+          - MYSQL_ROOT_PASSWORD=${DB_ROOT_PASS}
+          - MYSQL_USER=${DB_USER}
+          - MYSQL_PASSWORD=${DB_PASSWORD}
+        restart: unless-stopped
+    volumes: # Top-level volumes section in template
+      mariadb_data:
+        driver: local
+    """
+
+    # NEW FIXTURE: Expected Combined Compose Content
+    @pytest.fixture
+    def expected_combined_compose_content():
+        """Expected content for docker-compose.yml with Home Assistant and MariaDB."""
+        return """
+    version: "3.8"
+    services:
+      homeassistant:
+        container_name: homeassistant
+        image: "ghcr.io/home-assistant/home-assistant:stable"
+        volumes:
+          - ./docker/homeassistant/config:/config
+          - /etc/localtime:/etc/localtime:ro
+        environment:
+          - PUID=1000
+          - PGID=1000
+          - TZ=Europe/Amsterdam
+        ports:
+          - 8123:8123
+        restart: unless-stopped
+        labels:
+          - "traefik.enable=true"
+          - "traefik.http.routers.homeassistant.rule=Host(`homeassistant.henkenyvonne.nl`)"
+          - "traefik.http.routers.homeassistant.entrypoints=websecure"
+          - "traefik.http.routers.homeassistant.tls.certresolver=letsencrypt"
+          - "traefik.http.services.homeassistant.loadbalancer.server.port=8123"
+      mariadb:
+        container_name: mariadb
+        image: mariadb:10.11
+        volumes:
+          - ./docker/mariadb/data:/var/lib/mysql
+        environment:
+          - MYSQL_ROOT_PASSWORD=db_root_password_secret
+          - MYSQL_USER=pihost_user
+          - MYSQL_PASSWORD=pihost_password_secret
+        restart: unless-stopped
+    volumes:
+      mariadb_data:
+        driver: local
+    networks: {}
+    """
+
+    # NEW TEST: test_generate_docker_compose_for_multiple_services
+    @patch('src.setup.get_project_root', return_value='/mock/project/root')
+    @patch('src.setup.parse_components_list')
+    @patch('src.setup.read_selected_components')
+    @patch('os.path.exists', return_value=True)  # All relevant files mocked as existing
+    @patch('builtins.open', new_callable=mock_open)
+    @patch.dict(os.environ, {
+        'DOMAIN': 'henkenyvonne.nl',
+        'PUID': '1000',
+        'PGID': '1000',
+        'DB_ROOT_PASS': 'db_root_password_secret',  # Mock these new env vars
+        'DB_USER': 'pihost_user',
+        'DB_PASSWORD': 'pihost_password_secret'
+    }, clear=True)
+    @patch('os.makedirs')
+    def test_generate_docker_compose_for_multiple_services(
+            mock_makedirs,
+            mock_open_file,
+            mock_path_exists,
+            mock_read_selected_components_func,
+            mock_parse_components_list_func,
+            mock_get_project_root_func,
+            mock_parsed_components_data,  # Use this fixture for component data
+            mock_homeassistant_template_content,
+            mock_mariadb_template_content,
+            expected_combined_compose_content
+    ):
+        """
+        Tests that generate_docker_compose_file correctly creates a docker-compose.yml
+        for multiple selected services (Home Assistant and MariaDB)
+        with variable substitution and proper merging of services, volumes, and networks.
+        """
+        # Configure mocks
+        mock_parse_components_list_func.return_value = mock_parsed_components_data
+        mock_read_selected_components_func.return_value = {"homeassistant", "mariadb"}  # Both selected
+
+        # Create a StringIO object to capture what is written
+        mock_file_content_buffer = io.StringIO()
+
+        # Configure mock_open_file's side_effect for multiple read calls and one write call
+        # This list defines what 'open' returns each time it's called.
+        def open_side_effect(file_path, mode='r', **kwargs):
+            if mode == 'r':
+                if 'homeassistant/docker-compose.template.yml' in file_path:
+                    return io.StringIO(mock_homeassistant_template_content)
+                elif 'mariadb/docker-compose.template.yml' in file_path:
+                    return io.StringIO(mock_mariadb_template_content)
+                # Add other templates as needed
+            elif mode == 'w':
+                write_mock = mock_open_file.return_value
+                write_mock.write.side_effect = lambda content: mock_file_content_buffer.write(content)
+                return write_mock
+            raise ValueError(f"Unexpected open call: path={file_path}, mode={mode}")
+
+        mock_open_file.side_effect = open_side_effect
+
+        # Call the actual function
+        generate_docker_compose_file(
+            mock_parsed_components_data['all_component_data'],
+            {"homeassistant", "mariadb"},  # Explicitly pass selected for clarity in test
+            output_dir='/mock/project/root',
+            template_dir='/mock/project/root/scripts/template'
+        )
+
+        # Assertions
+        mock_makedirs.assert_called_once_with('/mock/project/root', exist_ok=True)
+
+        # Assert read calls for both templates
+        template_path_ha = os.path.normpath(
+            os.path.join('/mock/project/root', 'scripts', 'template', 'homeassistant', 'docker-compose.template.yml'))
+        template_path_mariadb = os.path.normpath(
+            os.path.join('/mock/project/root', 'scripts', 'template', 'mariadb', 'docker-compose.template.yml'))
+
+        # Check if both read calls happened with correct paths and modes
+        mock_open_file.assert_any_call(template_path_ha, 'r', encoding='utf-8')
+        mock_open_file.assert_any_call(template_path_mariadb, 'r', encoding='utf-8')
+
+        # Assert the final docker-compose.yml was written with the expected content
+        output_path = os.path.normpath(os.path.join('/mock/project/root', 'docker-compose.yml'))
+        mock_open_file.assert_any_call(output_path, 'w', encoding='utf-8')
+
+        written_content = mock_file_content_buffer.getvalue()
+
+        # Use -vv to see full diff if this assertion fails
+        assert yaml.safe_load(written_content) == yaml.safe_load(expected_combined_compose_content)

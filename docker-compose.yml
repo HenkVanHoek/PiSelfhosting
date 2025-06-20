@@ -63,7 +63,7 @@ services:
       - "8080:80" # Dashy HTTP port
       - "4443:443" # Dashy HTTPS port
     volumes:
-      - ./config:/app/public/conf # Mount the config directory
+      - /home/PiSelfhosting/docker/dashy/config:/app/public/conf # Mount the config directory
     environment:
       - PUID=1000 # Host user ID, for file permissions
       - PGID=1000 # Host group ID
@@ -91,7 +91,7 @@ services:
     container_name: piselfhosting-docs
     restart: unless-stopped
     volumes:
-      - ./html:/usr/share/nginx/html:ro
+      - /home/PiSelfhosting/piselfhosting-docs/html:/usr/share/nginx/html:ro
     ports:
       - "8089:80" # You can choose a specific port here that does not conflict, e.g., 8089
     networks:

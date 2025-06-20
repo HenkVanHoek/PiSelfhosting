@@ -9,9 +9,9 @@ services:
     devices:
       - /dev/bus/usb:/dev/bus/usb # For Coral TPU
     volumes:
-      - ./config:/config
-      - /etc/localtime:/etc/localtime:ro
-      - /media/frigate:/media/frigate # Storage for recordings and cache
+    - /opt/piselfhosting/data/frigate/config:/config:rw
+    - /etc/localtime:/etc/localtime:ro
+    - /opt/piselfhosting/data/frigate/media:/media/frigate:rw
     ports:
       - "5000:5000"  # Web UI port
       - "1935:1935" # RTMP port (for re-streaming cameras)
