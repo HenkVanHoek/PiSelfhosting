@@ -1,5 +1,5 @@
 # src/setup.py
-
+# Added by Hvh: To make sure this file is copied to the Pi.
 import os
 import configparser
 import sys

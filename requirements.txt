@@ -1,0 +1,3 @@
+PyYAML
+paramiko
+# Add any other non-standard libraries that src/setup.py needs if it grows
