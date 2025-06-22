@@ -1,19 +1,19 @@
-                # scripts/templates/homeassistant/docker-compose.yml.template
-                services:
-                  homeassistant:
-                    container_name: piselfhosting-homeassistant
-                    image: ghcr.io/home-assistant/home-assistant:stable
-                    restart: unless-stopped
-                    volumes:
-                      - homeassistant_config:/config
-                      - /etc/localtime:/etc/localtime:ro
-                    network_mode: host # Home Assistant often requires host network mode for discovery
+# templates/homeassistant/docker-compose.yml.template
+services:
+  homeassistant:
+    container_name: piselfhosting-homeassistant
+    image: ghcr.io/home-assistant/home-assistant:stable
+    restart: unless-stopped
+    volumes:
+      - homeassistant_config:/config
+      - /etc/localtime:/etc/localtime:ro
+    network_mode: host # Home Assistant often requires host network mode for discovery
 
-                volumes:
-                  homeassistant_config:
-                    name: piselfhosting-homeassistant-config
+volumes:
+  homeassistant_config:
+    name: piselfhosting-homeassistant-config
 
-                networks:
-                  piselfhosting_net:
-                    external: true
-                
+networks:
+  piselfhosting_net:
+    external: true
+

@@ -1,4 +1,4 @@
-# scripts/templates/mariadb/docker-compose.yml.template
+# templates/mariadb/docker-compose.yml.template
 services:
   mariadb:
     image: mariadb:11
@@ -13,7 +13,7 @@ services:
       - MYSQL_PASSWORD=${DB_PASS}
     volumes:
       - mariadb_data:/var/lib/mysql
-      - ./initdb.d:/docker-entrypoint-initdb.d
+      - "{{DATA_ROOT}}/mariadb/initdb.d:/docker-entrypoint-initdb.d"
     networks:
       - piselfhosting_net
 

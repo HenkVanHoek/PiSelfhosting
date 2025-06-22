@@ -1,34 +1,29 @@
-# scripts/templates/nginxproxymanager/docker-compose.yml.template
+# templates/nginxproxymanager/docker-compose.template.yml
 services:
   nginxproxymanager:
     container_name: piselfhosting-nginxproxymanager
     image: 'jc21/nginx-proxy-manager:latest'
     restart: unless-stopped
     ports:
-      - '80:80' # Primaire HTTP poort voor Nginx Proxy Manager
-      - '443:443' # Primaire HTTPS poort voor Nginx Proxy Manager
-      - '81:81' # Admin UI poort voor Nginx Proxy Manager
+      - '80:80' # Primary HTTP port for Nginx Proxy Manager
+      - '443:443' # Primary HTTPS port for Nginx Proxy Manager
+      - '81:81' # Admin UI port for Nginx Proxy Manager
     volumes:
       - npm_data:/data
       - npm_letsencrypt:/etc/letsencrypt
     environment:
-      DB_MYSQL_HOST: mariadb # Hostnaam van de MariaDB-service
+      DB_MYSQL_HOST: mariadb # Hostname of the MariaDB service
       DB_MYSQL_PORT: 3306
       DB_MYSQL_USER: ${DB_USER}
       DB_MYSQL_PASSWORD: ${DB_PASS}
-      DB_MYSQL_NAME: npm_database # Naam van de database voor NPM
+      DB_MYSQL_NAME: npm_database # Database name for NPM
     depends_on:
-      - mariadb # Zorgt ervoor dat mariadb eerst start
+      - mariadb # Ensures mariadb starts first
     networks:
       - piselfhosting_net
 
 volumes:
-  npm_data:
-    name: piselfhosting-npm-data
   npm_letsencrypt:
     name: piselfhosting-npm-letsencrypt
-
-networks:
-  piselfhosting_net:
-    external: true
-
+  npm_data:
+    name: piselfhosting-npm-data

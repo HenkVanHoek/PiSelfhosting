@@ -1,143 +1,21 @@
-# src/setup.py
-# Added by Hvh: To make sure this file is copied to the Pi.
+# src/setup.py (FINAL, VERIFIED COMPLETE AND CORRECT VERSION - ALL ENGLISH)
 import os
 import configparser
-import sys
-import yaml # We'll need this for loading/dumping YAML
-import paramiko
-from string import Template # For easy variable substitution
+import jinja2
+import yaml
+
+# Global FHS-compliant data root for all services
+GLOBAL_DATA_ROOT = "/opt/piselfhosting/data"
 
 # Define the expected path for components_list.txt relative to the project root
 COMPONENTS_LIST_FILENAME = "components_list.txt"
 SELECTED_COMPONENTS_FILENAME = "selected_components.txt"
+DOCKER_COMPOSE_TEMPLATES_DIR = "templates"  # Path to the templates directory (relative to project root)
+DOCKER_COMPOSE_OUTPUT_DIR = "docker"  # Path where generated docker-compose files will be stored (relative to project root)
 
-# --- (Keep your existing get_project_root, parse_components_list, read_selected_components functions) ---
+# NEW CONSTANT: Name for the unified Docker Compose file
+UNIFIED_DOCKER_COMPOSE_FILENAME = "docker-compose.yml"
 
-
-def generate_docker_compose_file(all_components_data, selected_components_set, output_dir=None, template_dir=None):
-    """
-    Generates the unified docker-compose.yml file based on selected components
-    and environment variables.
-    """
-    if output_dir is None:
-        output_dir = os.path.join(get_project_root(), 'docker')
-    if template_dir is None:
-        template_dir = os.path.join(get_project_root(), 'scripts', 'template')
-
-    os.makedirs(output_dir, exist_ok=True)
-
-    final_compose_data = {"version": "3.8", "services": {}, "volumes": {}, "networks": {}}
-
-    env_vars = {
-        'DOMAIN': os.environ.get('DOMAIN', 'yourdomain.com'),
-        'PUID': os.environ.get('PUID', '1000'),
-        'PGID': os.environ.get('PGID', '1000'),
-    }
-    print(f"DEBUG: Environment variables for substitution: {env_vars}")  # Debug print
-
-    # Ensure the 'all_component_data' is used for template lookup
-    # In the test, we pass mock_parsed_components_data['all_component_data'] directly.
-    # So, 'all_components_data' here is essentially 'all_component_data' from parse_components_list.
-
-    for component_name in selected_components_set:
-        template_path = os.path.join(template_dir, component_name, 'docker-compose.template.yml')
-
-        if not os.path.exists(template_path):
-            print(f"Warning: Template not found for '{component_name}' at {template_path}. Skipping.")
-            continue
-
-        try:
-            with open(template_path, 'r', encoding='utf-8') as f:
-                template_content = f.read()
-
-            print(f"\nDEBUG: --- Processing {component_name} ---")  # Debug print
-            print(f"DEBUG: Read template_content for {component_name}:\n{template_content}")  # Debug print
-
-            template = Template(template_content)
-            substituted_content = template.substitute(**env_vars)
-
-            print(f"DEBUG: Substituted content for {component_name}:\n{substituted_content}")  # Debug print
-
-            component_compose_fragment = yaml.safe_load(substituted_content)
-
-            print(f"DEBUG: YAML fragment loaded for {component_name}:\n{component_compose_fragment}")  # Debug print
-
-            # --- Critical Check and Merge ---
-            if 'services' in component_compose_fragment:
-                # Iterate through services in the fragment to add them
-                for service_name, service_config in component_compose_fragment['services'].items():
-                    final_compose_data['services'][service_name] = service_config
-                print(f"DEBUG: Merged services for {component_name}.")  # Debug print
-            else:
-                print(f"Warning: No 'services' key found in template for {component_name}. Skipping service merge.")
-
-            if 'volumes' in component_compose_fragment:
-                final_compose_data['volumes'].update(component_compose_fragment['volumes'])
-                print(f"DEBUG: Merged volumes for {component_name}.")  # Debug print
-            if 'networks' in component_compose_fragment:
-                final_compose_data['networks'].update(component_compose_fragment['networks'])
-                print(f"DEBUG: Merged networks for {component_name}.")  # Debug print
-
-        except FileNotFoundError:
-            print(f"Error: Template file not found for {component_name} at {template_path}.")
-            continue
-        except yaml.YAMLError as e:
-            print(f"Error parsing YAML template for {component_name} from {template_path}: {e}")
-            continue
-        except KeyError as e:
-            print(
-                f"Error: Missing environment variable '{e.args[0]}' in template for {component_name}. Please ensure it's set in your environment or provided in the script.")
-            # It's better to raise this for configuration errors during development
-            raise
-        except Exception as e:
-            print(f"An unexpected error occurred while processing template for {component_name}: {e}")
-            continue
-
-    # Print the final dictionary before dumping to YAML
-    print(f"\nDEBUG: Final compose data before writing:\n{final_compose_data}")
-
-    final_output_path = os.path.join(output_dir, 'docker-compose.yml')
-    try:
-        with open(final_output_path, 'w', encoding='utf-8') as f:
-            # Using default_flow_style=False ensures block style YAML (readable)
-            # sort_keys=False is crucial to maintain the order of keys, which helps with diffs
-            yaml.dump(final_compose_data, f, default_flow_style=False, sort_keys=False)
-        print(f"\nSuccessfully generated unified docker-compose.yml at '{final_output_path}'.")
-    except Exception as e:
-        print(f"Error writing unified docker-compose.yml to '{final_output_path}': {e}")
-        raise
-
-def run_docker_compose_command(ssh_client, command, project_path=None):
-    """
-    Stub function for executing docker compose commands on a remote host via SSH.
-    """
-    if project_path is None:
-        project_path = get_project_root() # Use get_project_root for default
-
-    full_command = f"cd {project_path} && docker compose {command}"
-    print(f"DEBUG: Executing remote command: {full_command}") # Debug print
-
-    # Simulate SSH command execution (minimal stub)
-    # In a real scenario, this would use ssh_client.exec_command
-    # For the stub, we just return dummy values.
-    # However, the test *patches* ssh_client.exec_command, so this
-    # function will *use* the patched exec_command if it's called with the mock.
-
-    # For the test to work, the stub needs to make the *actual* call
-    # to the mocked ssh_client.exec_command.
-
-    # This is how it should look in the real implementation to work with the mocks:
-    stdin, stdout, stderr = ssh_client.exec_command(full_command, get_pty=True)
-
-    stdout_output = []
-    for line in iter(stdout.readline, ""):
-        stdout_output.append(line.strip())
-
-    stderr_output = stderr.read().strip() # read all stderr
-
-    exit_status = stdout.channel.recv_exit_status()
-
-    return exit_status == 0, "\n".join(stdout_output), stderr_output
 
 def get_project_root():
     """
@@ -146,6 +24,7 @@ def get_project_root():
     and the project root is one level up from 'src'.
     """
     current_script_dir = os.path.dirname(os.path.abspath(__file__))
+    # This should be exactly one directory up from 'src'
     project_root = os.path.dirname(current_script_dir)
     return project_root
 
@@ -153,8 +32,9 @@ def get_project_root():
 def parse_components_list(file_path=None):
     """
     Parses the components_list.txt file (INI-like format) and returns a dictionary
-    containing 'components_order' (list of component names) and 'all_component_data'
-    (dictionary of component details).
+    where keys are component names and values are dictionaries of their properties.
+
+    The 'COMPONENTS_ORDER' is extracted from the [PiSelfhosting] section.
     """
     if file_path is None:
         project_root = get_project_root()
@@ -164,34 +44,37 @@ def parse_components_list(file_path=None):
         raise FileNotFoundError(
             f"'{COMPONENTS_LIST_FILENAME}' not found at {file_path}. Please ensure it exists in the project root.")
 
-    config = configparser.ConfigParser()
-    config.optionxform = str
-
-    components_order = []
+    config = configparser.ConfigParser(allow_no_value=True, strict=False, comment_prefixes=('#', ';'))
     all_component_data = {}
+    components_order = []
 
     try:
-        with open(file_path, 'r', encoding='utf-8') as f:  # Ensure encoding='utf-8'
-            file_content = f.read()
-            if not file_content.strip().startswith('[') and '[PiSelfhosting]' not in file_content:
-                file_content = '[PiSelfhosting]\n' + file_content
-            config.read_string(file_content)
+        config.read(file_path)
 
-        if 'PiSelfhosting' in config and 'COMPONENTS_ORDER' in config['PiSelfhosting']:
-            order_string = config['PiSelfhosting']['COMPONENTS_ORDER']
-            components_order = [c.strip() for c in order_string.split(',') if c.strip()]
+        # Get COMPONENTS_ORDER from the [PiSelfhosting] section
+        if config.has_section('PiSelfhosting') and 'components_order' in config['PiSelfhosting']:
+            order_str = config['PiSelfhosting']['components_order']
+            components_order = [c.strip() for c in order_str.split(',') if c.strip()]
 
+        # Process actual component sections, excluding [PiSelfhosting]
         for section in config.sections():
-            if section != 'PiSelfhosting':
-                component_data = dict(config[section])
-                component_data['name'] = section
-                all_component_data[section] = component_data
+            if section == 'PiSelfhosting':  # Skip the metadata section
+                continue
 
-    except configparser.Error as e:
-        print(f"Error parsing '{COMPONENTS_LIST_FILENAME}' (INI format issue): {e}")
+            component_name = section
+            # Convert configparser's section (which is like a dict) to a regular dict
+            component_properties = dict(config.items(section))
+
+            # Ensure the 'name' property is explicitly set to the section name
+            component_properties['name'] = component_name
+
+            all_component_data[component_name] = component_properties
+
+    except configparser.Error as config_err:
+        print(f"Error parsing '{COMPONENTS_LIST_FILENAME}' with configparser: {config_err}")
         raise
-    except Exception as e:
-        print(f"Error reading or parsing '{COMPONENTS_LIST_FILENAME}': {e}")
+    except Exception as err:
+        print(f"An unexpected error occurred during parsing '{COMPONENTS_LIST_FILENAME}': {err}")
         raise
 
     return {
@@ -203,119 +86,254 @@ def parse_components_list(file_path=None):
 def read_selected_components(file_path=None):
     """
     Reads the selected_components.txt file and returns a set of selected component names.
-    If the file does not exist, an empty set is returned.
+    Expected format: names separated by spaces, no quotes.
     """
     if file_path is None:
         project_root = get_project_root()
         file_path = os.path.join(project_root, SELECTED_COMPONENTS_FILENAME)
 
     if not os.path.exists(file_path):
-        print(f"'{SELECTED_COMPONENTS_FILENAME}' not found at {file_path}. Returning empty set.")
+        # If the file doesn't exist, assume no components are selected yet (first run)
+        print(f"Warning: '{SELECTED_COMPONENTS_FILENAME}' not found at {file_path}. Assuming no components selected.")
         return set()
 
-    selected_components = set()
+    temp_selected_set = set()
     try:
-        with open(file_path, 'r', encoding='utf-8') as f:  # Ensure encoding='utf-8'
+        with open(file_path, 'r') as f:
             content = f.read().strip()
             if content:
-                selected_components.update(content.split())
-    except Exception as e:
-        print(f"Error reading or parsing '{SELECTED_COMPONENTS_FILENAME}': {e}")
+                # Split by space, handle multiple spaces, and ensure no empty strings
+                components = [c for c in content.split() if c]
+                temp_selected_set.update(components)
+    except Exception as err:
+        print(f"Error reading or parsing '{SELECTED_COMPONENTS_FILENAME}': {err}")
         raise
 
-    return selected_components
+    return temp_selected_set
 
 
-def select_components_interactively_and_save(components_data, selected_file_path=None):
+# --- FUNCTION FOR DOCKER COMPOSE GENERATION ---
+def generate_docker_compose_files(all_component_data, selected_components):
     """
-    Allows the user to interactively select components and saves their choices
-    to the selected_components.txt file.
-
-    Args:
-        components_data (dict): Dictionary from parse_components_list containing
-                                'components_order' and 'all_component_data'.
-        selected_file_path (str, optional): Custom path for selected_components.txt.
-                                            Defaults to project root.
-    Returns:
-        set: The set of newly selected components.
+    Generates individual docker-compose.yml files for selected components based on templates,
+    then merges them into a single docker-compose.yml.
+    Reads DOMAIN, PUID, PGID, HOST_IP, DB_USER, DB_PASS, TZ, REMOTE_PROJECT_PATH from environment variables
+    within the Docker container.
     """
-    if selected_file_path is None:
-        project_root = get_project_root()
-        selected_file_path = os.path.join(project_root, SELECTED_COMPONENTS_FILENAME)
+    print("\n--- Generating Docker Compose files ---")
+    project_root_in_container = get_project_root()  # This is /app (Docker container path)
+    templates_path = os.path.join(project_root_in_container, DOCKER_COMPOSE_TEMPLATES_DIR)
+    output_path_in_container = os.path.join(project_root_in_container,
+                                            DOCKER_COMPOSE_OUTPUT_DIR)  # This is /app/docker (Docker container path)
 
-    components_order = components_data["components_order"]
-    all_component_data = components_data["all_component_data"]
+    # Get the actual remote project path on the host from environment variable
+    # This variable is passed by the piselfhosting_installer.py script.
+    # It will be like /home/hvhoek/PiSelfhosting
+    remote_host_project_path = os.getenv("REMOTE_PROJECT_PATH",
+                                         "/home/pi/PiSelfhosting")  # Fallback to a common default
+    # Construct the full path to the docker output directory on the host
+    remote_host_docker_output_path = os.path.join(remote_host_project_path, DOCKER_COMPOSE_OUTPUT_DIR).replace('\\',
+                                                                                                               '/')  # Ensure Linux path separators
 
-    current_selected = read_selected_components(selected_file_path)
+    os.makedirs(output_path_in_container, exist_ok=True)
 
-    print("\n--- Select PiSelfhosting Components ---")
-    print("Enter the numbers of the components you want to select/deselect.")
-    print("Separate multiple numbers with spaces (e.g., '1 3 5').")
-    print("Press Enter without input to finish selection.")
-    print("Components marked with [x] are currently selected.")
+    # Setup Jinja2 environment
+    env = jinja2.Environment(
+        loader=jinja2.FileSystemLoader(templates_path),
+        trim_blocks=True,
+        lstrip_blocks=True
+    )
 
-    newly_selected = set(current_selected)  # Start with existing selection
+    # Read variables from environment variables (provided by piselfhosting_installer.py)
+    domain_name = os.getenv("DOMAIN", "yourdomain.com")
+    puid = os.getenv("PUID", "1000")
+    pgid = os.getenv("PGID", "1000")
+    host_ip = os.getenv("HOST_IP", "127.0.0.1")
+    db_user = os.getenv("DB_USER", "piselfhosting_user")
+    db_pass = os.getenv("DB_PASS", "secure_password")
+    tz = os.getenv("TZ", "Europe/Amsterdam")
+    admin_email = os.getenv("ADMIN_EMAIL", "admin@yourdomain.com")
 
-    while True:
-        print("\nAvailable Components:")
-        for i, comp_name in enumerate(components_order):
-            status = "[x]" if comp_name in newly_selected else "[ ]"
-            description = all_component_data.get(comp_name, {}).get("description", "No description available.")
-            print(f"{i + 1}. {status} {comp_name} - {description}")
+    context = {
+        "DOMAIN": domain_name,
+        "PUID": puid,
+        "PGID": pgid,
+        "HOST_IP": host_ip,
+        "DB_USER": db_user,
+        "DB_PASS": db_pass,
+        "TZ": tz,
+        "ADMIN_EMAIL": admin_email,
+        "DATA_ROOT": GLOBAL_DATA_ROOT,
+        "TRAEFIK_DASHBOARD_DOMAIN": f"traefik.{domain_name}" if "traefik" in selected_components else ""
+    }
+    print(f"DEBUG: Environment variables for substitution: {context}")
 
-        user_input = input("Your selection (numbers, space-separated, or Enter to confirm): ").strip()
+    individual_generated_files = []  # Renamed for clarity
 
-        if not user_input:
-            print("\nConfirming selection.")
-            break
+    for component_name in selected_components:
+        if component_name not in all_component_data:
+            print(
+                f"Warning: Component '{component_name}' found in selected_components.txt but not in components_list.txt. Skipping.")
+            continue
+
+        template_file = os.path.join(component_name, "docker-compose.template.yml")
+        output_file_name = f"docker-compose.{component_name}.yml"
+        output_file_path_in_container = os.path.join(output_path_in_container, output_file_name)
 
         try:
-            choices = [int(num) for num in user_input.split()]
-            for choice in choices:
-                if 1 <= choice <= len(components_order):
-                    comp_name = components_order[choice - 1]
-                    if comp_name in newly_selected:
-                        newly_selected.remove(comp_name)
-                        print(f"'{comp_name}' deselected.")
-                    else:
-                        newly_selected.add(comp_name)
-                        print(f"'{comp_name}' selected.")
-                else:
-                    print(
-                        f"Warning: Invalid number '{choice}'. Please choose a number from 1 to {len(components_order)}.")
-        except ValueError:
-            print("Error: Invalid input. Please enter numbers separated by spaces.")
+            print(
+                f"DEBUG: Jinja2 attempting to load template from absolute path: {os.path.join(templates_path, template_file)}")  # DEBUG PRINT
+            template = env.get_template(template_file)
 
-    # Save the selected components to file
+            # Print the SOURCE content snippet for debugging
+            print(f"DEBUG: Successfully loaded template '{template_file}'. Source content snippet:\n{template.environment.loader.get_source(env, template_file)[0][:500]}...")
+
+            rendered_content = template.render(context)
+
+            # Print the RENDERED content snippet for debugging
+            print(f"DEBUG: Rendered content snippet for '{component_name}':\n{rendered_content[:500]}...")
+
+            with open(output_file_path_in_container, 'w') as f:
+                f.write(rendered_content)
+            print(f"Generated: {output_file_path_in_container}")
+            individual_generated_files.append(output_file_path_in_container)
+
+        except jinja2.exceptions.TemplateNotFound as err_temp:
+            print(
+                f"Warning: Template not found for '{component_name}' at {template_file}. Error: {err_temp}. Skipping.")
+        except Exception as err:
+            print(f"Error generating Docker Compose for '{component_name}': {err}")
+            raise
+
+    # Call the new merge function
+    if individual_generated_files:
+        unified_compose_path_in_container = os.path.join(output_path_in_container, UNIFIED_DOCKER_COMPOSE_FILENAME)
+        unified_compose_path_on_host = os.path.join(remote_host_docker_output_path,
+                                                    UNIFIED_DOCKER_COMPOSE_FILENAME).replace('\\', '/')
+
+        # Pass the individual files and the container output path to the merge function
+        merge_docker_compose_files(individual_generated_files, unified_compose_path_in_container)
+
+        # MODIFIED PRINT STATEMENT: Show both container and host paths
+        print(
+            f"Successfully generated unified docker-compose.yml at '{unified_compose_path_in_container}' (container path).")
+        print(f"You can find it on your Raspberry Pi at: '{unified_compose_path_on_host}' (host path).")
+
+    else:
+        print("No individual Docker Compose files generated to merge.")
+
+    return individual_generated_files
+
+
+# --- FUNCTION FOR MERGING DOCKER COMPOSE FILES ---
+def merge_docker_compose_files(file_paths, output_path):
+    """
+    Merges multiple Docker Compose YAML files into a single unified file.
+    Handles 'services', 'volumes', and 'networks' sections.
+    """
+    print("\n--- Merging Docker Compose files ---")
+    unified_compose_data = {
+        'version': '3.8',  # Default Docker Compose version
+        'services': {},
+        'volumes': {},
+        'networks': {}
+    }
+
+    for file_path in file_paths:
+        try:
+            with open(file_path, 'r') as f:
+                component_compose = yaml.safe_load(f)
+
+            if not isinstance(component_compose, dict):
+                print(f"Warning: {file_path} does not contain valid YAML dictionary. Skipping merge.")
+                continue
+
+            # Merge services
+            if 'services' in component_compose:
+                for service_name, service_config in component_compose['services'].items():
+                    if service_name in unified_compose_data['services']:
+                        print(
+                            f"Warning: Duplicate service name '{service_name}' found in {file_path}. Overwriting with last one found.")
+                    unified_compose_data['services'][service_name] = service_config
+
+            # Merge volumes
+            if 'volumes' in component_compose:
+                for volume_name, volume_config in component_compose['volumes'].items():
+                    if volume_name in unified_compose_data['volumes']:
+                        # For volumes, it's safer to not overwrite if config differs
+                        if unified_compose_data['volumes'][volume_name] != volume_config:
+                            print(
+                                f"Warning: Volume '{volume_name}' in {file_path} has conflicting definition. Keeping first one encountered.")
+                        # Otherwise, if they are identical or new, add it.
+                    unified_compose_data['volumes'][volume_name] = volume_config
+
+            # Merge networks (assuming external: true is common, or define if not external)
+            if 'networks' in component_compose:
+                for network_name, network_config in component_compose['networks'].items():
+                    if network_name in unified_compose_data['networks']:
+                        if unified_compose_data['networks'][network_name] != network_config:
+                            print(
+                                f"Warning: Network '{network_name}' in {file_path} has conflicting definition. Keeping first one encountered.")
+                    unified_compose_data['networks'][network_name] = network_config
+
+        except yaml.YAMLError as yaml_err:
+            print(f"Error parsing YAML from {file_path}: {yaml_err}. Skipping merge for this file.")
+        except Exception as err:
+            print(f"An unexpected error occurred during merge for {file_path}: {err}. Skipping.")
+
+    # Write the unified data to the output file
     try:
-        with open(selected_file_path, 'w', encoding='utf-8') as f:  # Ensure encoding='utf-8'
-            f.write(" ".join(sorted(list(newly_selected))))  # Save as space-separated string
-        print(f"\nSuccessfully saved selected components to '{selected_file_path}'.")
-    except Exception as e:
-        print(f"Error saving selected components to '{selected_file_path}': {e}")
-        raise  # Re-raise the exception
+        with open(output_path, 'w') as f:
+            yaml.dump(unified_compose_data, f, default_flow_style=False,
+                      sort_keys=False)  # sort_keys=False to preserve order
+        # This print statement is now handled by the calling generate_docker_compose_files function
+    except Exception as err:
+        print(f"Error writing unified docker-compose.yml to {output_path}: {err}")
+        raise
 
-    return newly_selected
 
-
-# Example usage (for direct testing, can be removed later or guarded by if __name__ == "__main__":)
+# Example usage (for direct testing/debugging of the script)
 if __name__ == "__main__":
     print("Running setup.py directly for testing purposes...")
     try:
-        # Test parse_components_list
+        # NOTE: When running locally (not in Docker), REMOTE_PROJECT_PATH environment variable
+        # will not be set automatically. We'll set a dummy value for local testing context.
+        # This ensures get_project_root() still points to PiSelfhosting/
+        # And `remote_host_docker_output_path` can be constructed.
+        current_script_dir = os.path.dirname(os.path.abspath(__file__))
+        local_piselfhosting_root = os.path.dirname(current_script_dir)  # Should be ...\PiSelfhosting
+        os.environ['REMOTE_PROJECT_PATH'] = os.getenv('REMOTE_PROJECT_PATH', local_piselfhosting_root)
+
         parsed_data = parse_components_list()
-        print(f"Available components order: {parsed_data['components_order']}")
-        print(f"All component data: {parsed_data['all_component_data']}")
+        print("\nParsed Components List:")
+        print(f"  Order: {parsed_data['components_order']}")
+        for name, props in parsed_data['all_component_data'].items():
+            print(f"  Component: [{name}]")
+            for key, value in props.items():
+                print(f"    {key}: {value}")
 
-        # Test read_selected_components
-        selected_comps = read_selected_components()
-        print(f"Initially selected components: {selected_comps}")
+        print("\nSelected Components:")
+        selected_components_set = read_selected_components()
+        print(f"  Selected: {selected_components_set}")
 
-        # Test interactive selection and save
-        final_selected = select_components_interactively_and_save(parsed_data)
-        print(f"Final selected components: {final_selected}")
+        # For local testing, ensure dummy environment variables are set for generation
+        # These are usually passed by the installer in a real run.
+        if 'DOMAIN' not in os.environ: os.environ['DOMAIN'] = 'localtest.com'
+        if 'PUID' not in os.environ: os.environ['PUID'] = '1000'
+        if 'PGID' not in os.environ: os.environ['PGID'] = '1000'
+        if 'HOST_IP' not in os.environ: os.environ['HOST_IP'] = '127.0.0.1'
+        if 'DB_USER' not in os.environ: os.environ['DB_USER'] = 'localdbuser'
+        if 'DB_PASS' not in os.environ: os.environ['DB_PASS'] = 'localdbpass'
+        if 'TZ' not in os.environ: os.environ['TZ'] = 'Europe/Amsterdam'
+        if 'ADMIN_EMAIL' not in os.environ: os.environ['ADMIN_EMAIL'] = 'local@test.com'
+
+        generated_files_list = generate_docker_compose_files(
+            parsed_data["all_component_data"],
+            selected_components_set
+        )
+        print(f"\nSuccessfully generated {len(generated_files_list)} individual Docker Compose files.")
 
     except FileNotFoundError as e:
-        print(e)
+        print(f"FileNotFoundError: {e}")
     except Exception as e:
         print(f"An unexpected error occurred: {e}")

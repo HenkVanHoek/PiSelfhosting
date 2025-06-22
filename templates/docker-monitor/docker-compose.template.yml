@@ -1,17 +1,12 @@
-# scripts/templates/docker-monitor/docker-compose.yml.template
+# templates/docker-monitor/docker-compose.template.yml
 services:
-  monitor:
-    image: nginx:alpine
+  docker-monitor:
     container_name: piselfhosting-docker-monitor
+    image: nginx:alpine
     restart: unless-stopped
     volumes:
-      - ./html:/usr/share/nginx/html:ro # HTML content wordt hier gemount
+      - "{{DATA_ROOT}}/docker-monitor/html:/usr/share/nginx/html:ro"
     ports:
-      - "8088:80" # Webserver poort voor de monitor pagina
+      - "8088:80"
     networks:
       - piselfhosting_net
-
-networks:
-  piselfhosting_net:
-    external: true
-

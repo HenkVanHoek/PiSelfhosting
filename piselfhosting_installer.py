@@ -1,356 +1,390 @@
-# piselfhosting_installer.py
 import paramiko
 import os
 import sys
+from stat import S_ISDIR
+from dotenv import load_dotenv, set_key
 import getpass
-import time
 
 # --- Configuration ---
-DEFAULT_PI_USER = "pi"
-DEFAULT_PI_PORT = 22
-# REMOTE_PROJECT_BASE_PATH = "/home/pi/PiSelfhosting" # This a dynamic variable from now on.
-LOCAL_PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))  # Assumes installer.py is in project root
+# Excluded items from synchronization (relative to project root)
+# Ensure these patterns are relative to the local_path passed to sync_files_to_pi
+# and should end with '/' for directories, or be exact filenames for files.
+EXCLUDED_ITEMS = [
+    '.git/',
+    '.idea/',
+    'venv/',
+    '.pytest_cache/',
+    '__pycache__/',  # Exclude Python cache directories like __pycache__/
+    'docker/',  # Specific docker-compose files will be generated on Pi, so exclude the local 'docker' output directory
+    'scripts/',  # Old scripts, will be replaced by src
+    '.env',  # Exclude .env file itself from being synced to Pi (it's local config)
+    'docker-compose.yml'  # The old global docker-compose.yml in the root
+]
+
+# Load environment variables from .env file
+# This will load variables from .env into os.environ, allowing them to serve as defaults.
+load_dotenv()
+
+# --- Global variables (now potentially read from .env) ---
+# These will be passed as environment variables to the setup.py script running on the Pi.
+DEFAULT_PI_IP = os.getenv('PI_IP', 'raspberrypi.local')
+DEFAULT_SSH_USERNAME = os.getenv('SSH_USERNAME', 'pi')
+DEFAULT_DOMAIN = os.getenv('DOMAIN', 'yourdomain.com')
+DEFAULT_PUID = os.getenv('PUID', '1000')  # Example User ID (typically 1000 for 'pi' user)
+DEFAULT_PGID = os.getenv('PGID', '1000')  # Example Group ID (typically 1000 for 'pi' user)
+DEFAULT_HOST_IP = os.getenv('HOST_IP',
+                            '192.168.178.118')  # Default internal IP for container's extra_hosts (e.g., Dashy)
+DEFAULT_DB_USER = os.getenv('DB_USER', 'piselfhosting_user')
+DEFAULT_DB_PASS = os.getenv('DB_PASS', 'secure_password_please_change')
+DEFAULT_TZ = os.getenv('TZ', 'Europe/Amsterdam')
+DEFAULT_ADMIN_EMAIL = os.getenv('ADMIN_EMAIL',
+                                'admin@yourdomain.com')  # Admin email for SSL certificates (e.g., Traefik)
+
+# Path to the .env file (local to the installer script)
+ENV_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.env')
 
 
-# --- Helper Functions ---
-
-def get_user_input(prompt, default_value=None, sensitive=False):
-    """
-    Prompts the user for input.
-    If sensitive is True, uses getpass for secure password input.
-    """
-    if sensitive:
-        return getpass.getpass(prompt).strip()
-    else:
-        if default_value:
-            return input(f"{prompt} (default: {default_value}): ").strip() or default_value
-        return input(f"{prompt}: ").strip()
-
-
-def setup_ssh_client(hostname, username, password, port=DEFAULT_PI_PORT):
-    """
-    Sets up and returns a configured Paramiko SSH client.
-    """
-    client = paramiko.SSHClient()
-    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-
-    print(f"Attempting to connect to {username}@{hostname}:{port}...")
-    try:
-        client.connect(hostname=hostname, port=port, username=username, password=password, timeout=10)
-        print("Successfully connected to Raspberry Pi via SSH.")
-        return client
-    except paramiko.AuthenticationException:
-        print("Authentication failed. Please check your username and password.")
-        return None
-    except paramiko.SSHException as e:
-        print(f"SSH connection error: {e}")
-        return None
-    except Exception as e:
-        print(f"An unexpected error occurred during SSH connection: {e}")
-        return None
-
-
-def execute_remote_command(ssh_client, command):
-    """
-    Executes a command on the remote Pi and returns stdout, stderr, and exit code.
-    """
+def run_remote_command(ssh_client, command):
+    """Executes a command on the remote Raspberry Pi and prints output."""
     print(f"\nExecuting remote command: '{command}'")
+    stdin, stdout, stderr = ssh_client.exec_command(command)
+    exit_status = stdout.channel.recv_exit_status()  # Wait for command to complete
 
-    stdin, stdout, stderr = ssh_client.exec_command(command, get_pty=True)
+    stdout_output = stdout.read().decode('utf-8').strip()
+    stderr_output = stderr.read().decode('utf-8').strip()
 
-    stdout_lines = stdout.readlines()
-    stderr_lines = stderr.readlines()
-
-    exit_status = stdout.channel.recv_exit_status()
-
-    stdout_output = "".join(stdout_lines).strip()
-    stderr_output = "".join(stderr_lines).strip()
-
-    if exit_status != 0:
-        print(f"Command failed with exit code {exit_status}.")
-        if stdout_output:
-            print(f"STDOUT:\n{stdout_output}")
-        if stderr_output:
-            print(f"STDERR:\n{stderr_output}")
-    else:
-        if stdout_output:
-            print(f"STDOUT:\n{stdout_output}")
-        if stderr_output:
-            print(f"STDERR (Warning/Info):\n{stderr_output}")
+    if exit_status == 0:
         print("Command executed successfully.")
-
-    return exit_status, stdout_output, stderr_output
-
-
-def check_and_install_docker(ssh_client, username):
-    """
-    Checks if Docker is installed on the remote Pi. If not, installs it.
-    Also ensures the user is in the 'docker' group.
-    """
-    print("\n--- Checking Docker Installation ---")
-
-    exit_code, stdout, stderr = execute_remote_command(ssh_client, "which docker")
-    if exit_code == 0 and "docker" in stdout:
-        print("Docker command found. Checking Docker service status...")
-        exit_code, stdout, stderr = execute_remote_command(ssh_client, "sudo systemctl is-active docker")
-        if exit_code == 0 and "active" in stdout:
-            print("Docker is installed and running.")
-        else:
-            print("Docker command found, but service is not active. Attempting to start Docker service...")
-            exit_code, stdout, stderr = execute_remote_command(ssh_client, "sudo systemctl start docker")
-            if exit_code == 0:
-                print("Docker service started successfully.")
-            else:
-                print("Failed to start Docker service. Please check manually.")
-                return False
-
+        if stdout_output:
+            print(stdout_output)
+        return True, stdout_output, stderr_output
     else:
-        print("Docker not found. Initiating Docker installation...")
-        install_cmd = "curl -fsSL https://get.docker.com -o get-docker.sh && sudo sh get-docker.sh"
-        exit_code, stdout, stderr = execute_remote_command(ssh_client, install_cmd)
-
-        if exit_code != 0:
-            print("Docker installation failed. Please check the output above for errors.")
-            return False
-        print("Docker installed successfully.")
-
-        execute_remote_command(ssh_client, "rm get-docker.sh")
-
-    print("\n--- Checking and Adding User to Docker Group ---")
-    exit_code, stdout, stderr = execute_remote_command(ssh_client, f"groups {username}")
-    if "docker" not in stdout:
-        print(f"User '{username}' is not in the 'docker' group. Adding now...")
-        add_group_cmd = f"sudo usermod -aG docker {username}"
-        exit_code, stdout, stderr = execute_remote_command(ssh_client, add_group_cmd)
-        if exit_code == 0:
-            print(
-                f"User '{username}' added to 'docker' group. A reboot or re-login is required for changes to take effect.")
-            print("It is highly recommended to reboot the Raspberry Pi now for Docker permissions to apply.")
-            reboot_choice = get_user_input("Reboot Raspberry Pi now? (y/N)", default_value="N").lower()
-            if reboot_choice == 'y':
-                print("Rebooting Raspberry Pi...")
-                execute_remote_command(ssh_client, "sudo reboot")
-                print("Waiting for Pi to reboot (approx. 60 seconds)...")
-                time.sleep(60)
-                return False
-            else:
-                print("Please remember to reboot your Raspberry Pi manually before proceeding with Docker commands.")
-                return False
-        else:
-            print(f"Failed to add user '{username}' to 'docker' group.")
-            return False
-    else:
-        print(f"User '{username}' is already in the 'docker' group.")
-
-    print("Docker setup complete.")
-    return True
+        print(f"Command failed with exit status {exit_status}.")
+        if stdout_output:
+            print("STDOUT:")
+            print(stdout_output)
+        if stderr_output:
+            print("STDERR:")
+            print(stderr_output)
+        return False, stdout_output, stderr_output
 
 
-def upload_project_files(ssh_client, local_path, remote_base_path):
+def _is_excluded(local_item_path, base_local_path, exclude_list):
+    """Checks if a given local item path should be excluded from synchronization.
+    Patterns in exclude_list are relative to base_local_path (project root)."""
+    normalized_local_item_path = os.path.normpath(local_item_path).replace(os.sep, '/')
+
+    # Calculate path relative to base_local_path (project root) for matching exclude_list patterns
+    relative_path = os.path.relpath(local_item_path, base_local_path).replace(os.sep, '/')
+
+    # Special handling for the base_local_path itself if it's the current directory ('.')
+    if relative_path == ".":
+        return False  # The root itself is never excluded, only its contents or specific files within it.
+
+    for exclude_pattern in exclude_list:
+        # Normalize the exclude pattern for comparison
+        normalized_exclude_pattern = os.path.normpath(exclude_pattern).replace(os.sep, '/')
+
+        if normalized_exclude_pattern.endswith('/'):  # Directory exclusion (e.g., 'venv/')
+            # Check if the relative path starts with the excluded directory pattern
+            # and ensure it's a full directory match (e.g., 'venv' not 'venom')
+            if relative_path.startswith(normalized_exclude_pattern):
+                return True
+            # Also check exact match for the directory itself at the top level
+            if relative_path == normalized_exclude_pattern.strip('/'):
+                return True
+        else:  # File exclusion (e.g., '.env', 'docker-compose.yml')
+            # Check for exact file name match in the current directory, or a specific file path
+            if relative_path == normalized_exclude_pattern:
+                return True
+            # Check if it's just the basename matching (for files anywhere)
+            if os.path.basename(normalized_local_item_path) == normalized_exclude_pattern:
+                return True
+    return False
+
+
+def _sftp_put_recursive(sftp_client, ssh_connection_client, local_src_path, remote_dest_path, exclude_list,
+                        base_local_path):
     """
-    Uploads files/directories recursively from local_path to remote_base_path on the Pi.
+    Recursively uploads files and directories to the remote host via SFTP.
+    Handles exclusions and creates remote directories as needed.
     """
-    sftp_client = ssh_client.open_sftp()
-
-    # List of items to exclude from upload (relative to local_path)
-    # Common exclusions: virtual environments, git metadata, PyCharm project files, pytest cache.
-    exclude_list = [
-        '.git',
-        '.idea',
-        'venv',  # <-- EXCLUDE VIRTUAL ENVIRONMENT
-        '__pycache__',
-        '.pytest_cache',
-        'scripts',
-        'docker',
-        '.DS_Store' # macOS specific
-    ]
-
-    # Ensure the remote base path exists (use remote_base_path directly)
+    # Ensure remote_dest_path exists as a directory
     try:
-        # This will create /home/<user>/PiSelfhosting if it doesn't exist
-        exit_code, stdout, stderr = execute_remote_command(ssh_client, f"mkdir -p {remote_base_path}")
-        if exit_code != 0:
-            print(f"Error creating remote base directory {remote_base_path}: {stderr}")
-            sftp_client.close()
-            return False
-    except Exception as e:
-        print(f"Unexpected error creating remote base directory {remote_base_path}: {e}")
-        sftp_client.close()
-        return False
+        sftp_stat = sftp_client.stat(remote_dest_path)
+        if not S_ISDIR(sftp_stat.st_mode):
+            print(f"Warning: Remote path {remote_dest_path} exists but is not a directory. Skipping upload.")
+            return
+    except FileNotFoundError:
+        success, _, _ = run_remote_command(ssh_connection_client, f"mkdir -p {remote_dest_path}")
+        if not success:
+            print(f"Error: Failed to create remote directory {remote_dest_path}. Skipping content upload.")
+            return
 
-    print(f"\n--- Uploading files from {local_path} to {remote_base_path} ---")
+    if os.path.isdir(local_src_path):
+        for item in os.listdir(local_src_path):
+            local_item_child_path = os.path.join(local_src_path, item)
+            remote_item_child_path = os.path.join(remote_dest_path, item).replace('\\',
+                                                                                  '/')  # Ensure forward slashes for Linux paths
 
-    try:
-        for item in os.listdir(local_path):
-            if item in exclude_list:  # <-- CHECK EXCLUDE LIST
-                print(f"Skipping excluded item: {item}/")
+            # Determine display path for logging (relative to project root)
+            display_path = os.path.relpath(local_item_child_path, base_local_path).replace(os.sep, '/')
+
+            if _is_excluded(local_item_child_path, base_local_path, exclude_list):
+                print(f"Skipping excluded item: {display_path}/" if os.path.isdir(
+                    local_item_child_path) else f"Skipping excluded item: {display_path}")
                 continue
 
-            local_item_path = os.path.join(local_path, item)
-
-            # For non-excluded items, handle as before
-            if os.path.isfile(local_item_path):
-                remote_file_path = os.path.join(remote_base_path, item).replace('\\', '/')
-                print(f"Uploading file: {item}")
-                sftp_client.put(local_item_path, remote_file_path)
-            elif os.path.isdir(local_item_path):
-                print(f"Uploading directory: {item}/")
-                # Need to walk recursively, but check sub-items against exclude list too if desired
-                # For simplicity, we apply exclude at the top-level of os.walk.
-                # If a directory is excluded, its contents are not walked.
-
-                # Construct remote_current_dir relative to remote_base_path
-                remote_dir_base = os.path.join(remote_base_path, item).replace('\\', '/')
-                execute_remote_command(ssh_client,
-                                       f"mkdir -p {remote_dir_base}")  # Create the top-level excluded folder if it has content (e.g., .git/config)
-
-                for root, dirs, files in os.walk(local_item_path):
-                    # Filter out excluded subdirectories before descending into them
-                    dirs[:] = [d for d in dirs if d not in exclude_list]  # Modify dirs in-place for os.walk
-
-                    remote_current_dir = os.path.join(remote_base_path, os.path.relpath(root, local_path)).replace('\\',
-                                                                                                                   '/')
-                    execute_remote_command(ssh_client,
-                                           f"mkdir -p {remote_current_dir}")  # Ensure current subdirectory exists
-
-                    for file_name in files:
-                        # Check if parent directory is excluded. If we are here, it's not a top-level excluded item.
-                        # We also check if the file itself needs to be excluded if specific files are in exclude_list
-                        if file_name in exclude_list:  # For specific file exclusions
-                            print(
-                                f"Skipping excluded file: {os.path.relpath(os.path.join(root, file_name), local_path)}")
-                            continue
-
-                        local_file_path = os.path.join(root, file_name)
-                        remote_file_path = os.path.join(remote_current_dir, file_name).replace('\\', '/')
-
-                        print(f"  Uploading: {os.path.relpath(local_file_path, local_path)}")
-                        sftp_client.put(local_file_path, remote_file_path)
-            else:
-                print(f"Skipping unsupported item type: {item}")
-
-        print("File upload complete.")
-        return True
-    except FileNotFoundError as e:
-        print(f"Error: Local file or directory not found: {e}")
-        return False
-    except paramiko.SSHException as e:
-        print(f"SSH/SFTP error during file upload: {e}")
-        return False
-    except Exception as e:
-        print(f"An unexpected error occurred during file upload: {e}")
-        return False
-    finally:
-        sftp_client.close()
+            if os.path.isdir(local_item_child_path):
+                print(f"Uploading directory: {display_path}/")
+                _sftp_put_recursive(sftp_client, ssh_connection_client, local_item_child_path, remote_item_child_path,
+                                    exclude_list, base_local_path)
+            else:  # It's a file
+                print(f"  Uploading: {display_path}")
+                sftp_client.put(local_item_child_path, remote_item_child_path)
+    # If local_src_path is a file, it should have been handled by the calling sync_files_to_pi or recursive call.
+    # This function is primarily designed to recurse into directories.
 
 
-def build_and_run_setup_tool_container(ssh_client, remote_project_path):
+def sync_files_to_pi(ssh_client, local_path, remote_path, exclude_list):
     """
-    Builds the piselfhosting-setup-tool Docker image on the remote Pi
-    and then runs src/setup.py inside a container using that image.
+    Synchronizes files and directories from local_path to remote_path on the Pi.
+    This function first clears the remote project directory for a clean sync.
     """
-    SETUP_TOOL_IMAGE_NAME = "piselfhosting-setup-tool"
-    DOCKERFILE_NAME = "Dockerfile.setup-tool"
+    print(f"\n--- Uploading files from {local_path} to {remote_path} ---")
 
-    remote_dockerfile_path = os.path.join(remote_project_path, DOCKERFILE_NAME).replace('\\', '/')
-    remote_src_path_in_container = "/app"  # Path where project root is mounted inside container
+    # Clear and recreate the entire remote project directory (using sudo for permissions)
+    print(f"Clearing and recreating remote directory {remote_path} to ensure clean synchronization...")
+    success, _, stderr = run_remote_command(ssh_client, f"sudo rm -rf {remote_path} && mkdir -p {remote_path}")
+    if not success:
+        print(f"Error: Failed to clear and recreate remote directory. Exiting. Error: {stderr}")
+        ssh_client.close()
+        sys.exit(1)
+    else:
+        print("Remote directory cleared and recreated successfully.")
 
-    print(f"\n--- Building Docker image for setup tool ({SETUP_TOOL_IMAGE_NAME}) ---")
-    # Build the Docker image. The context for the build is the remote_project_path.
-    # --no-cache is good for development to ensure latest changes are picked up.
-    # -f specifies the Dockerfile name within the build context.
-    build_cmd = f"docker build -t {SETUP_TOOL_IMAGE_NAME} -f {remote_dockerfile_path} {remote_project_path}"
-    exit_code, stdout, stderr = execute_remote_command(ssh_client, build_cmd)
+    sftp = ssh_client.open_sftp()
 
-    if exit_code != 0:
-        print(f"Failed to build Docker image '{SETUP_TOOL_IMAGE_NAME}'.")
-        return False
-    print(f"Docker image '{SETUP_TOOL_IMAGE_NAME}' built successfully.")
+    # Iterate over top-level items in local_path and upload them recursively
+    for item_name in os.listdir(local_path):
+        local_item_full_path = os.path.join(local_path, item_name)
+        remote_item_full_path = os.path.join(remote_path, item_name).replace('\\', '/')  # Ensure forward slashes
 
-    print(f"\n--- Running src/setup.py inside Docker container ---")
-    # Run the setup tool container.
-    # --rm: Automatically remove the container when it exits.
-    # -v {remote_project_path}:{remote_src_path_in_container}: Mount the entire project folder from the Pi host into the container.
-    # This allows src/setup.py inside the container to access all templates, configs etc.
-    # python {remote_src_path_in_container}/src/setup.py: Command to execute inside the container.
-    run_setup_cmd = f"docker run --rm -v {remote_project_path}:{remote_src_path_in_container} {SETUP_TOOL_IMAGE_NAME} python {remote_src_path_in_container}/src/setup.py"
+        if _is_excluded(local_item_full_path, local_path, exclude_list):
+            print(f"Skipping excluded item: {item_name}/" if os.path.isdir(
+                local_item_full_path) else f"Skipping excluded item: {item_name}")
+            continue
 
-    # Execute the command. The output of src/setup.py will be streamed here.
-    # This will trigger interactive selection, compose generation, etc.
-    exit_code, stdout, stderr = execute_remote_command(ssh_client, run_setup_cmd)
+        if os.path.isdir(local_item_full_path):
+            print(f"Uploading directory: {item_name}/")
+            _sftp_put_recursive(sftp, ssh_client, local_item_full_path, remote_item_full_path, exclude_list, local_path)
+        else:  # Top-level file
+            print(f"  Uploading: {item_name}")
+            sftp.put(local_item_full_path, remote_item_full_path)
 
-    if exit_code != 0:
-        print(f"Execution of src/setup.py in container failed with exit code {exit_code}.")
-        return False
-    print("src/setup.py executed successfully inside the Docker container.")
-
-    return True
+    sftp.close()
+    print("File upload complete.")
 
 
 def main():
     print("--- PiSelfhosting Installer & Orchestrator ---")
     print("This script helps you manage your PiSelfhosting project on your Raspberry Pi.")
 
-    pi_hostname = get_user_input("Enter Raspberry Pi IP address or hostname", default_value="raspberrypi.local")
-    pi_username = get_user_input("Enter Raspberry Pi SSH username", default_value=DEFAULT_PI_USER)
-    pi_password = get_user_input(f"Enter password for {pi_username}@{pi_hostname}", sensitive=True)
+    # Use default values from .env if available
+    pi_ip = input(f"Enter Raspberry Pi IP address or hostname (default: {DEFAULT_PI_IP}): ")
+    if not pi_ip:
+        pi_ip = DEFAULT_PI_IP
+    set_key(ENV_PATH, "PI_IP", pi_ip)  # Save to .env
+    print(f"Using Raspberry Pi IP/hostname: {pi_ip}")
 
-    ssh_client = None
+    ssh_username = input(f"Enter Raspberry Pi SSH username (default: {DEFAULT_SSH_USERNAME}): ")
+    if not ssh_username:
+        ssh_username = DEFAULT_SSH_USERNAME
+    set_key(ENV_PATH, "SSH_USERNAME", ssh_username)  # Save to .env
+    print(f"Using SSH username: {ssh_username}")
+
+    ssh_password = getpass.getpass(f"Enter password for {ssh_username}@{pi_ip}: ")
+
+    ssh_client = paramiko.SSHClient()
+    ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+
     try:
-        ssh_client = setup_ssh_client(pi_hostname, pi_username, pi_password)
-        if ssh_client is None:
-            print("Failed to establish SSH connection. Exiting.")
-            sys.exit(1)
+        print(f"Attempting to connect to {ssh_username}@{pi_ip}:22...")
+        ssh_client.connect(hostname=pi_ip, username=ssh_username, password=ssh_password, port=22, timeout=10)
+        print("Successfully connected to Raspberry Pi via SSH.")
+    except Exception as e:
+        print(f"Failed to connect to Raspberry Pi: {e}")
+        sys.exit(1)
 
-        # --- Dynamically determine remote project path ---
-        print("\n--- Determining remote project path ---")
-        exit_code, home_dir_output, stderr_output = execute_remote_command(ssh_client, "echo $HOME")
+    # --- Determine remote project path ---
+    print("\n--- Determining remote project path ---")
+    success, stdout, _ = run_remote_command(ssh_client, 'echo $HOME')
+    if not success:
+        print("Could not determine remote home directory. Exiting.")
+        ssh_client.close()
+        sys.exit(1)
+    remote_home_dir = stdout
+    remote_project_path = os.path.join(remote_home_dir, "PiSelfhosting").replace('\\',
+                                                                                 '/')  # Ensure forward slashes for Linux paths
+    print(f"Determined remote home directory: {remote_home_dir}")
+    print(f"Project will be installed/synced in: {remote_project_path}")
 
-        dynamic_remote_project_path = ""
-        if exit_code == 0 and home_dir_output:
-            remote_user_home_dir = home_dir_output.strip()
-            dynamic_remote_project_path = os.path.join(remote_user_home_dir, "PiSelfhosting").replace('\\', '/')
-            print(f"Determined remote home directory: {remote_user_home_dir}")
-            print(f"Project will be installed/synced in: {dynamic_remote_project_path}")
-        else:
-            print("Could not determine remote home directory. Defaulting to /home/pi/PiSelfhosting.")
-            dynamic_remote_project_path = "/home/pi/PiSelfhosting"
-            print(f"Project will be installed/synced in: {dynamic_remote_project_path}")
+    # --- Test basic remote command execution ---
+    print("\n--- Testing basic remote command execution ---")
+    success, _, _ = run_remote_command(ssh_client, 'uname -a')
+    if not success:
+        print("Basic remote command failed. Exiting.")
+        ssh_client.close()
+        sys.exit(1)
+    print("Basic command 'uname -a' succeeded.")
 
-        # --- Test basic remote command execution ---
-        print("\n--- Testing basic remote command execution ---")
-        exit_code, stdout, stderr = execute_remote_command(ssh_client, "uname -a")
-        if exit_code == 0:
-            print("Basic command 'uname -a' succeeded.")
-        else:
-            print("Basic command 'uname -a' failed. Please check connection and permissions.")
+    # --- Check Docker Installation ---
+    print("\n--- Checking Docker Installation ---")
+    success, _, _ = run_remote_command(ssh_client, 'which docker')
+    if not success:
+        print("Docker command not found. Please install Docker on your Raspberry Pi. Exiting.")
+        ssh_client.close()
+        sys.exit(1)
+    print("Docker command found. Checking Docker service status...")
 
-        # --- Check and Install Docker ---
-        docker_ready = check_and_install_docker(ssh_client, pi_username)
-        if not docker_ready:
-            print("Docker is not ready. Please resolve issues or reboot the Pi if prompted, then re-run the installer.")
-            sys.exit(1)
+    success, _, _ = run_remote_command(ssh_client, 'sudo systemctl is-active docker')
+    if not success:
+        print("Docker service is not running. Please start Docker. Exiting.")
+        ssh_client.close()
+        sys.exit(1)
+    print("Docker is installed and running.")
 
-        # --- Upload Project Files ---
-        print("\n--- Starting project file synchronization ---")
-        if not upload_project_files(ssh_client, LOCAL_PROJECT_ROOT, dynamic_remote_project_path):
-            print("Failed to upload project files. Exiting.")
-            sys.exit(1)
-
-        # --- Build and Run Setup Tool Container ---
-        print("\n--- Starting setup tool execution via Docker container ---")
-        if not build_and_run_setup_tool_container(ssh_client, dynamic_remote_project_path):
-            print("Setup tool execution failed. Exiting.")
-            sys.exit(1)
-
-        print("\n--- PiSelfhosting Deployment Process Complete ---")
-        print("Your PiSelfhosting services should now be configured and deployed on your Raspberry Pi.")
-        print("Remember to check the web interfaces of your services!")
-
-    finally:  # Re-enabled the finally block to ensure SSH connection is closed.
-        if ssh_client:
+    # --- Check and Add User to Docker Group ---
+    print("\n--- Checking and Adding User to Docker Group ---")
+    success, stdout, _ = run_remote_command(ssh_client, f'groups {ssh_username}')
+    if not success or 'docker' not in stdout:
+        print(f"User '{ssh_username}' is not in the 'docker' group. Attempting to add...")
+        print("You may be prompted for your password on the Pi for 'sudo' command.")
+        success, _, stderr_output = run_remote_command(ssh_client,
+                                                       f'sudo usermod -aG docker {ssh_username} && newgrp docker')
+        if not success:
+            print(f"Failed to add user to docker group. Error: {stderr_output}")
+            print("Please add the user to the 'docker' group manually: 'sudo usermod -aG docker YOUR_USERNAME'")
             ssh_client.close()
-            print("\nSSH connection closed.")
+            sys.exit(1)
+        print(f"User '{ssh_username}' added to 'docker' group. A reboot might be required for changes to take effect.")
+    else:
+        print(f"User '{ssh_username}' is already in the 'docker' group.")
+    print("Docker setup complete.")
+
+    # --- Gathering configuration parameters and saving to .env ---
+    print("\n--- Gathering configuration parameters ---")
+
+    domain = input(f"Enter your primary domain name (default: {DEFAULT_DOMAIN}): ")
+    if not domain:
+        domain = DEFAULT_DOMAIN
+    set_key(ENV_PATH, "DOMAIN", domain)  # Save to .env
+    print(f"Using domain: {domain}")
+
+    puid = input(f"Enter PUID for user (default: {DEFAULT_PUID}): ")
+    if not puid:
+        puid = DEFAULT_PUID
+    set_key(ENV_PATH, "PUID", puid)  # Save to .env
+    print(f"Using PUID: {puid}")
+
+    pgid = input(f"Enter PGID for user (default: {DEFAULT_PGID}): ")
+    if not pgid:
+        pgid = DEFAULT_PGID
+    set_key(ENV_PATH, "PGID", pgid)  # Save to .env
+    print(f"Using PGID: {pgid}")
+
+    # Host IP for extra_hosts (needed by Dashy)
+    host_ip = input(f"Enter Raspberry Pi's internal IP for container's extra_hosts (default: {DEFAULT_HOST_IP}): ")
+    if not host_ip:
+        host_ip = DEFAULT_HOST_IP
+    set_key(ENV_PATH, "HOST_IP", host_ip)  # Save to .env
+    print(f"Using host IP for containers: {host_ip}")
+
+    # Database credentials for services like NPM, phpMyAdmin
+    db_user = input(f"Enter database username (default: {DEFAULT_DB_USER}): ")
+    if not db_user:
+        db_user = DEFAULT_DB_USER
+    set_key(ENV_PATH, "DB_USER", db_user)  # Save to .env
+    print(f"Using DB user: {db_user}")
+
+    db_pass = getpass.getpass(f"Enter database password (default: {DEFAULT_DB_PASS}): ")
+    if not db_pass:
+        db_pass = DEFAULT_DB_PASS
+    set_key(ENV_PATH, "DB_PASS", db_pass)  # Save to .env
+    print(f"Using DB password: {'*' * len(db_pass) if db_pass else 'None'}")  # Mask password output
+
+    # Timezone
+    tz = input(f"Enter timezone (default: {DEFAULT_TZ}, e.g., Europe/Amsterdam): ")
+    if not tz:
+        tz = DEFAULT_TZ
+    set_key(ENV_PATH, "TZ", tz)  # Save to .env
+    print(f"Using timezone: {tz}")
+
+    admin_email = input(f"Enter admin email for SSL certificates (default: {DEFAULT_ADMIN_EMAIL}): ")
+    if not admin_email:
+        admin_email = DEFAULT_ADMIN_EMAIL
+    set_key(ENV_PATH, "ADMIN_EMAIL", admin_email)  # Save to .env
+    print(f"Using admin email: {admin_email}")
+
+    # --- Start project file synchronization ---
+    print("\n--- Starting project file synchronization ---")
+    local_project_path = os.path.abspath(os.path.dirname(__file__))
+
+    sync_files_to_pi(ssh_client, local_project_path, remote_project_path, EXCLUDED_ITEMS)
+
+    # --- Build and Run Setup Tool via Docker container ---
+    print("\n--- Starting setup tool execution via Docker container ---")
+
+    # Build Docker image for the setup tool
+    print("\n--- Building Docker image for setup tool (piselfhosting-setup-tool) ---")
+    docker_build_command = (
+        f"docker build -t piselfhosting-setup-tool "
+        f"-f {remote_project_path}/Dockerfile.setup-tool "  # Path to Dockerfile
+        f"{remote_project_path}"  # Build context
+    )
+    success, stdout_build, stderr_build = run_remote_command(ssh_client, docker_build_command)
+    if not success:
+        print(f"Failed to build Docker image for setup tool. Exiting. Error: {stderr_build}")
+        ssh_client.close()
+        sys.exit(1)
+    print("Docker image 'piselfhosting-setup-tool' built successfully.")
+
+    # Run setup.py inside the Docker container with environment variables
+    print("\n--- Running src/setup.py inside Docker container ---")
+    # Pass environment variables to the Docker container, including the remote project path
+    env_vars_for_docker = (
+        f"-e DOMAIN=\"{domain}\" "
+        f"-e PUID=\"{puid}\" "
+        f"-e PGID=\"{pgid}\" "
+        f"-e HOST_IP=\"{host_ip}\" "
+        f"-e DB_USER=\"{db_user}\" "
+        f"-e DB_PASS=\"{db_pass}\" "
+        f"-e TZ=\"{tz}\" "
+        f"-e ADMIN_EMAIL=\"{admin_email}\" "
+        f"-e REMOTE_PROJECT_PATH=\"{remote_project_path}\""  # Pass remote project path for setup.py's host path output
+    )
+    # The setup.py script expects to find project files under /app
+    setup_tool_command = (
+        f"docker run --rm "  # --rm removes the container after it exits
+        f"-v {remote_project_path}:/app "  # Mount project directory
+        f"{env_vars_for_docker} "  # Environment variables for the container
+        f"piselfhosting-setup-tool "  # Image name
+        f"python /app/src/setup.py"  # Command to execute inside the container
+    )
+    success, stdout_setup, stderr_setup = run_remote_command(ssh_client, setup_tool_command)
+
+    if not success:
+        print(f"Error during setup tool execution inside Docker container. Exiting. Error: {stderr_setup}")
+        ssh_client.close()
+        sys.exit(1)
+    print("src/setup.py executed successfully inside the Docker container.")
+
+    print("\n--- PiSelfhosting Deployment Process Complete ---")
+    print("Your PiSelfhosting services should now be configured and deployed on your Raspberry Pi.")
+    print("Remember to check the web interfaces of your services!")
+
+    ssh_client.close()
+    print("SSH connection closed.")
 
 
 if __name__ == "__main__":

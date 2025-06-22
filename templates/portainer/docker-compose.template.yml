@@ -1,11 +1,11 @@
-# scripts/templates/portainer/docker-compose.yml.template
+# templates/portainer/docker-compose.yml.template
 services:
   portainer:
     image: portainer/portainer-ce:latest
     container_name: piselfhosting-portainer
     restart: unless-stopped
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock # Nodig voor Portainer om Docker te beheren
+      - /var/run/docker.sock:/var/run/docker.sock
       - portainer_data:/data
     ports:
       - "9000:9000" # Portainer web UI

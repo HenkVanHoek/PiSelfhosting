@@ -1,4 +1,4 @@
-# scripts/templates/dashy/docker-compose.yml.template
+# templates/dashy/docker-compose.template.yml
 services:
   dashy:
     container_name: piselfhosting-dashy
@@ -8,20 +8,16 @@ services:
       - "8080:80" # Dashy HTTP port
       - "4443:443" # Dashy HTTPS port
     volumes:
-      - ./config:/app/public/conf # Mount the config directory
+      - "{{DATA_ROOT}}/dashy/config:/app/public/conf" # FHS compliance for config
     environment:
-      - PUID=${PUID} # Host user ID, for file permissions
-      - PGID=${PGID} # Host group ID
-      - TZ=Europe/Amsterdam # Adjust timezone if necessary
+      - "PUID={{PUID}}" # Host user ID, for file permissions
+      - "PGID={{PUID}}" # Host group ID
+      - "TZ={{ TZ | default('Europe/Amsterdam') }}" # Adjust timezone if necessary, uses default if not set
       - NODE_ENV=production
     extra_hosts:
       # This adds an entry to /etc/hosts in the container,
       # so services can be accessed via the DOMAIN if they run through Nginx Proxy Manager.
       # HOST_IP is dynamically filled by deploy.sh.
-      - "${DOMAIN}:${HOST_IP}"
+      - "{{DOMAIN}}:{{ HOST_IP | default('127.0.0.1') }}" # Ensure HOST_IP is always there, and no extra spaces
     networks:
       - piselfhosting_net
-
-networks:
-  piselfhosting_net:
-    external: true

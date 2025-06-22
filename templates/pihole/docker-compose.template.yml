@@ -1,11 +1,11 @@
-# scripts/templates/pihole/docker-compose.yml.template
+# templates/pihole/docker-compose.yml.template
 services:
   pihole:
     container_name: piselfhosting-pihole
     image: pihole/pihole:latest
     restart: unless-stopped
     environment:
-      - TZ=Europe/Amsterdam # Tijdzone aanpassen indien nodig
+      - TZ=${TZ}
       - WEBPASSWORD=${PIHOLE_PASSWORD}
       - DNSMASQ_LISTENING=all # Luister op alle interfaces
       - FTLCONF_PIHOLE_DNS_PORT=53 # Expliciet de DNS poort

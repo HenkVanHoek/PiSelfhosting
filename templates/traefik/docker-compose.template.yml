@@ -1,58 +1,54 @@
-# /home/PiSelfhosting/templates/dashy/docker-compose.template
-
+# templates/traefik/docker-compose.template.yml
 version: '3.8'
 
 services:
-  dashy:
-    container_name: piselfhosting-dashy
-    image: lissy93/dashy:2.1.1
+  traefik:
+    image: traefik:v3.0 # Use a specific Traefik v3 version
+    container_name: piselfhosting-traefik
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    command:
+      # Entrypoints for HTTP (web) and HTTPS (websecure)
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+      - --entrypoints.traefik.address=:8080 # Traefik Dashboard/API port (internal)
 
-    # IMPORTANT: The 'ports' mapping is NO longer needed when using Traefik.
-    # Traefik forwards traffic directly to the container's internal port.
-    # We remove this to prevent conflicts and because Traefik handles it.
-    # The "4443:443" mapping is especially unnecessary because Traefik handles HTTPS.
-    # ports:
-    #   - "8080:80" # Dashy HTTP port
-    #   - "4443:443" # Dashy HTTPS port
+      # Enable Docker provider for service discovery
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false # Only expose services with traefik.enable=true label
+
+      # Enable API and Dashboard (access via :8080 or dedicated domain via NPM/Traefik rule)
+      - --api.dashboard=true
+      - --api.insecure=false # Set to true for local development only, otherwise access via router
+
+      # Enable ACME (Let's Encrypt) for automatic SSL certificate generation
+      - "--certificatesresolvers.letsencrypt.acme.email={{ ADMIN_EMAIL | default('admin@yourdomain.com') }}" # Your email for Let's Encrypt
+      - "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json" # Path to store certs
+      - "--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web" # For HTTP-01 challenge
+
+      # Log settings (optional)
+      - --log.level=INFO # DEBUG, INFO, WARN, ERROR
+      - --accesslog=true # Enable access logs
+
+    ports:
+      - "80:80"   # The HTTP port Traefik listens on
+      - "443:443" # The HTTPS port Traefik listens on
+      # - "8080:8080" # Only expose Traefik dashboard if needed directly, generally proxy via NPM/Traefik rule
 
     volumes:
-      - ./config:/app/public/conf # Mount the config directory
-    environment:
-      - PUID=${PUID} # Host user ID, for file permissions
-      - PGID=${PGID} # Host group ID
-      - TZ=Europe/Amsterdam # Adjust timezone if necessary
-      - NODE_ENV=production
-    extra_hosts:
-      # This 'extra_hosts' is usually no longer needed if you route everything through Traefik,
-      # as Traefik serves as the central entry point.
-      # You can remove this once Traefik is working correctly for Dashy.
-      # - "${DOMAIN}:${HOST_IP}"
+      - /var/run/docker.sock:/var/run/docker.sock:ro # Mount Docker socket for Traefik to discover services
+      - "{{DATA_ROOT}}/traefik/config:/etc/traefik" # Mount configuration directory for Traefik
+      - "{{DATA_ROOT}}/traefik/acme:/letsencrypt" # Mount directory for Let's Encrypt certificates
     networks:
       - piselfhosting_net
 
-    # --- ADD TRAEFIK LABELS ---
-    labels:
-      - "traefik.enable=true" # Enable Traefik processing for this service
-
-      # Define the router for Dashy
-      # The rule: Host(`dashy.henkenyvonne.nl`)
-      # Use your domain name henkenyvonne.nl
-      - "traefik.http.routers.dashy.rule=Host(`dashy.henkenyvonne.nl`)"
-
-      # Listen to the HTTPS entrypoint (defined in Traefik's own docker-compose)
-      - "traefik.http.routers.dashy.entrypoints=websecure"
-
-      # Certificate resolver via Let's Encrypt (defined in Traefik's own docker-compose)
-      - "traefik.http.routers.dashy.tls.certresolver=letsencrypt"
-
-      # Define the service (internal to the container)
-      # The loadbalancer.server.port is the port THAT DASHY LISTENS ON INSIDE THE CONTAINER
-      # Dashy listens on port 80 (HTTP) internally in the container by default.
-      - "traefik.http.services.dashy.loadbalancer.server.port=80"
-
-      # Optional middleware: If you want dashy.henkenyvonne.nl to be local-only
-      # - "traefik.http.routers.dashy.middlewares=internal-only@docker"
+# Define global volumes needed by Traefik
+volumes:
+  traefik_config:
+    name: piselfhosting-traefik-config # Optional: if you need a specific named volume
+  traefik_acme:
+    name: piselfhosting-traefik-acme # Optional: for ACME cert storage
 
 networks:
   piselfhosting_net:

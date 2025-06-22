@@ -34,3 +34,5 @@ RUN pip install --no-cache-dir -r requirements.txt
 # No CMD or ENTRYPOINT here. The command to run src/setup.py will be specified
 # directly via 'docker run' by the piselfhosting_installer.py script.
 # Example usage: docker run --rm -v /path/on/pi:/app piselfhosting-setup-tool python /app/src/setup.py
+
+# Cache busting comment: 2025-06-22-2

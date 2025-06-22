@@ -1,22 +1,20 @@
-# scripts/templates/phpmyadmin/docker-compose.yml.template
+# templates/phpmyadmin/docker-compose.template.yml
 services:
   phpmyadmin:
-    image: arm64v8/phpmyadmin:latest # Specifieke image voor ARM-architectuur
+    image: arm64v8/phpmyadmin:latest # Specific image for ARM architecture
     container_name: piselfhosting-phpmyadmin
     restart: unless-stopped
     environment:
-      PMA_HOST: mariadb # Hostnaam van de MariaDB-service
+      PMA_HOST: mariadb # Hostname of the MariaDB service
       PMA_PORT: 3306
-      MYSQL_ROOT_PASSWORD: ${DB_PASS} # Gebruik het root wachtwoord uit .env
-      # PMA_USER: ${DB_USER} # Optioneel: specifieke P_USER als je geen root gebruikt
-      # PMA_PASSWORD: ${DB_PASS} # Optioneel: specifieke P_PASSWORD
+      MYSQL_ROOT_PASSWORD: ${DB_PASS} # Use the root password from .env
+      # PMA_USER: ${DB_USER} # Optional: specific P_USER if not using root
+      # PMA_PASSWORD: ${DB_PASS} # Optional: specific P_PASSWORD
     ports:
-      - "8083:80" # phpMyAdmin web UI poort
+      - "8083:80" # phpMyAdmin web UI port
     depends_on:
-      - mariadb # Zorgt ervoor dat mariadb eerst start
+      - mariadb # Ensures mariadb starts first
+    volumes:
+      - "{{DATA_ROOT}}/phpmyadmin/config:/etc/phpmyadmin/config.inc.php" # Example config path, adjust as needed
     networks:
       - piselfhosting_net
-
-networks:
-  piselfhosting_net:
-    external: true

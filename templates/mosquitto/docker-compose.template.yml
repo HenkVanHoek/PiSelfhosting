@@ -7,11 +7,9 @@ services:
       - "1883:1883"
       - "9001:9001"
     volumes:
-      - ./config:/mosquitto/config
-      - ./data:/mosquitto/data
-      - ./log:/mosquitto/log
-    networks:
-      - piselfhosting_net
+    - "{{DATA_ROOT}}/mosquitto/config:/mosquitto/config"
+    - "{{DATA_ROOT}}/mosquitto/data:/mosquitto/data"
+    - "{{DATA_ROOT}}/mosquitto/log:/mosquitto/log"
 
 networks:
   piselfhosting_net:

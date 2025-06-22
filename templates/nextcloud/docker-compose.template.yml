@@ -1,33 +1,33 @@
-                # scripts/templates/nextcloud/docker-compose.yml.template
-                services:
-                  nextcloud:
-                    image: nextcloud:stable
-                    container_name: piselfhosting-nextcloud
-                    restart: unless-stopped
-                    ports:
-                      - "8081:80"
-                    volumes:
-                      - nextcloud_data:/var/www/html
-                      - nextcloud_config:/var/www/html/config
-                    environment:
-                      - MYSQL_HOST=mariadb
-                      - MYSQL_DATABASE=piselfhosting
-                      - MYSQL_USER=${DB_USER}
-                      - MYSQL_PASSWORD=${DB_PASS}
-                      - NEXTCLOUD_ADMIN_USER=${NC_ADMIN_USER}
-                      - NEXTCLOUD_ADMIN_PASSWORD=${NC_ADMIN_PASS}
-                    depends_on:
-                      - mariadb
-                    networks:
-                      - piselfhosting_net
+# templates/nextcloud/docker-compose.yml.template
+services:
+  nextcloud:
+    image: nextcloud:stable
+    container_name: piselfhosting-nextcloud
+    restart: unless-stopped
+    ports:
+      - "8081:80"
+    volumes:
+      - nextcloud_data:/var/www/html
+      - nextcloud_config:/var/www/html/config
+    environment:
+      - MYSQL_HOST=mariadb
+      - MYSQL_DATABASE=piselfhosting
+      - MYSQL_USER=${DB_USER}
+      - MYSQL_PASSWORD=${DB_PASS}
+      - NEXTCLOUD_ADMIN_USER=${NC_ADMIN_USER}
+      - NEXTCLOUD_ADMIN_PASSWORD=${NC_ADMIN_PASS}
+    depends_on:
+      - mariadb
+    networks:
+      - piselfhosting_net
 
-                volumes:
-                  nextcloud_data:
-                    name: piselfhosting-nextcloud-data
-                  nextcloud_config:
-                    name: piselfhosting-nextcloud-config
+volumes:
+  nextcloud_data:
+    name: piselfhosting-nextcloud-data
+  nextcloud_config:
+    name: piselfhosting-nextcloud-config
 
-                networks:
-                  piselfhosting_net:
-                    external: true
-                
+networks:
+  piselfhosting_net:
+    external: true
+
