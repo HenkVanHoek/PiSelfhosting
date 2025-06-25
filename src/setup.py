@@ -3,6 +3,7 @@ import os
 import configparser
 import jinja2
 import yaml
+import json
 
 # Global FHS-compliant data root for all services
 GLOBAL_DATA_ROOT = "/opt/piselfhosting/data"
@@ -13,7 +14,7 @@ SELECTED_COMPONENTS_FILENAME = "selected_components.txt"
 DOCKER_COMPOSE_TEMPLATES_DIR = "templates"  # Path to the templates directory (relative to project root)
 DOCKER_COMPOSE_OUTPUT_DIR = "docker"  # Path where generated docker-compose files will be stored (relative to project root)
 
-# NEW CONSTANT: Name for the unified Docker Compose file
+# Name for the unified Docker Compose file
 UNIFIED_DOCKER_COMPOSE_FILENAME = "docker-compose.yml"
 
 
@@ -23,9 +24,8 @@ def get_project_root():
     Assumes this script (setup.py) is located in the 'src' subdirectory
     and the project root is one level up from 'src'.
     """
-    current_script_dir = os.path.dirname(os.path.abspath(__file__))
-    # This should be exactly one directory up from 'src'
-    project_root = os.path.dirname(current_script_dir)
+    _current_script_dir = os.path.dirname(os.path.abspath(__file__))  # Renamed to avoid shadowing
+    project_root = os.path.dirname(_current_script_dir)
     return project_root
 
 
@@ -112,34 +112,34 @@ def read_selected_components(file_path=None):
     return temp_selected_set
 
 
-# --- FUNCTION FOR DOCKER COMPOSE GENERATION ---
+# --- FUNCTION FOR DOCKER COMPOSE AND CONFIG FILE GENERATION ---
 def generate_docker_compose_files(all_component_data, selected_components):
     """
-    Generates individual docker-compose.yml files for selected components based on templates,
-    then merges them into a single docker-compose.yml.
-    Reads DOMAIN, PUID, PGID, HOST_IP, DB_USER, DB_PASS, TZ, REMOTE_PROJECT_PATH from environment variables
-    within the Docker container.
+    Generates individual docker-compose.yml files for selected components based on templates.
+    Also generates specific application config files for components.
+    Then merges individual compose files into a single docker-compose.yml.
+    Reads all necessary variables from environment variables.
     """
-    print("\n--- Generating Docker Compose files ---")
+    print("\n--- Generating Docker Compose files and Configs ---")
     project_root_in_container = get_project_root()  # This is /app (Docker container path)
-    templates_path = os.path.join(project_root_in_container, DOCKER_COMPOSE_TEMPLATES_DIR)
-    output_path_in_container = os.path.join(project_root_in_container,
-                                            DOCKER_COMPOSE_OUTPUT_DIR)  # This is /app/docker (Docker container path)
+    templates_root_path = os.path.join(project_root_in_container,
+                                       DOCKER_COMPOSE_TEMPLATES_DIR)  # This is /app/templates
+    output_path_in_container = os.path.join(project_root_in_container, DOCKER_COMPOSE_OUTPUT_DIR)  # This is /app/docker
 
     # Get the actual remote project path on the host from environment variable
-    # This variable is passed by the piselfhosting_installer.py script.
-    # It will be like /home/hvhoek/PiSelfhosting
     remote_host_project_path = os.getenv("REMOTE_PROJECT_PATH",
                                          "/home/pi/PiSelfhosting")  # Fallback to a common default
-    # Construct the full path to the docker output directory on the host
     remote_host_docker_output_path = os.path.join(remote_host_project_path, DOCKER_COMPOSE_OUTPUT_DIR).replace('\\',
                                                                                                                '/')  # Ensure Linux path separators
 
     os.makedirs(output_path_in_container, exist_ok=True)
+    # Ensure a temporary directory for generated config files exists within /app/docker
+    generated_configs_temp_path = os.path.join(output_path_in_container, "generated_configs")
+    os.makedirs(generated_configs_temp_path, exist_ok=True)
 
     # Setup Jinja2 environment
     env = jinja2.Environment(
-        loader=jinja2.FileSystemLoader(templates_path),
+        loader=jinja2.FileSystemLoader(templates_root_path),  # Jinja2 loads from /app/templates
         trim_blocks=True,
         lstrip_blocks=True
     )
@@ -153,6 +153,9 @@ def generate_docker_compose_files(all_component_data, selected_components):
     db_pass = os.getenv("DB_PASS", "secure_password")
     tz = os.getenv("TZ", "Europe/Amsterdam")
     admin_email = os.getenv("ADMIN_EMAIL", "admin@yourdomain.com")
+    phpmyadmin_blowfish_secret = os.getenv("PHPMYADMIN_BLOWFISH_SECRET", os.urandom(32).hex())
+    pma_host = os.getenv("PMA_HOST", "mariadb")
+    frigate_rtsp_password = os.getenv("FRIGATE_RTSP_PASSWORD", "change_me_frigate_rtsp_pass")
 
     context = {
         "DOMAIN": domain_name,
@@ -163,12 +166,16 @@ def generate_docker_compose_files(all_component_data, selected_components):
         "DB_PASS": db_pass,
         "TZ": tz,
         "ADMIN_EMAIL": admin_email,
-        "DATA_ROOT": GLOBAL_DATA_ROOT,
-        "TRAEFIK_DASHBOARD_DOMAIN": f"traefik.{domain_name}" if "traefik" in selected_components else ""
+        "PHPMYADMIN_BLOWFISH_SECRET": phpmyadmin_blowfish_secret,
+        "PMA_HOST": pma_host,
+        "FRIGATE_RTSP_PASSWORD": frigate_rtsp_password,
+        "DATA_ROOT": GLOBAL_DATA_ROOT,  # /opt/piselfhosting/data
+        "TRAEFIK_DASHBOARD_DOMAIN": f"traefik.{domain_name}" if "traefik" in selected_components else ""  # Typo fixed
     }
     print(f"DEBUG: Environment variables for substitution: {context}")
 
-    individual_generated_files = []  # Renamed for clarity
+    individual_generated_compose_files = []  # List to hold paths of generated docker-compose files
+    generated_config_files_to_move = {}  # Dict to hold {temp_container_path: final_host_path} for config files
 
     for component_name in selected_components:
         if component_name not in all_component_data:
@@ -176,45 +183,148 @@ def generate_docker_compose_files(all_component_data, selected_components):
                 f"Warning: Component '{component_name}' found in selected_components.txt but not in components_list.txt. Skipping.")
             continue
 
-        template_file = os.path.join(component_name, "docker-compose.template.yml")
-        output_file_name = f"docker-compose.{component_name}.yml"
-        output_file_path_in_container = os.path.join(output_path_in_container, output_file_name)
+        # --- Handle Docker Compose Template ---
+        # Convention: docker-compose.template.yml
+        compose_template_path = os.path.join(component_name, "docker-compose.template.yml")
+        compose_output_filename = f"docker-compose.{component_name}.yml"
+        compose_output_full_path_in_container = os.path.join(output_path_in_container, compose_output_filename)
 
         try:
             print(
-                f"DEBUG: Jinja2 attempting to load template from absolute path: {os.path.join(templates_path, template_file)}")  # DEBUG PRINT
-            template = env.get_template(template_file)
+                f"DEBUG: Jinja2 attempting to load compose template: {os.path.join(templates_root_path, compose_template_path)}")
+            template_compose = env.get_template(compose_template_path)
 
-            # Print the SOURCE content snippet for debugging
-            print(f"DEBUG: Successfully loaded template '{template_file}'. Source content snippet:\n{template.environment.loader.get_source(env, template_file)[0][:500]}...")
+            print(
+                f"DEBUG: Successfully loaded template '{compose_template_path}'. Source snippet:\n{template_compose.environment.loader.get_source(env, compose_template_path)[0][:500]}...")
+            rendered_content_compose = template_compose.render(context)
+            print(
+                f"DEBUG: Rendered content snippet for '{component_name}' (Compose):\n{rendered_content_compose[:500]}...")
 
-            rendered_content = template.render(context)
-
-            # Print the RENDERED content snippet for debugging
-            print(f"DEBUG: Rendered content snippet for '{component_name}':\n{rendered_content[:500]}...")
-
-            with open(output_file_path_in_container, 'w') as f:
-                f.write(rendered_content)
-            print(f"Generated: {output_file_path_in_container}")
-            individual_generated_files.append(output_file_path_in_container)
+            with open(compose_output_full_path_in_container, 'w') as f:
+                f.write(rendered_content_compose)
+            print(f"Generated: {compose_output_full_path_in_container}")
+            individual_generated_compose_files.append(compose_output_full_path_in_container)
 
         except jinja2.exceptions.TemplateNotFound as err_temp:
             print(
-                f"Warning: Template not found for '{component_name}' at {template_file}. Error: {err_temp}. Skipping.")
+                f"Warning: Compose Template not found for '{component_name}' at {compose_template_path}. Error: {err_temp}. Skipping.")
         except Exception as err:
             print(f"Error generating Docker Compose for '{component_name}': {err}")
             raise
 
-    # Call the new merge function
-    if individual_generated_files:
+        # --- Handle specific application config file templates ---
+        # NEW NAMING CONVENTION: <filename>.<extension> inside <component>/template-config/
+
+        # Mosquitto config file generation
+        if component_name == "mosquitto":
+            config_template_name = "mosquitto.conf"  # Template file name (now matches original filename in template-config)
+            final_config_filename = "mosquitto.conf"  # Final name in FHS /data/
+            template_path_full = os.path.join(templates_root_path, component_name, "template-config",
+                                              config_template_name)
+            final_fhs_config_path = os.path.join(GLOBAL_DATA_ROOT, component_name, "config",
+                                                 final_config_filename).replace('\\', '/')
+
+            # noinspection PyBroadException
+            try:
+                rendered_config_content = env.get_template(
+                    os.path.join(component_name, "template-config", config_template_name)).render(context)
+
+                temp_output_dir_for_component = os.path.join(generated_configs_temp_path, component_name)
+                os.makedirs(temp_output_dir_for_component, exist_ok=True)  # Ensure component's temp dir
+
+                temp_output_path_in_container_config = os.path.join(temp_output_dir_for_component,
+                                                                    final_config_filename)
+                with open(temp_output_path_in_container_config, 'w') as f:
+                    f.write(rendered_config_content)
+
+                print(
+                    f"Generated Mosquitto config file (will be moved by installer): {temp_output_path_in_container_config}")
+                generated_config_files_to_move[temp_output_path_in_container_config] = final_fhs_config_path
+
+            except jinja2.exceptions.TemplateNotFound:
+                print(
+                    f"Warning: Config template '{config_template_name}' not found at {template_path_full}. Skipping config generation.")
+            except Exception as err:
+                print(f"Error generating Mosquitto config: {err}")
+                raise
+
+        # phpMyAdmin config file generation
+        elif component_name == "phpmyadmin":
+            config_template_name = "config.inc.php"  # Template file name
+            final_config_filename = "config.inc.php"  # Final name
+            template_path_full = os.path.join(templates_root_path, component_name, "template-config",
+                                              config_template_name)
+            final_fhs_config_path = os.path.join(GLOBAL_DATA_ROOT, component_name, "config",
+                                                 final_config_filename).replace('\\', '/')
+
+            # noinspection PyBroadException
+            try:
+                # Initialize temp_output_path_in_container_config before try block
+                temp_output_path_in_container_config = os.path.join(generated_configs_temp_path, component_name,
+                                                                    final_config_filename)
+
+                rendered_config_content = env.get_template(
+                    os.path.join(component_name, "template-config", config_template_name)).render(context)
+
+                temp_output_dir_for_component = os.path.join(generated_configs_temp_path, component_name)
+                os.makedirs(temp_output_dir_for_component, exist_ok=True)  # Ensure component's temp dir
+
+                with open(temp_output_path_in_container_config, 'w') as f:
+                    f.write(rendered_config_content)
+
+                print(
+                    f"Generated phpMyAdmin config file (will be moved by installer): {temp_output_path_in_container_config}")
+                generated_config_files_to_move[temp_output_path_in_container_config] = final_fhs_config_path
+
+            except jinja2.exceptions.TemplateNotFound:
+                print(
+                    f"Warning: phpMyAdmin config template not found at {template_path_full}. Skipping config generation.")
+            except Exception as err:  # noinspection PyBroadException
+                print(f"Error generating phpMyAdmin config: {err}")
+                raise
+
+        # Dashy config file generation
+        elif component_name == "dashy":
+            config_template_name = "conf.yml"  # Template file name (your existing one)
+            final_config_filename = "conf.yml"  # Final name
+            template_path_full = os.path.join(templates_root_path, component_name, "template-config",
+                                              config_template_name)
+            final_fhs_config_path = os.path.join(GLOBAL_DATA_ROOT, component_name, "config",
+                                                 final_config_filename).replace('\\', '/')
+
+            # noinspection PyBroadException
+            try:
+                # Initialize temp_output_path_in_container_config before try block
+                temp_output_path_in_container_config = os.path.join(generated_configs_temp_path, component_name,
+                                                                    final_config_filename)
+
+                rendered_config_content = env.get_template(
+                    os.path.join(component_name, "template-config", config_template_name)).render(context)
+
+                temp_output_dir_for_component = os.path.join(generated_configs_temp_path, component_name)
+                os.makedirs(temp_output_dir_for_component, exist_ok=True)  # Ensure component's temp dir
+
+                with open(temp_output_path_in_container_config, 'w') as f:
+                    f.write(rendered_config_content)
+
+                print(
+                    f"Generated Dashy config file (will be moved by installer): {temp_output_path_in_container_config}")
+                generated_config_files_to_move[temp_output_path_in_container_config] = final_fhs_config_path
+
+            except jinja2.exceptions.TemplateNotFound:
+                print(f"Warning: Dashy config template not found at {template_path_full}. Skipping config generation.")
+            except Exception as err:  # noinspection PyBroadException
+                print(f"Error generating Dashy config: {err}")
+                raise
+
+    # Call the merge function for Docker Compose files
+    if individual_generated_compose_files:
         unified_compose_path_in_container = os.path.join(output_path_in_container, UNIFIED_DOCKER_COMPOSE_FILENAME)
         unified_compose_path_on_host = os.path.join(remote_host_docker_output_path,
                                                     UNIFIED_DOCKER_COMPOSE_FILENAME).replace('\\', '/')
 
-        # Pass the individual files and the container output path to the merge function
-        merge_docker_compose_files(individual_generated_files, unified_compose_path_in_container)
+        merge_docker_compose_files(individual_generated_compose_files, unified_compose_path_in_container)
 
-        # MODIFIED PRINT STATEMENT: Show both container and host paths
         print(
             f"Successfully generated unified docker-compose.yml at '{unified_compose_path_in_container}' (container path).")
         print(f"You can find it on your Raspberry Pi at: '{unified_compose_path_on_host}' (host path).")
@@ -222,7 +332,9 @@ def generate_docker_compose_files(all_component_data, selected_components):
     else:
         print("No individual Docker Compose files generated to merge.")
 
-    return individual_generated_files
+    # generated_config_files_to_move is the map for the installer to use.
+    # CRUCIAL: Print this map as JSON as the absolute last thing to stdout by setup.py.
+    print(json.dumps(generated_config_files_to_move))
 
 
 # --- FUNCTION FOR MERGING DOCKER COMPOSE FILES ---
@@ -233,13 +345,14 @@ def merge_docker_compose_files(file_paths, output_path):
     """
     print("\n--- Merging Docker Compose files ---")
     unified_compose_data = {
-        'version': '3.8',  # Default Docker Compose version
+        # 'version': '3.8', # Removed as it's obsolete in Docker Compose V2
         'services': {},
         'volumes': {},
         'networks': {}
     }
 
     for file_path in file_paths:
+        # noinspection PyBroadException
         try:
             with open(file_path, 'r') as f:
                 component_compose = yaml.safe_load(f)
@@ -260,7 +373,6 @@ def merge_docker_compose_files(file_paths, output_path):
             if 'volumes' in component_compose:
                 for volume_name, volume_config in component_compose['volumes'].items():
                     if volume_name in unified_compose_data['volumes']:
-                        # For volumes, it's safer to not overwrite if config differs
                         if unified_compose_data['volumes'][volume_name] != volume_config:
                             print(
                                 f"Warning: Volume '{volume_name}' in {file_path} has conflicting definition. Keeping first one encountered.")
@@ -282,11 +394,11 @@ def merge_docker_compose_files(file_paths, output_path):
             print(f"An unexpected error occurred during merge for {file_path}: {err}. Skipping.")
 
     # Write the unified data to the output file
+    # noinspection PyBroadException
     try:
         with open(output_path, 'w') as f:
             yaml.dump(unified_compose_data, f, default_flow_style=False,
                       sort_keys=False)  # sort_keys=False to preserve order
-        # This print statement is now handled by the calling generate_docker_compose_files function
     except Exception as err:
         print(f"Error writing unified docker-compose.yml to {output_path}: {err}")
         raise
@@ -295,11 +407,10 @@ def merge_docker_compose_files(file_paths, output_path):
 # Example usage (for direct testing/debugging of the script)
 if __name__ == "__main__":
     print("Running setup.py directly for testing purposes...")
+    # noinspection PyBroadException
     try:
         # NOTE: When running locally (not in Docker), REMOTE_PROJECT_PATH environment variable
         # will not be set automatically. We'll set a dummy value for local testing context.
-        # This ensures get_project_root() still points to PiSelfhosting/
-        # And `remote_host_docker_output_path` can be constructed.
         current_script_dir = os.path.dirname(os.path.abspath(__file__))
         local_piselfhosting_root = os.path.dirname(current_script_dir)  # Should be ...\PiSelfhosting
         os.environ['REMOTE_PROJECT_PATH'] = os.getenv('REMOTE_PROJECT_PATH', local_piselfhosting_root)
@@ -326,14 +437,21 @@ if __name__ == "__main__":
         if 'DB_PASS' not in os.environ: os.environ['DB_PASS'] = 'localdbpass'
         if 'TZ' not in os.environ: os.environ['TZ'] = 'Europe/Amsterdam'
         if 'ADMIN_EMAIL' not in os.environ: os.environ['ADMIN_EMAIL'] = 'local@test.com'
+        if 'PHPMYADMIN_BLOWFISH_SECRET' not in os.environ: os.environ[
+            'PHPMYADMIN_BLOWFISH_SECRET'] = 'local_blowfish_secret'
+        if 'PMA_HOST' not in os.environ: os.environ['PMA_HOST'] = 'local_mariadb'
+        if 'FRIGATE_RTSP_PASSWORD' not in os.environ: os.environ['FRIGATE_RTSP_PASSWORD'] = 'local_frigate_pass'
 
-        generated_files_list = generate_docker_compose_files(
+        generated_config_files_map_from_setup = generate_docker_compose_files(
             parsed_data["all_component_data"],
             selected_components_set
         )
-        print(f"\nSuccessfully generated {len(generated_files_list)} individual Docker Compose files.")
+        print(f"\nSuccessfully generated config and compose files.")
+
+        # CRUCIAL: Print the map as JSON as the absolute last thing to stdout for the installer to parse.
+        print(json.dumps(generated_config_files_map_from_setup))
 
     except FileNotFoundError as e:
         print(f"FileNotFoundError: {e}")
-    except Exception as e:
+    except Exception as e:  # noinspection PyBroadException
         print(f"An unexpected error occurred: {e}")

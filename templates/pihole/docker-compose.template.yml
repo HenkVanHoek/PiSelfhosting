@@ -1,4 +1,4 @@
-# templates/pihole/docker-compose.yml.template
+# templates/pihole/docker-compose.template.yml
 services:
   pihole:
     container_name: piselfhosting-pihole

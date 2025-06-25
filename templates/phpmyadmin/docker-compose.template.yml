@@ -15,6 +15,9 @@ services:
     depends_on:
       - mariadb # Ensures mariadb starts first
     volumes:
-      - "{{DATA_ROOT}}/phpmyadmin/config:/etc/phpmyadmin/config.inc.php" # Example config path, adjust as needed
+      - "{{DATA_ROOT}}/phpmyadmin/config/config.inc.php:/etc/phpmyadmin/config.inc.php" # Mount the specific config file, FHS compliant
     networks:
       - piselfhosting_net
+networks:
+  piselfhosting_net:
+    external: true

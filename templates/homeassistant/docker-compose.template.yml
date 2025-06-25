@@ -1,4 +1,4 @@
-# templates/homeassistant/docker-compose.yml.template
+# templates/homeassistant/docker-compose.template.yml
 services:
   homeassistant:
     container_name: piselfhosting-homeassistant

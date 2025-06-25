@@ -1,4 +1,4 @@
-# templates/portainer/docker-compose.yml.template
+# templates/portainer/docker-compose.template.yml
 services:
   portainer:
     image: portainer/portainer-ce:latest

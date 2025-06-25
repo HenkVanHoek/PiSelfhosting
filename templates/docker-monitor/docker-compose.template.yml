@@ -10,3 +10,6 @@ services:
       - "8088:80"
     networks:
       - piselfhosting_net
+networks:
+  piselfhosting_net:
+    external: true

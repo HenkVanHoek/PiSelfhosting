@@ -1,6 +1,4 @@
 # templates/traefik/docker-compose.template.yml
-version: '3.8'
-
 services:
   traefik:
     image: traefik:v3.0 # Use a specific Traefik v3 version

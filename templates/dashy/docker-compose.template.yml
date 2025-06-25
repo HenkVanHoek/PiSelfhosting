@@ -21,3 +21,6 @@ services:
       - "{{DOMAIN}}:{{ HOST_IP | default('127.0.0.1') }}" # Ensure HOST_IP is always there, and no extra spaces
     networks:
       - piselfhosting_net
+networks:
+  piselfhosting_net:
+    external: true

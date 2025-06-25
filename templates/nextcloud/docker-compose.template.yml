@@ -1,4 +1,4 @@
-# templates/nextcloud/docker-compose.yml.template
+# templates/nextcloud/docker-compose.template.yml
 services:
   nextcloud:
     image: nextcloud:stable

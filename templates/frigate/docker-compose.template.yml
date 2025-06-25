@@ -1,4 +1,4 @@
-# templates/frigate/docker-compose.yml.template
+# templates/frigate/docker-compose.template.yml
 services:
   frigate:
     container_name: piselfhosting-frigate

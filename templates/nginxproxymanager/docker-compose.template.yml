@@ -21,6 +21,9 @@ services:
       - mariadb # Ensures mariadb starts first
     networks:
       - piselfhosting_net
+networks:
+  piselfhosting_net:
+    external: true
 
 volumes:
   npm_letsencrypt:
