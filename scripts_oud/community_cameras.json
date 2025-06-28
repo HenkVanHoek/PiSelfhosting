@@ -1,0 +1,60 @@
+[
+  {
+    "name": "Tapo C200/C310",
+    "url_template": "rtsp://{user}:{password}@{ip}:{port}/stream0",
+    "notes": "Common for TP-Link Tapo C100, C200, C310, etc."
+  },
+  {
+    "name": "Reolink (main stream)",
+    "url_template": "rtsp://{user}:{password}@{ip}:{port}/h264Preview_01_main",
+    "notes": "Common for Reolink NVR/cameras main stream (varies by model)"
+  },
+  {
+    "name": "Reolink (sub stream)",
+    "url_template": "rtsp://{user}:{password}@{ip}:{port}/h264Preview_01_sub",
+    "notes": "Common for Reolink NVR/cameras sub stream (varies by model)"
+  },
+  {
+    "name": "Hikvision (main stream)",
+    "url_template": "rtsp://{user}:{password}@{ip}:{port}/Streaming/Channels/101",
+    "notes": "Hikvision main stream (channel=1, stream=0)"
+  },
+  {
+    "name": "Hikvision (sub stream)",
+    "url_template": "rtsp://{user}:{password}@{ip}:{port}/Streaming/Channels/102",
+    "notes": "Hikvision sub stream (channel=1, stream=1)"
+  },
+  {
+    "name": "Dahua (main stream)",
+    "url_template": "rtsp://{user}:{password}@{ip}:{port}/cam/realmonitor?channel=1&subtype=0",
+    "notes": "Dahua main stream"
+  },
+  {
+    "name": "Dahua (sub stream)",
+    "url_template": "rtsp://{user}:{password}@{ip}:{port}/cam/realmonitor?channel=1&subtype=1",
+    "notes": "Dahua sub stream"
+  },
+  {
+    "name": "Generic ONVIF Profile 1",
+    "url_template": "rtsp://{user}:{password}@{ip}:{port}/onvif/profile1",
+    "notes": "Common for ONVIF compliant cameras, profile 1"
+  },
+  {
+    "name": "Generic ONVIF Profile S",
+    "url_template": "rtsp://{user}:{password}@{ip}:{port}/onvif/profile.rtsp",
+    "notes": "Another common ONVIF path"
+  },
+  {
+    "name": "Generic IP Camera (Live)",
+    "url_template": "rtsp://{user}:{password}@{ip}:{port}/live",
+    "notes": "Some cameras simply use '/live'"
+  },
+  {
+    "name": "Genbolt",
+    "url_template": "rtsp://{user}:{password}@{ip}:{port}/11"
+  },
+  {
+    "name": "Tapo C310 with stream1 instead of stream0",
+    "url_template": "rtsp://{user}:{password}@{ip}:{port}/stream1"
+  }
+]

@@ -8,7 +8,7 @@ services:
       - "8080:80" # Dashy HTTP port
       - "4443:443" # Dashy HTTPS port
     volumes:
-      - "{{DATA_ROOT}}/dashy/config:/app/public/conf" # FHS compliance for config
+      - "{{DATA_ROOT}}/dashy/conf.yml:app/user-data/conf.yml" # FHS compliance for config
     environment:
       - "PUID={{PUID}}" # Host user ID, for file permissions
       - "PGID={{PUID}}" # Host group ID

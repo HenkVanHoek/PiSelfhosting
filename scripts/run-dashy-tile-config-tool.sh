@@ -4,7 +4,7 @@
 # This script runs the dashy_tile_config_tool.py inside a Docker container.
 
 # Define base directory (on the host)
-BASE_DIR="/home/PiSelfhosting"
+BASE_DIR="/home/hvhoek/PiSelfhosting"
 SCRIPTS_DIR="$BASE_DIR/scripts"
 DOCKER_COMPOSE_DIR="$BASE_DIR/docker" # Needed for mounting config paths
 DOCKERFILE="$SCRIPTS_DIR/config_tool_base_dockerfile"

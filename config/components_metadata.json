@@ -1,0 +1,154 @@
+{
+  "mariadb": {
+    "name": "MariaDB",
+    "description": "MariaDB Database Server",
+    "default_selected": true,
+    "has_ui": false
+  },
+  "mosquitto": {
+    "name": "Mosquitto",
+    "description": "Mosquitto MQTT Broker",
+    "default_selected": true,
+    "has_ui": false
+  },
+  "nextcloud": {
+    "name": "Nextcloud",
+    "description": "Nextcloud (Self-hosted Cloud Storage)",
+    "default_selected": false,
+    "has_ui": true,
+    "ui_port": 443,
+    "protocol": "https",
+    "dashy_tile_section": "General Services",
+    "dashy_tile_icon": "si-nextcloud",
+    "dashy_tile_url_suffix": "/",
+    "status_check": true
+  },
+  "mailserver": {
+    "name": "Mailserver",
+    "description": "Mailserver (Exim4, Dovecot)",
+    "default_selected": false,
+    "has_ui": false
+  },
+  "homeassistant": {
+    "name": "Home Assistant",
+    "description": "Home Assistant (Home Automation)",
+    "default_selected": false,
+    "has_ui": true,
+    "ui_port": 8123,
+    "protocol": "http",
+    "dashy_tile_section": "Smart Home",
+    "dashy_tile_icon": "fab fa-home-assistant",
+    "dashy_tile_url_suffix": ":8123",
+    "status_check": true
+  },
+  "frigate": {
+    "name": "Frigate",
+    "description": "Frigate (AI-powered NVR)",
+    "default_selected": false,
+    "has_ui": true,
+    "ui_port": 5000,
+    "protocol": "http",
+    "dashy_tile_section": "Smart Home",
+    "dashy_tile_icon": "fas fa-video",
+    "dashy_tile_url_suffix": ":5000",
+    "status_check": true
+  },
+  "pihole": {
+    "name": "Pi-hole",
+    "description": "Pi-hole (Network-wide Ad Blocking)",
+    "default_selected": false,
+    "has_ui": true,
+    "ui_port": 80,
+    "protocol": "http",
+    "dashy_tile_section": "Network Services",
+    "dashy_tile_icon": "fab fa-pi-hole",
+    "dashy_tile_url_suffix": "/admin",
+    "status_check": true
+  },
+  "portainer": {
+    "name": "Portainer",
+    "description": "Portainer (Docker Management UI)",
+    "default_selected": true,
+    "has_ui": true,
+    "ui_port": 9000,
+    "protocol": "http",
+    "dashy_tile_section": "General Services",
+    "dashy_tile_icon": "si-portainer",
+    "dashy_tile_url_suffix": ":9000",
+    "status_check": true
+  },
+  "phpmyadmin": {
+    "name": "phpMyAdmin",
+    "description": "phpMyAdmin (MariaDB Web Interface)",
+    "default_selected": false,
+    "has_ui": true,
+    "ui_port": 80,
+    "protocol": "http",
+    "dashy_tile_section": "General Services",
+    "dashy_tile_icon": "si-phpmyadmin",
+    "dashy_tile_url_suffix": "/",
+    "status_check": true
+  },
+  "traefik": {
+    "name": "Traefik",
+    "description": "Traefik (Cloud Native Reverse Proxy & Load Balancer)",
+    "default_selected": true,
+    "has_ui": true,
+    "ui_port": 8080,
+    "protocol": "http",
+    "is_reverse_proxy": true,
+    "dashy_tile_section": "Network Services",
+    "dashy_tile_icon": "si-traefik",
+    "dashy_tile_url_suffix": ":8080",
+    "status_check": true
+  },
+  "nginxproxymanager": {
+    "name": "Nginx Proxy Manager",
+    "description": "Nginx Proxy Manager (Reverse Proxy, SSL Mgmt)",
+    "default_selected": true,
+    "has_ui": true,
+    "ui_port": 81,
+    "protocol": "http",
+    "is_reverse_proxy": true,
+    "dashy_tile_section": "Network Services",
+    "dashy_tile_icon": "si-nginx",
+    "dashy_tile_url_suffix": ":81",
+    "status_check": true
+  },
+  "dashy": {
+    "name": "Dashy",
+    "description": "Dashy (Personal Dashboard)",
+    "default_selected": true,
+    "has_ui": true,
+    "ui_port": 80,
+    "protocol": "http",
+    "dashy_tile_section": "General Services",
+    "dashy_tile_icon": "fas fa-chart-pie",
+    "dashy_tile_url_suffix": "/",
+    "status_check": true
+  },
+  "docker-monitor": {
+    "name": "Docker Monitor",
+    "description": "Docker Monitor (Simple Docker Stats Page)",
+    "default_selected": true,
+    "has_ui": true,
+    "ui_port": 8088,
+    "protocol": "http",
+    "dashy_tile_section": "General Services",
+    "dashy_tile_icon": "fas fa-chart-line",
+    "dashy_tile_url_suffix": ":8088",
+    "status_check": true
+  },
+  "piselfhosting-docs": {
+    "name": "PiSelfhosting Documentation Website",
+    "description": "PiSelfhosting Documentation Website",
+    "default_selected": true,
+    "has_ui": true,
+    "ui_port": 80,
+    "protocol": "http",
+    "dashy_tile_section": "General Services",
+    "dashy_tile_icon": "fas fa-book",
+    "dashy_tile_url_suffix": "/docs",
+    "status_check": true
+  }
+}

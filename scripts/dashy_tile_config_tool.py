@@ -82,7 +82,7 @@ def update_dashy_config():
             'title': 'PiSelfhosting Dashboard',
             'description': 'Overview of your self-hosted services',
             'navLinks': [
-                {'title': 'GitHub', 'path': 'https://github.com/your-username/your-repo'}, # Adjust this
+                {'title': 'GitHub Sourcecode', 'path': 'https://github.com/HenkVanHoek/PiSelfhosting'},
                 {'title': 'Docs', 'path': 'https://dashy.to/docs/'}
             ],
             'footerText': 'Powered by Dashy'
