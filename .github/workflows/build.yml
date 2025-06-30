@@ -2,19 +2,16 @@
 
 name: Build Cross-Platform Installers
 
-# This workflow runs when a new release is published
 on:
   release:
     types: [published]
 
 jobs:
   build:
-    # Define the matrix to build on all 3 major operating systems
     strategy:
       matrix:
         os: [windows-latest, ubuntu-latest, macos-latest]
 
-    # Run the job on the OS specified in the matrix
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -30,12 +27,10 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install pyinstaller
-          # Ensure all dependencies from your project are listed in requirements.txt
           pip install -r requirements.txt
 
       - name: Set executable name based on OS
         id: set-names
-        # PowerShell (pwsh) is used because it's available on all three runners
         shell: pwsh
         run: |
           $ext = ""
@@ -45,18 +40,20 @@ jobs:
           $asset_name = "PiSelfhosting-Installer-${{ runner.os }}$ext"
           echo "ASSET_NAME=$asset_name" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
+      # This step sets the correct path separator for the current OS
       - name: Set platform-specific path separator
         id: set-separator
         shell: pwsh
         run: |
           if ('${{ runner.os }}' -eq 'Windows') {
-            # Windows uses a semicolon (;) as the path separator for --add-data
+            # Windows uses a semicolon (;)
             echo "SEP=;" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           } else {
             # macOS and Linux use a colon (:)
             echo "SEP=:" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           }
 
+      # This step uses the correct separator variable
       - name: Build executable with PyInstaller
         run: >-
           pyinstaller --onefile
