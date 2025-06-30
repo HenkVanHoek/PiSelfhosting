@@ -40,20 +40,20 @@ jobs:
           $asset_name = "PiSelfhosting-Installer-${{ runner.os }}$ext"
           echo "ASSET_NAME=$asset_name" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
-      # This step sets the correct path separator for the current OS
-      - name: Set platform-specific path separator
-        id: set-separator
+      # This step runs ONLY on Windows and sets the separator to a semicolon
+      - name: Set path separator for Windows
+        if: runner.os == 'Windows'
+        run: echo "SEP=;" >> $env:GITHUB_ENV
         shell: pwsh
-        run: |
-          if ('${{ runner.os }}' -eq 'Windows') {
-            # Windows uses a semicolon (;)
-            echo "SEP=;" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          } else {
-            # macOS and Linux use a colon (:)
-            echo "SEP=:" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          }
 
-      # This step uses the correct separator variable
+      # This step runs on any OS that is NOT Windows (i.e., Linux and macOS)
+      # and sets the separator to a colon
+      - name: Set path separator for Linux and macOS
+        if: runner.os != 'Windows'
+        run: echo "SEP=:" >> $GITHUB_ENV
+        shell: bash
+
+      # The rest of the workflow uses the correctly set SEP variable
       - name: Build executable with PyInstaller
         run: >-
           pyinstaller --onefile
