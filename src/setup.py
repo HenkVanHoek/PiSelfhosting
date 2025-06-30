@@ -4,6 +4,7 @@ import configparser
 import jinja2
 import yaml
 import json
+import sys # Importeer sys voor stderr
 
 # Global FHS-compliant data root for all services
 GLOBAL_DATA_ROOT = "/opt/piselfhosting/data"
@@ -132,10 +133,11 @@ def generate_docker_compose_files(all_component_data, selected_components):
     remote_host_docker_output_path = os.path.join(remote_host_project_path, DOCKER_COMPOSE_OUTPUT_DIR).replace('\\',
                                                                                                                '/')  # Ensure Linux path separators
 
+    # IMPORTANT: Ensure these directories exist BEFORE attempting to write files to them
     os.makedirs(output_path_in_container, exist_ok=True)
-    # Ensure a temporary directory for generated config files exists within /app/docker
     generated_configs_temp_path = os.path.join(output_path_in_container, "generated_configs")
     os.makedirs(generated_configs_temp_path, exist_ok=True)
+
 
     # Setup Jinja2 environment
     env = jinja2.Environment(
@@ -209,7 +211,8 @@ def generate_docker_compose_files(all_component_data, selected_components):
             print(
                 f"Warning: Compose Template not found for '{component_name}' at {compose_template_path}. Error: {err_temp}. Skipping.")
         except Exception as err:
-            print(f"Error generating Docker Compose for '{component_name}': {err}")
+            # GEWIJZIGD: print naar sys.stderr
+            sys.stderr.write(f"Error generating Docker Compose for '{component_name}': {err}\n")
             raise
 
         # --- Handle specific application config file templates ---
@@ -245,7 +248,8 @@ def generate_docker_compose_files(all_component_data, selected_components):
                 print(
                     f"Warning: Config template '{config_template_name}' not found at {template_path_full}. Skipping config generation.")
             except Exception as err:
-                print(f"Error generating Mosquitto config: {err}")
+                # GEWIJZIGD: print naar sys.stderr
+                sys.stderr.write(f"Error generating Mosquitto config: {err}\n")
                 raise
 
         # phpMyAdmin config file generation
@@ -280,7 +284,8 @@ def generate_docker_compose_files(all_component_data, selected_components):
                 print(
                     f"Warning: phpMyAdmin config template not found at {template_path_full}. Skipping config generation.")
             except Exception as err:  # noinspection PyBroadException
-                print(f"Error generating phpMyAdmin config: {err}")
+                # GEWIJZIGD: print naar sys.stderr
+                sys.stderr.write(f"Error generating phpMyAdmin config: {err}\n")
                 raise
 
         # Dashy config file generation
@@ -314,7 +319,8 @@ def generate_docker_compose_files(all_component_data, selected_components):
             except jinja2.exceptions.TemplateNotFound:
                 print(f"Warning: Dashy config template not found at {template_path_full}. Skipping config generation.")
             except Exception as err:  # noinspection PyBroadException
-                print(f"Error generating Dashy config: {err}")
+                # GEWIJZIGD: print naar sys.stderr
+                sys.stderr.write(f"Error generating Dashy config: {err}\n")
                 raise
 
     # Call the merge function for Docker Compose files
@@ -352,7 +358,6 @@ def merge_docker_compose_files(file_paths, output_path):
     }
 
     for file_path in file_paths:
-        # noinspection PyBroadException
         try:
             with open(file_path, 'r') as f:
                 component_compose = yaml.safe_load(f)
@@ -361,7 +366,7 @@ def merge_docker_compose_files(file_paths, output_path):
                 print(f"Warning: {file_path} does not contain valid YAML dictionary. Skipping merge.")
                 continue
 
-            # Merge services
+            # Merge services (last one wins)
             if 'services' in component_compose:
                 for service_name, service_config in component_compose['services'].items():
                     if service_name in unified_compose_data['services']:
@@ -369,45 +374,50 @@ def merge_docker_compose_files(file_paths, output_path):
                             f"Warning: Duplicate service name '{service_name}' found in {file_path}. Overwriting with last one found.")
                     unified_compose_data['services'][service_name] = service_config
 
-            # Merge volumes
+            # Merge volumes (first one wins)
             if 'volumes' in component_compose:
                 for volume_name, volume_config in component_compose['volumes'].items():
-                    if volume_name in unified_compose_data['volumes']:
+                    # Only add if the volume is NOT already present
+                    if volume_name not in unified_compose_data['volumes']:
+                        unified_compose_data['volumes'][volume_name] = volume_config
+                    else:
+                        # If it exists, but conflicts, print a warning
                         if unified_compose_data['volumes'][volume_name] != volume_config:
-                            print(
-                                f"Warning: Volume '{volume_name}' in {file_path} has conflicting definition. Keeping first one encountered.")
-                        # Otherwise, if they are identical or new, add it.
-                    unified_compose_data['volumes'][volume_name] = volume_config
+                            sys.stderr.write( # Ensure it's sys.stderr.write
+                                f"Warning: Volume '{volume_name}' in {file_path} has conflicting definition. Keeping first one encountered.\n")
 
-            # Merge networks (assuming external: true is common, or define if not external)
+            # Merge networks (first one wins)
             if 'networks' in component_compose:
                 for network_name, network_config in component_compose['networks'].items():
-                    if network_name in unified_compose_data['networks']:
+                    # Only add if the network is NOT already present
+                    if network_name not in unified_compose_data['networks']:
+                        unified_compose_data['networks'][network_name] = network_config
+                    else:
+                        # If it exists, but conflicts, print a warning
                         if unified_compose_data['networks'][network_name] != network_config:
-                            print(
-                                f"Warning: Network '{network_name}' in {file_path} has conflicting definition. Keeping first one encountered.")
-                    unified_compose_data['networks'][network_name] = network_config
+                            sys.stderr.write( # Ensure it's sys.stderr.write
+                                f"Warning: Network '{network_name}' in {file_path} has conflicting definition. Keeping first one encountered.\n")
 
         except yaml.YAMLError as yaml_err:
-            print(f"Error parsing YAML from {file_path}: {yaml_err}. Skipping merge for this file.")
+            sys.stderr.write(f"Error parsing YAML from {file_path}: {yaml_err}. Skipping merge for this file.\n")
+            continue
         except Exception as err:
-            print(f"An unexpected error occurred during merge for {file_path}: {err}. Skipping.")
-
+            sys.stderr.write(f"An unexpected error occurred during merge for {file_path}: {err}. Skipping.\n")
+            continue
     # Write the unified data to the output file
-    # noinspection PyBroadException
     try:
         with open(output_path, 'w') as f:
             yaml.dump(unified_compose_data, f, default_flow_style=False,
                       sort_keys=False)  # sort_keys=False to preserve order
     except Exception as err:
-        print(f"Error writing unified docker-compose.yml to {output_path}: {err}")
+        # GEWIJZIGD: print naar sys.stderr
+        sys.stderr.write(f"Error writing unified docker-compose.yml to {output_path}: {err}\n")
         raise
 
 
 # Example usage (for direct testing/debugging of the script)
 if __name__ == "__main__":
     print("Running setup.py directly for testing purposes...")
-    # noinspection PyBroadException
     try:
         # NOTE: When running locally (not in Docker), REMOTE_PROJECT_PATH environment variable
         # will not be set automatically. We'll set a dummy value for local testing context.
