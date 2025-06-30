@@ -2,16 +2,26 @@
 
 name: Run Pytest
 
-# Run this workflow on every push and pull request to the 'main' branch.
+# This workflow runs on pushes and pull requests to the 'main' branch.
+# It is configured to skip execution if only the README.md file has changed,
+# to optimize build times and resource usage.
 on:
   push:
     branches: [ main ]
+    paths-ignore: # Do NOT run this workflow if ONLY these paths are changed
+      - 'README.md'
+      - 'docs/**' # Example: if you have a documentation folder
+      - '*.md'    # Example: to ignore all Markdown files
   pull_request:
     branches: [ main ]
+    paths-ignore: # Do NOT run this workflow if ONLY these paths are changed
+      - 'README.md'
+      - 'docs/**'
+      - '*.md'
 
 jobs:
   test:
-    # Run the tests on an Ubuntu virtual machine (this is often faster and cheaper for tests).
+    # Run the tests on an Ubuntu virtual machine.
     runs-on: ubuntu-latest
 
     steps:

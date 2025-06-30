@@ -34,7 +34,7 @@ This project is moving towards a more Python-centric approach for orchestration 
 
 PiSelfhosting caters to three main groups:
 
-1.  **The Casual User:** Wants a quick and easy way to install self-hosted applications without deep technical knowledge. The website provides a user-friendly selection interface and a simple `curl | bash` installation command.
+1.  **The Casual User:** Wants a quick and easy way to install self-hosted applications without deep technical knowledge. The website provides a user-friendly selection interface and a link to the orchestrator installer executable.
 2.  **The Tech-Savvy User:** Prefers to manage installations directly from GitHub, allowing for more control and customization.
 3.  **The Contributor:** Individuals interested in contributing to the project's development, documentation, or adding new components.
 
@@ -61,7 +61,7 @@ For those comfortable with the command line and Git:
 
 Visit `piselfhosting.com` (coming soon) for:
 * An interactive component selection tool.
-* A generated `curl | bash` command for effortless installation.
+* **Downloadable Orchestrator Installer:** Get the executable installer tailored for your workstation (Windows, macOS, Linux).
 * Detailed documentation, user guides, and YouTube tutorials.
 * Information on how to configure and manage your installed components (e.g., setting up Frigate cameras, configuring Dashy tiles).
 
