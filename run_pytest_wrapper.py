@@ -3,24 +3,29 @@ import os
 import sys
 import pytest
 
-# Ensure the project root and src/ directory are on the Python path
-# This script is in the project root, so os.path.dirname(__file__) is the project root.
 project_root = os.path.abspath(os.path.dirname(__file__))
 src_path = os.path.join(project_root, 'src')
 
 if src_path not in sys.path:
     sys.path.insert(0, src_path)
 
-# Define the arguments to pass to pytest
-# This is the path to your tests/ directory, relative to project_root
+# Arguments to pass to pytest.
+# Keep it simple here to ensure default pytest behavior.
+# We explicitly list the test path, and no output-suppressing flags.
 pytest_args = [
-    os.path.join(project_root, 'tests'),
-    '--no-header',
-    '--no-summary',
-    '-q'
+    str(os.path.join(project_root, 'tests')) # Pass the test directory as a string
 ]
 
-# Run pytest
-# pytest.main() returns an exit code. sys.exit() uses this code.
+# Als je de --no-header en --no-summary wilt behouden, kun je ze HIER toevoegen:
+# pytest_args.append('--no-header')
+# pytest_args.append('--no-summary')
+
+
 print(f"Running pytest with arguments: {pytest_args} from working directory: {os.getcwd()}")
-sys.exit(pytest.main(pytest_args))
+
+# Call pytest.main(). This should trigger full output for failures.
+# By default, pytest.main() uses sys.argv if no arguments are given.
+# We pass our constructed list.
+exit_code = pytest.main(pytest_args)
+
+sys.exit(exit_code)
