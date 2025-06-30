@@ -1,154 +1,90 @@
-# Still in test phase, beware!
-
 # PiSelfhosting
 
-## Self-Hosted Services for Raspberry Pi with Docker
+## Automated Self-Hosted Services Deployment for Raspberry Pi
 
-Welcome to PiSelfhosting! This project provides a set of automated scripts and configurations to easily deploy and manage various self-hosted services on a Raspberry Pi (or any compatible Linux system) using Docker and Docker Compose. Our goal is to make self-hosting accessible, maintainable, and robust.
+Welcome to PiSelfhosting! This project aims to simplify the deployment and management of various self-hosted services on a Raspberry Pi (or compatible Linux systems) using Docker and Docker Compose. Our goal is to provide a user-friendly and robust solution for quick, efficient, and maintainable self-hosting.
 
-## 🌟 Features
+This project is moving towards a more Python-centric approach for orchestration and configuration, enhancing user-friendliness and modularity.
 
-* **Modular Deployment:** Select only the services you need during setup.
-* **Dockerized Services:** Each service runs in its own isolated Docker container for easy management and updates.
-* **Automated Configuration:** Scripts handle the generation of `docker-compose.yml` files and initial configuration.
-* **User-Friendly Tools:** Interactive Python scripts for common tasks like camera configuration, dashboard tile management, and SSL certificate setup.
-* **Centralized `.env`:** Manage all your environment variables from a single `.env` file.
-* **Dependency Management:** Services are started and managed in the correct order to ensure dependencies are met.
-* **Nginx Proxy Manager Integration:** Easily configure reverse proxies and obtain free SSL certificates with Let's Encrypt. Includes automated database setup for NPM.
+## 🌟 Key Features
 
-## 🛠️ Prerequisites
+* **User-Friendly Installation:** A simplified process for users with limited technical knowledge to select and install components.
+* **Flexible Component Selection:** Easily choose from a curated list of popular self-hosted applications:
+    * Dashy
+    * Frigate
+    * Home Assistant
+    * Pi-hole
+    * Traefik
+    * Portainer
+    * UniFi Controller
+    * Zigbee2MQTT
+    * Scrypted
+    * Vaultwarden
+* **Dockerized Environment:** All services are deployed as isolated Docker containers for easy management, updates, and portability.
+* **Automated Configuration:** Python-based configuration tools simplify the setup for various components, including:
+    * **Dashy Tile Generator:** Automatically creates dashboard tiles for installed web interfaces.
+    * **Frigate Camera Detector:** Auto-detects network cameras and adds them to Frigate's configuration.
+    * Other configuration tools for specific components.
+* **Centralized Orchestration:** A Python-based installer handles the entire deployment process, including dependency checks, environment setup, and Docker Compose generation.
+* **Open Source:** The entire project codebase is available on GitHub, encouraging community contributions and transparency.
+* **Managed Data Volumes:** Consistent FHS-compliant data storage for all services at `/opt/piselfhosting/data`.
+* **Unified Docker Compose:** All selected services are consolidated into a single `docker-compose.yml` file for streamlined management.
 
-Before you begin, ensure you have the following on your Raspberry Pi (or Linux machine):
+## 🎯 Target Audiences
 
-* **Operating System:** Raspberry Pi OS Lite (recommended) or any Debian-based Linux distribution.
-* **SSH Access:** Enabled and configured for remote management.
-* **Git:** Installed to clone this repository (`sudo apt install git`).
-* **`whiptail`:** For interactive menus in shell scripts (`sudo apt install whiptail`).
-* **`envsubst`:** From `gettext-base` package (`sudo apt install gettext-base`).
-* **Python 3 & Pip:** Required for configuration tools (`sudo apt install python3 python3-pip`).
-* **Docker & Docker Compose (v2 recommended):** The `deploy.sh` script will attempt to install these for you if not found.
+PiSelfhosting caters to three main groups:
 
-## 🚀 Quick Start
+1.  **The Casual User:** Wants a quick and easy way to install self-hosted applications without deep technical knowledge. The website provides a user-friendly selection interface and a simple `curl | bash` installation command.
+2.  **The Tech-Savvy User:** Prefers to manage installations directly from GitHub, allowing for more control and customization.
+3.  **The Contributor:** Individuals interested in contributing to the project's development, documentation, or adding new components.
 
-Follow these steps to get your PiSelfhosting environment up and running:
+## 🚀 Quick Start (For Tech-Savvy Users)
+
+For those comfortable with the command line and Git:
 
 1.  **Clone the Repository:**
-    ```
+    ```bash
     git clone [https://github.com/HenkVanHoek/PiSelfhosting.git](https://github.com/HenkVanHoek/PiSelfhosting.git) /home/PiSelfhosting
     cd /home/PiSelfhosting
     ```
-    *Replace `HenkVanHoek` with your actual GitHub username.*
+    *(Replace `HenkVanHoek` with the actual GitHub username when the project is public.)*
 
-2.  **Run the Initial Setup Script:**
-    This script will guide you through setting up your `.env` file and selecting which services to install.
-    ```
-    bash scripts/setup.sh
-    ```
-
-3.  **Deploy Your Selected Components:**
-    This script generates the necessary Docker Compose files and initial configurations based on your `.env` and component selections.
-    ```
-    bash scripts/deploy.sh
-    ```
-    *You will be prompted to choose an overwrite mode for configuration files. `all` is recommended for first-time deployments.*
-
-4.  **Start All Services:**
-    This script brings up all your selected Docker containers in the correct order, ensuring dependencies like databases are ready first.
-    ```
-    bash scripts/start-all.sh
-    ```
-
-5.  **Verify Services:**
-    Check if your containers are running:
-    ```
-    docker ps
-    ```
-    If any container fails to start, check its logs for errors: `docker logs -f <container_name>`
-
-## 🔧 Configuration Tools
-
-The `scripts/` directory contains various Python-based tools to help you configure specific services:
-
-* **Frigate Camera Configuration:**
-    ```
-    bash scripts/run-frigate-config-tool.sh
-    ```
-    *Use this to add and manage your IP cameras in Frigate, including ONVIF discovery and RTSP URL testing.*
-
-* **Dashy Tile Configuration:**
-    ```
-    bash scripts/run-dashy-tile-config-tool.sh
-    ```
-    *Automatically populate your Dashy dashboard with tiles for your installed services.*
-
-* **Nginx Proxy Manager Database Setup:**
+2.  **Run the Installer Script:**
+    This Python script will guide you through prerequisites, environment variable setup, component selection, and deployment.
     ```bash
-    bash scripts/run-npm-db-setup.sh
+    python3 piselfhosting_installer.py
     ```
-    *This script automates the creation of the `npm_database` in MariaDB and grants necessary permissions to your `pihost` user. It requires `DB_ROOT_PASS` to be set in your `.env` file for MariaDB root access. After running this script, you will need to perform the initial login to the Nginx Proxy Manager web interface and secure your administrator account.*
 
-    **Manual Post-Setup Steps for Nginx Proxy Manager:**
-    1.  **Initial Login to Nginx Proxy Manager UI:**
-        Open your web browser and go to: `http://<YOUR_PI_IP_ADDRESS>:81`
-        Use the default credentials for the first login:
-        * **Email:** `admin@example.com`
-        * **Password:** `changeme`
-    2.  **Change Default Credentials (CRITICAL!):**
-        Upon successful login, you will be prompted to change the default email and password. This is essential for your security. Choose a strong, unique password and use a valid email address for the admin account.
-    3.  **Configure Your Proxy Hosts:**
-        After securing your account, proceed to configure your proxy hosts. This involves adding new Proxy Hosts for services like Dashy, Nextcloud, etc., forwarding traffic to the correct internal Docker service names/ports, and requesting SSL Certificates (e.g., using Let's Encrypt) for your domains.
+    *The installer will prompt you for necessary details (e.g., Pi IP, passwords, domain) and allow you to reuse previously entered values for convenience.*
 
-* **Mailserver Configuration:**
-    ```
-    bash scripts/run-mailserver-config-tool.sh
-    ```
-    *Helps configure Exim4 and Dovecot for your self-hosted mail server, including virtual user management and DNS record suggestions.*
+## 🌐 Website & Documentation (For Casual Users & More Info)
 
-* **SSL Certificate Manager:**
-    ```
-    bash scripts/run-ssl-cert-manager.sh
-    ```
-    *Provides guidance on obtaining and managing SSL certificates (via Nginx Proxy Manager or self-signed) for your services.*
+Visit `piselfhosting.com` (coming soon) for:
+* An interactive component selection tool.
+* A generated `curl | bash` command for effortless installation.
+* Detailed documentation, user guides, and YouTube tutorials.
+* Information on how to configure and manage your installed components (e.g., setting up Frigate cameras, configuring Dashy tiles).
 
-## 🔄 Updating Services
+## 🔧 Project Structure & Key Files
 
-To update all your installed Docker containers to their latest images:
+* `piselfhosting_installer.py`: The main orchestrator script that handles SSH connection, file synchronization, environment variable collection, and invokes `src/setup.py` remotely.
+* `src/setup.py`: Executes within a Docker container on the Raspberry Pi to generate `docker-compose.yml` files and component-specific configuration files based on selected components and environment variables.
+* `src/components_metadata.json`: Defines metadata for each available component, including UI ports and icons.
+* `src/components_list.txt`: An INI-like file detailing available components and their properties, including a `COMPONENTS_ORDER` for sequential processing.
+* `selected_components.txt`: A simple text file (generated by the installer or website) listing the user's chosen components.
+* `templates/`: Contains Jinja2 templates for `docker-compose.yml` fragments and application-specific configuration files.
+* `docker/`: Output directory on the Pi for the unified `docker-compose.yml` and temporary generated configuration files.
 
-*This script will stop all services, pull the latest images, recreate containers, and then start them in the correct order. You can also specify individual services, e.g., `bash scripts/restart-all.sh frigate`.*
+## 🤝 Contributing to PiSelfhosting
 
+We welcome contributions from developers, technical writers, and self-hosting enthusiasts! If you're interested in helping, please:
 
-## ➕ Adding/Removing Components
+* **Explore the Code:** Check out the Python scripts and Jinja2 templates.
+* **Open Issues:** Report bugs, suggest features, or ask questions.
+* **Submit Pull Requests:** Contribute new components, improve existing code, enhance documentation, or fix bugs.
 
-* **Adding a New Component:**
-    1.  Run `bash scripts/setup.sh` again and select the new component(s) you wish to add.
-    2.  Run `bash scripts/deploy.sh` (choose `create_if_missing` or `select` to avoid overwriting existing configs).
-    3.  Run `bash scripts/start-all.sh` to start the new service(s).
-    4.  Run `bash scripts/run-dashy-tile-config-tool.sh` to add the new service to your Dashy dashboard.
-
-* **Removing a Component:**
-    ```
-    bash scripts/remove-component.sh
-    ```
-    *This interactive script allows you to select and completely remove a service, its Docker container, and associated data volumes.*
-
-## Troubleshooting
-
-* **`Permission Denied` Errors:** Ensure your user is part of the `docker` group (`sudo usermod -aG docker $USER`) and log out/in (or reboot) for changes to take effect. The `deploy.sh` script uses `sudo` for sensitive file operations, but overall ownership of the `/home/PiSelfhosting` directory by your user is recommended.
-
-* **Services Not Starting:**
-    * Check Docker logs: `docker logs -f <container_name>`
-    * Ensure all required `.env` variables are set and correct.
-    * Verify port availability.
-    * If `mariadb` is not starting, try `bash scripts/restart-all.sh mariadb` to ensure a clean start with `initdb.d` scripts.
-
-* **Pi-hole Admin Password Issue:** If you can't log into Pi-hole, use the `reset_pihole_password` instructions (see dedicated documentation for details).
-
-* **`ffprobe` not found (in Frigate tool):** Install FFmpeg on your host: `sudo apt install ffmpeg`.
-
-## 🤝 Contributing
-
-Contributions are welcome! If you have suggestions, bug reports, or want to contribute code, please open an issue or submit a pull request on the GitHub repository.
+Join us in making self-hosting accessible to everyone!
 
 ## 📄 License
 
-This project is open-source and available under the [MIT License](LICENSE)
+This project is open-source and available under the [MIT License](LICENSE).
