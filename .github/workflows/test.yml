@@ -1,46 +1,40 @@
-# .github/workflows/test.yml
+name: CI/CD Pipeline
 
-name: Run Pytest
-
-# This workflow runs on pushes and pull requests to the 'main' branch.
-# It is configured to skip execution if only the README.md file has changed,
-# to optimize build times and resource usage.
 on:
   push:
-    branches: [ main ]
-    paths-ignore: # Do NOT run this workflow if ONLY these paths are changed
-      - 'README.md'
-      - 'docs/**' # Example: if you have a documentation folder
-      - '*.md'    # Example: to ignore all Markdown files
+    branches:
+      - main
+      - development
   pull_request:
-    branches: [ main ]
-    paths-ignore: # Do NOT run this workflow if ONLY these paths are changed
-      - 'README.md'
-      - 'docs/**'
-      - '*.md'
+    branches:
+      - main
+      - development
 
 jobs:
-  test:
-    # Run the tests on an Ubuntu virtual machine.
+  build-and-test:
     runs-on: ubuntu-latest
 
     steps:
-      # Step 1: Check out the repository's code.
-      - name: Checkout repository
-        uses: actions/checkout@v4
+    - name: Checkout repository
+      uses: actions/checkout@v4 # Clones the repository to the runner
 
-      # Step 2: Set up Python.
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11' # Use Python 3.11, consistent with your local setup
 
-      # Step 3: Install the dependencies.
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+    - name: Install dependencies
+      # Install dependencies into a virtual environment
+      run: |
+        python -m pip install --upgrade pip
+        python -m venv .venv # Create the virtual environment
+        source .venv/bin/activate # Activate the virtual environment
+        pip install -r requirements.txt # Install dependencies from requirements.txt
 
-      # Step 4: Run the Pytest suite.
-      - name: Run tests with pytest
-        run: pytest
+    - name: Run Pytest tests
+      # This step executes the tests.
+      # The 'working-directory' is already the repository root by default for 'actions/checkout'.
+      # We call the wrapper script that internally calls pytest.
+      run: |
+        source .venv/bin/activate # Re-activate the venv for the current shell session
+        python run_pytest_wrapper.py # Execute the wrapper script
