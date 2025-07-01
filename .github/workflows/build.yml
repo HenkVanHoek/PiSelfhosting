@@ -40,34 +40,32 @@ jobs:
           $asset_name = "PiSelfhosting-Installer-${{ runner.os }}$ext"
           echo "ASSET_NAME=$asset_name" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
-      - name: Set path separator for Windows
+      # This build step runs ONLY on Windows
+      - name: Build with PyInstaller (Windows)
         if: runner.os == 'Windows'
-        run: echo "SEP=;" >> $env:GITHUB_ENV
-        shell: pwsh
-
-      - name: Set path separator for Linux and macOS
-        if: runner.os != 'Windows'
-        run: echo "SEP=:" >> $GITHUB_ENV
-        shell: bash
-
-      # --- NIEUWE DEBUG-STAP ---
-      # This step will print the variables to the log so we can see what's happening.
-      - name: DEBUG - Show variables
-        run: |
-          echo "Running on OS: ${{ runner.os }}"
-          echo "Asset Name is: ${{ env.ASSET_NAME }}"
-          echo "Path Separator is: ${{ env.SEP }}"
-
-      - name: Build executable with PyInstaller
         run: >-
           pyinstaller --onefile
           --name "${{ env.ASSET_NAME }}"
-          --add-data "src${{ env.SEP }}src"
-          --add-data "templates${{ env.SEP }}templates"
-          --add-data "components_list.txt${{ env.SEP }}."
-          --add-data "components_metadata.json${{ env.SEP }}."
-          --add-data "selected_components.txt${{ env.SEP }}."
-          --add-data "Dockerfile.setup-tool${{ env.SEP }}."
+          --add-data "src;src"
+          --add-data "templates;templates"
+          --add-data "components_list.txt;."
+          --add-data "components_metadata.json;."
+          --add-data "selected_components.txt;."
+          --add-data "Dockerfile.setup-tool;."
+          piselfhosting_installer.py
+
+      # This build step runs on any OS that is NOT Windows (i.e., Linux and macOS)
+      - name: Build with PyInstaller (Unix)
+        if: runner.os != 'Windows'
+        run: >-
+          pyinstaller --onefile
+          --name "${{ env.ASSET_NAME }}"
+          --add-data "src:src"
+          --add-data "templates:templates"
+          --add-data "components_list.txt:."
+          --add-data "components_metadata.json:."
+          --add-data "selected_components.txt:."
+          --add-data "Dockerfile.setup-tool:."
           piselfhosting_installer.py
 
       - name: Upload Release Asset
