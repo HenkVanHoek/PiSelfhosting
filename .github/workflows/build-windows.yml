@@ -39,11 +39,10 @@ jobs:
           piselfhosting_installer.py
 
       - name: Upload Release Asset
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: svenstaro/upload-release-action@v2
         with:
-          upload_url: ${{ github.event.release.upload_url }}
-          asset_path: ./dist/PiSelfhosting-Installer-Windows.exe
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: ./dist/PiSelfhosting-Installer-Windows.exe
           asset_name: PiSelfhosting-Installer-Windows.exe
-          asset_content_type: application/octet-stream
+          tag: ${{ github.ref_name }}
+          overwrite: true
