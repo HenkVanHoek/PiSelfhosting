@@ -31,7 +31,6 @@ jobs:
           --add-data "templates:templates"
           --add-data "components_list.txt:."
           --add-data "config:config"
-          # --add-data "selected_components.txt:."
           --add-data "Dockerfile.setup-tool:."
           piselfhosting_installer.py
 
