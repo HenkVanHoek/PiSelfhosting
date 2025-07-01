@@ -1,9 +1,6 @@
 name: Build Ubuntu Installer
 
 on:
-  push:
-    branches:
-      - main
   release:
     types: [published]
 
@@ -27,7 +24,7 @@ jobs:
 
       - name: Build with PyInstaller (Linux)
         run: >-
-          pyinstaller --onefile
+          python -m PyInstaller --onefile
           --name "PiSelfhosting-Installer-Linux"
           --add-data "src:src"
           --add-data "templates:templates"
