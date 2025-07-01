@@ -1,7 +1,3 @@
-name: buiild-ubuntu.yml
-on:
-
-jobs:
 name: Build Ubuntu Installer
 
 on:
