@@ -30,7 +30,9 @@ jobs:
         run: >-
           python -m PyInstaller --onefile
           --name "PiSelfhosting-Installer-macOS"
+          --icon="piselfhosting-apple.icns"
           --add-data "src:src"
+          --add-data "favicon
           --add-data "templates:templates"
           --add-data "components_list.txt:."
           --add-data "config:config"

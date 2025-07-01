@@ -30,12 +30,14 @@ jobs:
         run: >-
           python -m PyInstaller --onefile
           --name "PiSelfhosting-Installer-Windows.exe"
+          --icon="favicon.ico"
           --add-data "src;src"
           --add-data "templates;templates"
           --add-data "components_list.txt;."
           --add-data "config;config"
           --add-data "config/default_selected_components.txt;selected_components.txt"
           --add-data "Dockerfile.setup-tool;."
+          --add-data "favicon.ico;."
           piselfhosting_installer.py
 
       - name: Upload Release Asset
