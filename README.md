@@ -1,90 +1,42 @@
 # PiSelfhosting
 
-## Automated Self-Hosted Services Deployment for Raspberry Pi
+![GitHub license](https://img.shields.io/badge/license-MIT-blue.svg) ![GitHub stars](https://img.shields.io/github/stars/HenkVanHoek/PiSelfhosting.svg)
 
-Welcome to PiSelfhosting! This project aims to simplify the deployment and management of various self-hosted services on a Raspberry Pi (or compatible Linux systems) using Docker and Docker Compose. Our goal is to provide a user-friendly and robust solution for quick, efficient, and maintainable self-hosting.
-
-This project is moving towards a more Python-centric approach for orchestration and configuration, enhancing user-friendliness and modularity.
+Welcome to PiSelfhosting! This project provides a user-friendly system to deploy and manage a suite of self-hosted services on a Raspberry Pi (or any Linux-based system) using Docker. Our goal is to make self-hosting powerful, accessible, and easy to maintain.
 
 ## 🌟 Key Features
 
-* **User-Friendly Installation:** A simplified process for users with limited technical knowledge to select and install components.
-* **Flexible Component Selection:** Easily choose from a curated list of popular self-hosted applications:
-    * Dashy
-    * Frigate
-    * Home Assistant
-    * Pi-hole
-    * Traefik
-    * Portainer
-    * UniFi Controller
-    * Zigbee2MQTT
-    * Scrypted
-    * Vaultwarden
-* **Dockerized Environment:** All services are deployed as isolated Docker containers for easy management, updates, and portability.
-* **Automated Configuration:** Python-based configuration tools simplify the setup for various components, including:
-    * **Dashy Tile Generator:** Automatically creates dashboard tiles for installed web interfaces.
-    * **Frigate Camera Detector:** Auto-detects network cameras and adds them to Frigate's configuration.
-    * Other configuration tools for specific components.
-* **Centralized Orchestration:** A Python-based installer handles the entire deployment process, including dependency checks, environment setup, and Docker Compose generation.
-* **Open Source:** The entire project codebase is available on GitHub, encouraging community contributions and transparency.
-* **Managed Data Volumes:** Consistent FHS-compliant data storage for all services at `/opt/piselfhosting/data`.
-* **Unified Docker Compose:** All selected services are consolidated into a single `docker-compose.yml` file for streamlined management.
+* **User-Friendly GUI Installer**: A simple, local web application guides you through selecting and configuring components. No command-line expertise is needed to get started.
+* **Modular & Flexible**: Choose only the services you want from a curated list of popular applications.
+* **Dockerized & Isolated**: Every service runs in its own Docker container, making the system clean, secure, and easy to manage.
+* **Secure by Design**: Your sensitive information (like passwords) is handled securely and is not stored in plain text in the main configuration files.
+* **Automated Helper Tools**: Powerful command-line tools help with complex tasks like discovering cameras for Frigate or managing service configurations.
 
-## 🎯 Target Audiences
+## 🏛️ How It Works
 
-PiSelfhosting caters to three main groups:
+The project is split into two main workflows: the **Development & Build Cycle** (how the software is packaged) and the **User Deployment Cycle** (how you install it).
 
-1.  **The Casual User:** Wants a quick and easy way to install self-hosted applications without deep technical knowledge. The website provides a user-friendly selection interface and a link to the orchestrator installer executable.
-2.  **The Tech-Savvy User:** Prefers to manage installations directly from GitHub, allowing for more control and customization.
-3.  **The Contributor:** Individuals interested in contributing to the project's development, documentation, or adding new components.
+*(You can embed the two diagrams you saved here for a great visual explanation.)*
 
-## 🚀 Quick Start (For Tech-Savvy Users)
+`[Image: Development cycle.jpg]`
+`[Image: User Experience.jpg]`
 
-For those comfortable with the command line and Git:
+In short, a user downloads a single installer package. This package runs a local web-based "Configurator" for component selection, which then launches a command-line "Executor" to perform the actual installation on the Raspberry Pi.
 
-1.  **Clone the Repository:**
-    ```bash
-    git clone [https://github.com/HenkVanHoek/PiSelfhosting.git](https://github.com/HenkVanHoek/PiSelfhosting.git) /home/PiSelfhosting
-    cd /home/PiSelfhosting
-    ```
-    *(Replace `HenkVanHoek` with the actual GitHub username when the project is public.)*
+## 🚀 Quick Start Guide
 
-2.  **Run the Installer Script:**
-    This Python script will guide you through prerequisites, environment variable setup, component selection, and deployment.
-    ```bash
-    python3 piselfhosting_installer.py
-    ```
+Getting your self-hosted environment running is simple:
 
-    *The installer will prompt you for necessary details (e.g., Pi IP, passwords, domain) and allow you to reuse previously entered values for convenience.*
+1.  **Visit our Website**: Go to `piselfhosting.com` to see the available components and learn more.
+2.  **Download the Installer**: Use the download link on the website to get the latest installer package (`PiSelfhosting-Installer.zip`) from our GitHub Releases.
+3.  **Unzip & Run**: Unzip the file on your main computer (Windows, Mac, or Linux) and run the `start` script (`start.bat` or `start.sh`).
+4.  **Configure**: The `start` script will launch the **Configurator** in your web browser. Use this graphical interface to select the components you want to install and enter your server details (Pi's IP address, etc.).
+5.  **Deploy**: After you confirm your selection, the **Executor** will launch in a new terminal window. It will connect to your Raspberry Pi and handle the entire installation automatically. You can follow the progress live in this terminal.
 
-## 🌐 Website & Documentation (For Casual Users & More Info)
+## 🔧 Using the Helper Tools
 
-Visit `piselfhosting.com` (coming soon) for:
-* An interactive component selection tool.
-* **Downloadable Orchestrator Installer:** Get the executable installer tailored for your workstation (Windows, macOS, Linux).
-* Detailed documentation, user guides, and YouTube tutorials.
-* Information on how to configure and manage your installed components (e.g., setting up Frigate cameras, configuring Dashy tiles).
+After installation, you can manage your services using the included helper tools. These are located in the `scripts/` directory and are designed to be run via their wrapper scripts.
 
-## 🔧 Project Structure & Key Files
-
-* `piselfhosting_installer.py`: The main orchestrator script that handles SSH connection, file synchronization, environment variable collection, and invokes `src/setup.py` remotely.
-* `src/setup.py`: Executes within a Docker container on the Raspberry Pi to generate `docker-compose.yml` files and component-specific configuration files based on selected components and environment variables.
-* `src/components_metadata.json`: Defines metadata for each available component, including UI ports and icons.
-* `src/components_list.txt`: An INI-like file detailing available components and their properties, including a `COMPONENTS_ORDER` for sequential processing.
-* `selected_components.txt`: A simple text file (generated by the installer or website) listing the user's chosen components.
-* `templates/`: Contains Jinja2 templates for `docker-compose.yml` fragments and application-specific configuration files.
-* `docker/`: Output directory on the Pi for the unified `docker-compose.yml` and temporary generated configuration files.
-
-## 🤝 Contributing to PiSelfhosting
-
-We welcome contributions from developers, technical writers, and self-hosting enthusiasts! If you're interested in helping, please:
-
-* **Explore the Code:** Check out the Python scripts and Jinja2 templates.
-* **Open Issues:** Report bugs, suggest features, or ask questions.
-* **Submit Pull Requests:** Contribute new components, improve existing code, enhance documentation, or fix bugs.
-
-Join us in making self-hosting accessible to everyone!
-
-## 📄 License
-
-This project is open-source and available under the [MIT License](LICENSE).
+For example, to configure cameras for Frigate, you would run:
+```bash
+bash scripts/run-frigate-config-tool.sh
