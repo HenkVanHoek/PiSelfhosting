@@ -16,11 +16,8 @@ Welcome to PiSelfhosting! This project provides a user-friendly system to deploy
 
 The project is split into two main workflows: the **Development & Build Cycle** (how the software is packaged) and the **User Deployment Cycle** (how you install it).
 
-*(You can embed the two diagrams you saved here for a great visual explanation.)*
-
-`[Image: Development cycle.jpg]`
-`[Image: User Experience.jpg]`
-
+![Development & Build Workflow Diagram](docs/images/development-cycle.jpg)
+![User Deployment Workflow Diagram](docs/images/user-experience.jpg)
 In short, a user downloads a single installer package. This package runs a local web-based "Configurator" for component selection, which then launches a command-line "Executor" to perform the actual installation on the Raspberry Pi.
 
 ## 🚀 Quick Start Guide
