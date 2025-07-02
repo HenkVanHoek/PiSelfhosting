@@ -46,8 +46,8 @@ jobs:
 
           # Kopieer de benodigde bestanden
           cp dist/PiSelfhosting-Installer-Linux package/
-          cp install.sh package/
-          cp piselfhosting-icon.png package/
+          cp linux/install.sh package/
+          cp images/piselfhosting-icon192x192.png package/
           cp piselfhosting-installer.desktop package/
           
           # Create the .tar.gz archive
