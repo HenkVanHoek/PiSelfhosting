@@ -48,7 +48,7 @@ jobs:
           cp dist/PiSelfhosting-Installer-Linux package/
           cp linux/install.sh package/
           cp images/piselfhosting-icon192x192.png package/
-          cp piselfhosting-installer.desktop package/
+          cp linux/piselfhosting-installer.desktop package/
           
           # Create the .tar.gz archive
           tar -czvf PiSelfhosting-Installer-Linux.tar.gz -C package .
