@@ -1,0 +1,22 @@
+services:
+  heimdall:
+    container_name: piselfhosting-heimdall
+    image: lscr.io/linuxserver/heimdall:latest
+    restart: unless-stopped
+    ports:
+      - "8090:80"
+      - "8490:443"
+    volumes:
+      - "{{DATA_ROOT}}/heimdall/config:/config"
+    environment:
+      - "PUID={{PUID}}"
+      - "PGID={{PGID}}"
+      - "TZ={{TZ}}"
+    extra_hosts:
+      - "{{DOMAIN}}:{{ HOST_IP | default('127.0.0.1') }}"
+    networks:
+      - piselfhosting_net
+
+networks:
+  piselfhosting_net:
+    external: true

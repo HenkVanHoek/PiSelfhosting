@@ -1,154 +1,268 @@
 {
-  "mariadb": {
-    "name": "MariaDB",
-    "description": "MariaDB Database Server",
-    "default_selected": true,
-    "has_ui": false
+  "_piselfhosting": {
+    "components_order": [
+      "portainer",
+      "dashy",
+      "heimdall",
+      "homer",
+      "organizr",
+      "traefik",
+      "nginx-proxy-manager",
+      "pi-hole",
+      "adguard-home",
+      "unbound",
+      "homeassistant",
+      "frigate",
+      "zigbee2mqtt",
+      "scrypted",
+      "nextcloud",
+      "jellyfin",
+      "sonarr",
+      "radarr",
+      "vaultwarden",
+      "unifi-controller",
+      "uptime-kuma",
+      "web-notepad"
+    ]
   },
-  "mosquitto": {
-    "name": "Mosquitto",
-    "description": "Mosquitto MQTT Broker",
-    "default_selected": true,
-    "has_ui": false
-  },
-  "nextcloud": {
-    "name": "Nextcloud",
-    "description": "Nextcloud (Self-hosted Cloud Storage)",
-    "default_selected": false,
+  "portainer": {
+    "name": "Portainer",
+    "description": "A powerful management UI for Docker environments.",
+    "dashy_section": "Utilities",
     "has_ui": true,
-    "ui_port": 443,
+    "ui_port": 9443,
+    "icon": "fas fa-anchor",
     "protocol": "https",
-    "dashy_tile_section": "General Services",
-    "dashy_tile_icon": "si-nextcloud",
-    "dashy_tile_url_suffix": "/",
-    "status_check": true
+    "external_ports": [],
+    "access_info": { "local_path": "", "notes": "For managing your Docker containers." }
   },
-  "mailserver": {
-    "name": "Mailserver",
-    "description": "Mailserver (Exim4, Dovecot)",
-    "default_selected": false,
+  "dashy": {
+    "name": "Dashy",
+    "description": "A highly customizable, open-source personal dashboard.",
+    "dashy_section": "Dashboards",
+    "has_ui": true,
+    "ui_port": 8080,
+    "icon": "fas fa-tachometer-alt",
+    "protocol": "http",
+    "external_ports": [],
+    "access_info": { "local_path": "", "notes": "Your main application dashboard." }
+  },
+  "heimdall": {
+    "name": "Heimdall",
+    "description": "A simple and elegant application dashboard.",
+    "dashy_section": "Dashboards",
+    "has_ui": true,
+    "ui_port": 8090,
+    "icon": "fas fa-grip-horizontal",
+    "protocol": "http",
+    "external_ports": [],
+    "access_info": { "local_path": "", "notes": "A simple dashboard configured via the web UI." }
+  },
+  "homer": {
+    "name": "Homer",
+    "description": "A dead simple, static homepage for your server.",
+    "dashy_section": "Dashboards",
+    "has_ui": true,
+    "ui_port": 8085,
+    "icon": "fas fa-home",
+    "protocol": "http",
+    "external_ports": [],
+    "access_info": { "local_path": "", "notes": "A lightweight dashboard configured via a single YAML file." }
+  },
+  "organizr": {
+    "name": "Organizr",
+    "description": "A full-featured server organizer with a tabbed interface.",
+    "dashy_section": "Dashboards",
+    "has_ui": true,
+    "ui_port": 8095,
+    "icon": "fas fa-sitemap",
+    "protocol": "http",
+    "external_ports": [],
+    "access_info": { "local_path": "", "notes": "Advanced dashboard with user management and integrated iFrames." }
+  },
+  "traefik": {
+    "name": "Traefik",
+    "description": "A modern reverse proxy and load balancer.",
+    "dashy_section": "Network Services",
+    "has_ui": true,
+    "ui_port": 8082,
+    "icon": "fas fa-route",
+    "protocol": "http",
+    "external_ports": [80, 443],
+    "access_info": { "local_path": "", "notes": "Main entry point for all proxied services. Forward ports 80 (HTTP) and 443 (HTTPS) to this Pi." }
+  },
+  "nginx-proxy-manager": {
+    "name": "Nginx Proxy Manager",
+    "description": "User-friendly interface for managing Nginx proxy hosts and SSL certificates.",
+    "dashy_section": "Network Services",
+    "depends_on": "mariadb",
+    "has_ui": true,
+    "ui_port": 81,
+    "icon": "fas fa-network-wired",
+    "protocol": "http",
+    "external_ports": [80, 443],
+    "access_info": { "local_path": "", "notes": "User-friendly reverse proxy. Forward ports 80 (HTTP) and 443 (HTTPS) to this Pi." }
+  },
+  "pi-hole": {
+    "name": "Pi-hole",
+    "description": "A network-wide ad blocker that acts as a DNS sinkhole.",
+    "dashy_section": "Network Services",
+    "has_ui": true,
+    "ui_port": 8088,
+    "icon": "fas fa-shield-alt",
+    "protocol": "http",
+    "external_ports": [],
+    "access_info": { "local_path": "/admin", "notes": "Set your router's DNS server to the IP of this Pi. External access is not recommended." }
+  },
+  "adguard-home": {
+    "name": "AdGuard Home",
+    "description": "Network-wide ad & tracker blocking DNS server. An alternative to Pi-hole.",
+    "dashy_section": "Network Services",
+    "has_ui": true,
+    "ui_port": 3000,
+    "icon": "fas fa-shield-virus",
+    "protocol": "http",
+    "external_ports": [],
+    "access_info": { "local_path": "", "notes": "Set your router's DNS server to the IP of this Pi. External access is not recommended." }
+  },
+  "unbound": {
+    "name": "Unbound",
+    "description": "A validating, recursive, and caching DNS resolver for maximum privacy.",
+    "dashy_section": "Network Services",
     "has_ui": false
   },
   "homeassistant": {
     "name": "Home Assistant",
-    "description": "Home Assistant (Home Automation)",
-    "default_selected": false,
+    "description": "Open source home automation that puts local control and privacy first.",
+    "dashy_section": "Smart Home",
     "has_ui": true,
     "ui_port": 8123,
+    "icon": "hass:home",
     "protocol": "http",
-    "dashy_tile_section": "Smart Home",
-    "dashy_tile_icon": "fab fa-home-assistant",
-    "dashy_tile_url_suffix": ":8123",
-    "status_check": true
+    "external_ports": [],
+    "access_info": { "local_path": "", "notes": "Your central smart home hub." }
   },
   "frigate": {
     "name": "Frigate",
-    "description": "Frigate (AI-powered NVR)",
-    "default_selected": false,
+    "description": "NVR with real-time object detection for IP cameras.",
+    "dashy_section": "Smart Home",
     "has_ui": true,
     "ui_port": 5000,
+    "icon": "fas fa-video",
     "protocol": "http",
-    "dashy_tile_section": "Smart Home",
-    "dashy_tile_icon": "fas fa-video",
-    "dashy_tile_url_suffix": ":5000",
-    "status_check": true
+    "external_ports": [],
+    "access_info": { "local_path": "", "notes": "Access Frigate to view camera feeds and events." }
   },
-  "pihole": {
-    "name": "Pi-hole",
-    "description": "Pi-hole (Network-wide Ad Blocking)",
-    "default_selected": false,
+  "zigbee2mqtt": {
+    "name": "Zigbee2MQTT",
+    "description": "Bridge the gap between your Zigbee devices and your MQTT broker.",
+    "dashy_section": "Smart Home",
+    "depends_on": "mosquitto",
     "has_ui": true,
-    "ui_port": 80,
+    "ui_port": 8099,
+    "icon": "fas fa-project-diagram",
     "protocol": "http",
-    "dashy_tile_section": "Network Services",
-    "dashy_tile_icon": "fab fa-pi-hole",
-    "dashy_tile_url_suffix": "/admin",
-    "status_check": true
+    "external_ports": [],
+    "access_info": { "local_path": "", "notes": "Manage your Zigbee devices." }
   },
-  "portainer": {
-    "name": "Portainer",
-    "description": "Portainer (Docker Management UI)",
-    "default_selected": true,
+  "scrypted": {
+    "name": "Scrypted",
+    "description": "High-performance video integration platform for smart homes.",
+    "dashy_section": "Smart Home",
     "has_ui": true,
-    "ui_port": 9000,
-    "protocol": "http",
-    "dashy_tile_section": "General Services",
-    "dashy_tile_icon": "si-portainer",
-    "dashy_tile_url_suffix": ":9000",
-    "status_check": true
+    "ui_port": 10443,
+    "icon": "fas fa-video-slash",
+    "protocol": "https",
+    "external_ports": [],
+    "access_info": { "local_path": "", "notes": "Integrate cameras with HomeKit, Google Home, etc." }
   },
-  "phpmyadmin": {
-    "name": "phpMyAdmin",
-    "description": "phpMyAdmin (MariaDB Web Interface)",
-    "default_selected": false,
+  "nextcloud": {
+    "name": "Nextcloud",
+    "description": "The self-hosted productivity platform that keeps you in control.",
+    "dashy_section": "Storage & Network",
+    "depends_on": "mariadb",
     "has_ui": true,
-    "ui_port": 80,
+    "ui_port": 4430,
+    "icon": "fas fa-cloud",
     "protocol": "http",
-    "dashy_tile_section": "General Services",
-    "dashy_tile_icon": "si-phpmyadmin",
-    "dashy_tile_url_suffix": "/",
-    "status_check": true
+    "external_ports": [],
+    "access_info": { "local_path": "", "notes": "Your personal cloud for files, calendar, and contacts." }
   },
-  "traefik": {
-    "name": "Traefik",
-    "description": "Traefik (Cloud Native Reverse Proxy & Load Balancer)",
-    "default_selected": true,
+  "jellyfin": {
+    "name": "Jellyfin",
+    "description": "A Free Software Media System that puts you in control of your media.",
+    "dashy_section": "Media",
     "has_ui": true,
-    "ui_port": 8080,
+    "ui_port": 8096,
+    "icon": "fas fa-tv",
     "protocol": "http",
-    "is_reverse_proxy": true,
-    "dashy_tile_section": "Network Services",
-    "dashy_tile_icon": "si-traefik",
-    "dashy_tile_url_suffix": ":8080",
-    "status_check": true
+    "external_ports": [],
+    "access_info": { "local_path": "", "notes": "Your personal media server." }
   },
-  "nginxproxymanager": {
-    "name": "Nginx Proxy Manager",
-    "description": "Nginx Proxy Manager (Reverse Proxy, SSL Mgmt)",
-    "default_selected": true,
+  "sonarr": {
+    "name": "Sonarr",
+    "description": "Smart PVR for newsgroup and bittorrent users to manage and download TV shows.",
+    "dashy_section": "Media",
     "has_ui": true,
-    "ui_port": 81,
+    "ui_port": 8989,
+    "icon": "fas fa-download",
     "protocol": "http",
-    "is_reverse_proxy": true,
-    "dashy_tile_section": "Network Services",
-    "dashy_tile_icon": "si-nginx",
-    "dashy_tile_url_suffix": ":81",
-    "status_check": true
+    "external_ports": [],
+    "access_info": { "local_path": "", "notes": "Automated TV show downloader." }
   },
-  "dashy": {
-    "name": "Dashy",
-    "description": "Dashy (Personal Dashboard)",
-    "default_selected": true,
+  "radarr": {
+    "name": "Radarr",
+    "description": "A fork of Sonarr to work with movies.",
+    "dashy_section": "Media",
     "has_ui": true,
-    "ui_port": 80,
+    "ui_port": 7878,
+    "icon": "fas fa-film",
     "protocol": "http",
-    "dashy_tile_section": "General Services",
-    "dashy_tile_icon": "fas fa-chart-pie",
-    "dashy_tile_url_suffix": "/",
-    "status_check": true
+    "external_ports": [],
+    "access_info": { "local_path": "", "notes": "Automated movie downloader." }
   },
-  "docker-monitor": {
-    "name": "Docker Monitor",
-    "description": "Docker Monitor (Simple Docker Stats Page)",
-    "default_selected": true,
+  "vaultwarden": {
+    "name": "Vaultwarden",
+    "description": "Lightweight, self-hosted password manager compatible with Bitwarden clients.",
+    "dashy_section": "Utilities",
     "has_ui": true,
-    "ui_port": 8088,
+    "ui_port": 8081,
+    "icon": "fas fa-shield-alt",
     "protocol": "http",
-    "dashy_tile_section": "General Services",
-    "dashy_tile_icon": "fas fa-chart-line",
-    "dashy_tile_url_suffix": ":8088",
-    "status_check": true
+    "external_ports": [],
+    "access_info": { "local_path": "", "notes": "Your personal password manager." }
   },
-  "piselfhosting-docs": {
-    "name": "PiSelfhosting Documentation Website",
-    "description": "PiSelfhosting Documentation Website",
-    "default_selected": true,
+  "unifi-controller": {
+    "name": "UniFi Controller",
+    "description": "Manage your UniFi networking devices from a central controller.",
+    "dashy_section": "Network Services",
     "has_ui": true,
-    "ui_port": 80,
+    "ui_port": 8443,
+    "icon": "fas fa-wifi",
+    "protocol": "https",
+    "external_ports": [],
+    "access_info": { "local_path": "", "notes": "Central management for UniFi devices." }
+  },
+  "uptime-kuma": {
+    "name": "Uptime Kuma",
+    "description": "A fancy, easy-to-use self-hosted monitoring tool.",
+    "dashy_section": "Utilities",
+    "has_ui": true,
+    "ui_port": 3001,
+    "icon": "fas fa-heartbeat",
     "protocol": "http",
-    "dashy_tile_section": "General Services",
-    "dashy_tile_icon": "fas fa-book",
-    "dashy_tile_url_suffix": "/docs",
-    "status_check": true
+    "external_ports": [],
+    "access_info": { "local_path": "", "notes": "Monitor the status of your services." }
+  },
+  "web-notepad": {
+    "name": "Web Notepad",
+    "description": "Simple notepad to display the post-install summary.",
+    "dashy_section": "Utilities",
+    "has_ui": true,
+    "ui_port": 8083,
+    "icon": "fas fa-file-alt",
+    "protocol": "http",
+    "external_ports": [],
+    "access_info": { "local_path": "/post-install-summary", "notes": "This service will contain your installation summary." }
   }
 }

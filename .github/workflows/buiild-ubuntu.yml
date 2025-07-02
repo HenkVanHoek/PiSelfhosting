@@ -37,7 +37,7 @@ jobs:
           --add-data "config:config"
           --add-data "config/default_selected_components.txt:selected_components.txt"
           --add-data "Dockerfile.setup-tool:."
-          --add-data "favicon.ico:."
+          --add-data "images/favicon.ico:."
           piselfhosting_installer.py
 
       - name: Create Installation Package

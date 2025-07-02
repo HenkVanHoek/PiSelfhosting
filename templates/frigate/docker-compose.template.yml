@@ -1,4 +1,3 @@
-# templates/frigate/docker-compose.template.yml
 services:
   frigate:
     container_name: piselfhosting-frigate
@@ -9,17 +8,22 @@ services:
     devices:
       - /dev/bus/usb:/dev/bus/usb # For Coral TPU
     volumes:
-    - /opt/piselfhosting/data/frigate/config:/config:rw
-    - /etc/localtime:/etc/localtime:ro
-    - /opt/piselfhosting/data/frigate/media:/media/frigate:rw
+      # Corrected to use the FHS-compliant DATA_ROOT variable
+      - "{{DATA_ROOT}}/frigate/config:/config:rw"
+      - "{{DATA_ROOT}}/frigate/media:/media/frigate:rw"
+      - /etc/localtime:/etc/localtime:ro
     ports:
       - "5000:5000"  # Web UI port
       - "1935:1935" # RTMP port (for re-streaming cameras)
     environment:
-      - FRIGATE_RTSP_PASSWORD=${FRIGATE_RTSP_PASSWORD} # Used in Frigate config for internal re-streaming
+      # This correctly uses Docker's native substitution for secrets
+      - "FRIGATE_RTSP_PASSWORD=${FRIGATE_RTSP_PASSWORD}"
+    extra_hosts:
+      # Added for consistency
+      - "{{DOMAIN}}:{{ HOST_IP | default('127.0.0.1') }}"
     networks:
       - piselfhosting_net
+
 networks:
   piselfhosting_net:
     external: true
-

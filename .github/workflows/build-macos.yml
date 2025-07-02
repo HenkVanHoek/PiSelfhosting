@@ -36,7 +36,7 @@ jobs:
           --name "PiSelfhosting-Installer" # Naam without OS-suffix
           --icon="images/piselfhosting-apple.icns"
           --add-data "src:src"
-          --add-data "favicon.ico:."
+          --add-data "images/favicon.ico:."
           --add-data "templates:templates"
           --add-data "components_list.txt:."
           --add-data "config:config"

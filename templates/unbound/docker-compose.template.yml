@@ -1,0 +1,18 @@
+services:
+  unbound:
+    container_name: piselfhosting-unbound
+    image: mvance/unbound:latest
+    restart: unless-stopped
+    ports:
+      - "5335:5335/udp"
+      - "5335:5335/tcp"
+    volumes:
+      # This mounts a specific config file that we will generate
+      - "{{DATA_ROOT}}/unbound/config/unbound.conf:/opt/unbound/etc/unbound/unbound.conf"
+    # Unbound does not need PUID/PGID or extra_hosts
+    networks:
+      - piselfhosting_net
+
+networks:
+  piselfhosting_net:
+    external: true
