@@ -26,13 +26,17 @@ jobs:
           pip install pyinstaller
           pip install -r requirements.txt
 
+      - name: Install create-dmg
+        run: brew install create-dmg
+
       - name: Build with PyInstaller (macOS)
         run: >-
-          python -m PyInstaller --onefile
-          --name "PiSelfhosting-Installer-macOS"
-          --icon="piselfhosting-apple.icns"
+          python -m PyInstaller --noconfirm
+          --windowed
+          --name "PiSelfhosting-Installer" # Naam without OS-suffix
+          --icon="images/piselfhosting-apple.icns"
           --add-data "src:src"
-          --add-data "favicon
+          --add-data "favicon.ico:."
           --add-data "templates:templates"
           --add-data "components_list.txt:."
           --add-data "config:config"
@@ -40,12 +44,22 @@ jobs:
           --add-data "Dockerfile.setup-tool:."
           piselfhosting_installer.py
 
+      - name: Create DMG
+        run: |
+          create-dmg \
+            --volname "PiSelfhosting Installer" \
+            --window-pos 200 120 \
+            --window-size 800 400 \
+            --icon-size 100 \
+            --app-drop-link 600 185 \
+            "dist/PiSelfhosting-Installer.dmg" \
+            "dist/PiSelfhosting-Installer.app"
+
       - name: Upload Release Asset
         uses: svenstaro/upload-release-action@v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: ./dist/PiSelfhosting-Installer-macOS
-          asset_name: PiSelfhosting-Installer-macOS
-          asset_content_type: application/octet-stream
+          file: ./dist/PiSelfhosting-Installer.dmg
+          asset_name: PiSelfhosting-Installer-macOS.dmg
           tag: ${{ github.ref_name }}
           overwrite: true

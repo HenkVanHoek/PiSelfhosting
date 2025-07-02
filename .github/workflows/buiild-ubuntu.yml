@@ -28,9 +28,9 @@ jobs:
 
       - name: Build with PyInstaller (Linux)
         run: >-
-          python -m PyInstaller --onefile
+          python -m PyInstaller --noconfirm --onefile
           --name "PiSelfhosting-Installer-Linux"
-          --icon="favicon.ico"
+          --icon="images/piselfhosting-icon192x192.png"
           --add-data "src:src"
           --add-data "templates:templates"
           --add-data "components_list.txt:."
@@ -40,11 +40,24 @@ jobs:
           --add-data "favicon.ico:."
           piselfhosting_installer.py
 
+      - name: Create Installation Package
+        run: |
+          mkdir -p package
+
+          # Kopieer de benodigde bestanden
+          cp dist/PiSelfhosting-Installer-Linux package/
+          cp install.sh package/
+          cp piselfhosting-icon.png package/
+          cp piselfhosting-installer.desktop package/
+          
+          # Create the .tar.gz archive
+          tar -czvf PiSelfhosting-Installer-Linux.tar.gz -C package .
+
       - name: Upload Release Asset
         uses: svenstaro/upload-release-action@v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: ./dist/PiSelfhosting-Installer-Linux
-          asset_name: PiSelfhosting-Installer-Linux
+          file: ./PiSelfhosting-Installer-Linux.tar.gz
+          asset_name: PiSelfhosting-Installer-Linux.tar.gz
           tag: ${{ github.ref_name }}
           overwrite: true
