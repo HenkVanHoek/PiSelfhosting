@@ -16,9 +16,9 @@ Welcome to PiSelfhosting! This project provides a user-friendly system to deploy
 
 The project is split into two main workflows: the **Development & Build Cycle** (how the software is packaged) and the **User Deployment Cycle** (how you install it).
 
-![Development & Build Workflow Diagram](docs/images/development-cycle.png)
+![Development & Build Workflow Diagram](https://raw.githubusercontent.com/HenkVanHoek/PiSelfhosting/main/docs/images/development-cycle.png)
 
-![User Deployment Workflow Diagram](docs/images/user-experience.png)
+![User Deployment Workflow Diagram](https://raw.githubusercontent.com/HenkVanHoek/PiSelfhosting/main/docs/images/user-experience.png)
 
 In short, a user downloads a single installer package from GitHub. This package runs a local web-based "Configurator" for component selection, which then launches a command-line "Executor" to perform the actual installation on the Raspberry Pi.
 
@@ -141,4 +141,4 @@ The tool should get the container name and config paths from the central `.env` 
 
 ## 📄 License
 
-This project is open-source and available under the [MIT License](LICENSE).
+This project is open-source and available under the [MIT License](https://github.com/HenkVanHoek/PiSelfhosting/blob/main/LICENSE).
