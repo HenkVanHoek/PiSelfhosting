@@ -16,7 +16,6 @@ Welcome to PiSelfhosting! This project provides a user-friendly system to deploy
 
 The project is split into two main workflows: the **Development & Build Cycle** (how the software is packaged) and the **User Deployment Cycle** (how you install it).
 
-*You can embed the two diagrams you saved here for a great visual explanation.*
 
 ![Development & Build Workflow Diagram](docs/images/development-cycle.png)
 
