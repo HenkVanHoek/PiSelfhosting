@@ -90,9 +90,8 @@ After installation, some components require additional setup or have important c
 After installation, you can manage your services using the included helper tools. These are located in the `scripts/` directory and are designed to be run via their wrapper scripts.
 
 For example, to configure cameras for Frigate, you would run:
-```markdown
-For example, to configure cameras for Frigate, you would run:
-<pre><code>bash scripts/run-frigate-config-tool.sh</code></pre>
+```bash
+bash scripts/run-frigate-config-tool.sh
 ```
 
 ## 🤝 Contributing
