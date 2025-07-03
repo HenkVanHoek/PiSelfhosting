@@ -16,6 +16,8 @@ Welcome to PiSelfhosting! This project provides a user-friendly system to deploy
 
 The project is split into two main workflows: the **Development & Build Cycle** (how the software is packaged) and the **User Deployment Cycle** (how you install it).
 
+*You can embed the two diagrams you saved here for a great visual explanation.*
+
 ![Development & Build Workflow Diagram](docs/images/development-cycle.png)
 
 ![User Deployment Workflow Diagram](docs/images/user-experience.png)
@@ -62,8 +64,30 @@ PiSelfhosting supports a curated list of popular and powerful self-hosted servic
 | **UniFi Controller** | `unifi-controller` | Manage your UniFi networking devices from a central controller. | [ui.com/wi-fi](https://ui.com/wi-fi) |
 | **Uptime Kuma** | `uptime-kuma` | A fancy, easy-to-use self-hosted monitoring tool. | [GitHub](https://github.com/louislam/uptime-kuma) |
 | **Web Notepad** | `web-notepad` | Simple notepad to display the post-install summary. | [GitHub](https://github.com/pajikos/minimalist-web-notepad) |
+| **Conduit** | `conduit` | A lightweight, next-generation Matrix homeserver, ideal for Raspberry Pi. | [conduit.rs](https://conduit.rs/) |
 
-## 🔧 Using the Helper Tools
+
+## 🔧 Component Specific Notes
+
+After installation, some components require additional setup or have important considerations. Find the notes for your installed services below.
+
+### Matrix (Conduit)
+* **❗️ Domain Name Required**: For your Matrix server to communicate with other servers (federation), it **must** be accessible on the internet via a domain name (e.g., `matrix.yourdomain.com`).
+* **Reverse Proxy**: You must configure your reverse proxy (like Traefik or Nginx Proxy Manager) to correctly route traffic to the Conduit container. This involves setting up specific `.well-known` files for server discovery.
+* **Client**: Conduit is a backend server. To use it, you need to connect with a Matrix client like [Element](https://element.io/).
+
+### Reverse Proxies (Traefik / Nginx Proxy Manager)
+* **Choose One**: You should only run **one** reverse proxy at a time. Both Traefik and Nginx Proxy Manager need to use the standard web ports (80 and 443) to function, and only one service can use a port at a time.
+
+### DNS Ad-Blockers (Pi-hole / AdGuard Home)
+* **Router Configuration**: After installation, you must log in to your router and change its **LAN/DHCP DNS server** setting to the IP address of your Raspberry Pi. This will route all network traffic from your devices through the ad-blocker.
+* **No other action is needed** for devices on your network to be protected once the router setting is changed.
+
+### Jellyfin
+* **Hardware Acceleration**: For the best performance on a Raspberry Pi, it is highly recommended to enable hardware acceleration. Edit the `docker-compose.yml` file and uncomment the `devices:` section that corresponds to your Pi model (Pi 4 vs Pi 5) before starting the service.
+* **Media Libraries**: After starting Jellyfin, you will need to configure your media libraries inside the Jellyfin web UI. Point them to the correct paths inside the container (e.g., `/data/movies` and `/data/tvshows`).
+
+## 🛠️ Using the Helper Tools
 
 After installation, you can manage your services using the included helper tools. These are located in the `scripts/` directory and are designed to be run via their wrapper scripts.
 
