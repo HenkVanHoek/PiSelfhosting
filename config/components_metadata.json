@@ -24,7 +24,8 @@
       "vaultwarden",
       "unifi-controller",
       "uptime-kuma",
-      "web-notepad"
+      "web-notepad",
+      "conduit"
     ]
   },
   "portainer": {
@@ -266,5 +267,13 @@
     "ui_port": 8083,
     "icon": "fas fa-file-alt",
     "protocol": "http"
+  },
+  "conduit": {
+    "name": "Conduit (Matrix Server)",
+    "project_url": "https://conduit.rs/",
+    "description": "A lightweight, next-generation Matrix homeserver, ideal for Raspberry Pi.",
+    "dashy_section": "Communication",
+    "has_ui": false,
+    "access_info": { "local_path": "", "notes": "This is a backend server. Connect to it using a Matrix client like Element." }
   }
 }
