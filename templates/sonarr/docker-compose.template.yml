@@ -1,0 +1,25 @@
+services:
+  sonarr:
+    image: lscr.io/linuxserver/sonarr:latest
+    container_name: piselfhosting-sonarr
+    restart: unless-stopped
+    environment:
+      - "PUID={{PUID}}"
+      - "PGID={{PGID}}"
+      - "TZ={{TZ}}"
+    volumes:
+      - "{{DATA_ROOT}}/sonarr/config:/config"
+      # Point this to your TV shows library, should be the same as Jellyfin's TV folder
+      - "{{DATA_ROOT}}/jellyfin/tvshows:/tv"
+      # Point this to where your download client saves completed files
+      - "{{DATA_ROOT}}/downloads:/downloads"
+    ports:
+      - "8989:8989"
+    extra_hosts:
+      - "{{DOMAIN}}:{{ HOST_IP | default('127.0.0.1') }}"
+    networks:
+      - piselfhosting_net
+
+networks:
+  piselfhosting_net:
+    external: true

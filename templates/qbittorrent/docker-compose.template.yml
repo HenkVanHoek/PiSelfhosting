@@ -1,0 +1,27 @@
+services:
+  qbittorrent:
+    image: lscr.io/linuxserver/qbittorrent:latest
+    container_name: piselfhosting-qbittorrent
+    restart: unless-stopped
+    environment:
+      - "PUID={{PUID}}"
+      - "PGID={{PGID}}"
+      - "TZ={{TZ}}"
+      - "WEBUI_PORT=8084"
+    volumes:
+      - "{{DATA_ROOT}}/qbittorrent/config:/config"
+      # This is the central downloads folder that Sonarr/Radarr will also use
+      - "{{DATA_ROOT}}/downloads:/downloads"
+    ports:
+      - "8084:8084"
+      # Port for incoming torrent connections
+      - "6881:6881"
+      - "6881:6881/udp"
+    extra_hosts:
+      - "{{DOMAIN}}:{{ HOST_IP | default('127.0.0.1') }}"
+    networks:
+      - piselfhosting_net
+
+networks:
+  piselfhosting_net:
+    external: true

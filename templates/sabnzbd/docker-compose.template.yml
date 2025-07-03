@@ -1,0 +1,25 @@
+services:
+  sabnzbd:
+    image: lscr.io/linuxserver/sabnzbd:latest
+    container_name: piselfhosting-sabnzbd
+    restart: unless-stopped
+    environment:
+      - "PUID={{PUID}}"
+      - "PGID={{PGID}}"
+      - "TZ={{TZ}}"
+    volumes:
+      - "{{DATA_ROOT}}/sabnzbd/config:/config"
+      # This is the central downloads folder
+      - "{{DATA_ROOT}}/downloads:/downloads"
+      # Optional: for incomplete downloads
+      - "{{DATA_ROOT}}/downloads/incomplete:/incomplete-downloads"
+    ports:
+      - "8086:8080"
+    extra_hosts:
+      - "{{DOMAIN}}:{{ HOST_IP | default('127.0.0.1') }}"
+    networks:
+      - piselfhosting_net
+
+networks:
+  piselfhosting_net:
+    external: true
