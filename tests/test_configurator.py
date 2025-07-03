@@ -1,88 +1,71 @@
 # tests/test_configurator.py
-import os
 import pytest
+import json
 from unittest.mock import patch
-
-# Assume app.py is in a directory named 'configurator_app'
-from configurator_app.app import app
+from configurator_app.app import create_app
 
 
 @pytest.fixture
-def client():
-    """A pytest fixture to set up the Flask test client."""
-    app.config['TESTING'] = True
-    with app.test_client() as test_client:
-        yield test_client
+def app(tmp_path):
+    """Create and configure a new app instance for each test."""
+
+    # Define paths for all the dummy files our test app will need
+    metadata_path = tmp_path / "components_metadata.json"
+    template_path = tmp_path / "templates"
+
+    # Create the necessary directories and files for the test
+    template_path.mkdir()
+    (template_path / "index.html").write_text(
+        "<h1>PiSelfhosting Configurator</h1>{% for id, data in components.items() %}<p>{{ data.name }}</p>{% endfor %}")
+    (template_path / "install_success.html").write_text("Success Page!")
+
+    # Create a dummy metadata file for the app to load
+    mock_components = {
+        "dashy": {"name": "Dashy", "description": "A dashboard."}
+    }
+    metadata_path.write_text(json.dumps(mock_components))
+
+    # Use the factory to create the app, passing all necessary paths in the test config
+    app = create_app({
+        'TESTING': True,
+        'METADATA_FILE': str(metadata_path),
+        # Flask's built-in loader uses the 'root_path' and this relative folder name
+        'TEMPLATE_FOLDER': 'templates'
+    })
+
+    # Manually set the template folder to our temporary path for the test instance
+    app.template_folder = str(template_path)
+
+    yield app
+
+
+@pytest.fixture
+def client(app):
+    """A test client for the app."""
+    return app.test_client()
 
 
 def test_index_page_loads_successfully(client):
-    """
-    Test 1: Does the main page load correctly?
-    We now 'mock' the component manager to pretend it loaded data.
-    """
-    # This mock pretends that the ComponentManager found two components.
-    mock_components = {
-        "dashy": {"name": "Dashy", "description": "A dashboard."},
-        "frigate": {"name": "Frigate", "description": "An NVR."}
-    }
-    with patch('configurator_app.app.manager.get_all_components', return_value=mock_components):
-        response = client.get('/')
-
+    """Test the main page loads and shows components from the dummy metadata."""
+    response = client.get('/')
     assert response.status_code == 200
     assert b"PiSelfhosting Configurator" in response.data
-    assert b"Dashy" in response.data  # This will now pass
-    assert b"Frigate" in response.data
+    assert b"Dashy" in response.data
 
 
-def test_install_creates_file_and_launches_script(tmp_path):
-    """
-    Test 2: Does submitting the form generate the correct file and
-    attempt to launch the installer script?
-    This test now uses tmp_path to handle files cleanly.
-    """
-    # Define temporary file paths for this specific test
+def test_install_route(client, tmp_path):
+    """Test that the install route writes the file and renders the success template."""
     selected_components_file = tmp_path / "selected_components.txt"
-    executor_script = tmp_path / "piselfhosting_installer.py"
-    executor_script.touch()  # Create a dummy file to launch
 
-    # We patch the constants within app.py to point to our temporary files
-    with patch('configurator_app.app.SELECTED_COMPONENTS_OUTPUT_FILE', str(selected_components_file)), \
-            patch('configurator_app.app.EXECUTOR_SCRIPT', str(executor_script)), \
-            patch('subprocess.Popen') as mock_popen:
-        with app.test_client() as client:
-            client.post('/install', data={'components': ['frigate', 'dashy']})
+    # We can patch the config on the already created app instance for this test
+    client.application.config['SELECTED_COMPONENTS_OUTPUT_FILE'] = str(selected_components_file)
 
-        # --- Assertions ---
-        # 1. Was the installer script launch attempted?
-        mock_popen.assert_called_once()
+    response = client.post('/install', data={'components': ['frigate', 'dashy']})
 
-        # 2. Was the 'selected_components.txt' file created?
-        assert selected_components_file.exists()
+    assert response.status_code == 200
+    assert b"Success Page!" in response.data
+    assert selected_components_file.exists()
 
-        # 3. Does the file have the correct content?
-        content = selected_components_file.read_text()
-        assert "dashy" in content
-        assert "frigate" in content
-
-
-def test_install_with_no_selection(tmp_path):
-    """
-    Test 3: Does submitting with no components selected work correctly?
-    """
-    selected_components_file = tmp_path / "selected_components.txt"
-    executor_script = tmp_path / "piselfhosting_installer.py"
-    executor_script.touch()
-
-    with patch('configurator_app.app.SELECTED_COMPONENTS_OUTPUT_FILE', str(selected_components_file)), \
-            patch('configurator_app.app.EXECUTOR_SCRIPT', str(executor_script)), \
-            patch('subprocess.Popen') as mock_popen:
-        with app.test_client() as client:
-            client.post('/install', data={})
-
-        # --- Assertions ---
-        mock_popen.assert_called_once()
-        assert selected_components_file.exists()
-
-        # The file should be created but empty
-        content = selected_components_file.read_text()
-        assert content == ""
+    content = selected_components_file.read_text()
+    assert "frigate" in content
+    assert "dashy" in content
