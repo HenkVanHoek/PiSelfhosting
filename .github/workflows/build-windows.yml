@@ -2,7 +2,7 @@ name: Build Windows Installer
 
 on:
   release:
-    types: [published]
+    types: [ published ]
 
 jobs:
   build:
@@ -28,17 +28,15 @@ jobs:
 
       - name: Build with PyInstaller (Windows)
         run: >-
-          python -m PyInstaller --onefile
-          --name "PiSelfhosting-Installer-Windows.exe"
-          --icon="images/favicon.ico"
-          --add-data "src;src"
-          --add-data "templates;templates"
-          --add-data "components_list.txt;."
-          --add-data "config;config"
-          --add-data "config/default_selected_components.txt;selected_components.txt"
-          --add-data "Dockerfile.setup-tool;."
-          --add-data "images/favicon.ico;."
-          piselfhosting_installer.py
+          python -m PyInstaller --noconfirm --windowed \
+           --name "PiSelfhosting-Configurator" \
+           --icon="path/to/your/icon.ico" \
+           --add-data "configurator_app/templates:configurator_app/templates" \
+           --add-data "src:src" \
+           --add-data "config:config" \
+           --add-data "templates:templates" \
+           --add-data "piselfhosting_installer.py:." \
+           configurator_app/app.py
 
       - name: Upload Release Asset
         uses: svenstaro/upload-release-action@v2

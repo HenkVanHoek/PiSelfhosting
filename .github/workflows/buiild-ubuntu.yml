@@ -28,23 +28,19 @@ jobs:
 
       - name: Build with PyInstaller (Linux)
         run: >-
-          python -m PyInstaller --noconfirm --onefile
-          --name "PiSelfhosting-Installer-Linux"
-          --icon="images/piselfhosting-icon192x192.png"
-          --add-data "src:src"
-          --add-data "templates:templates"
-          --add-data "components_list.txt:."
-          --add-data "config:config"
-          --add-data "config/default_selected_components.txt:selected_components.txt"
-          --add-data "Dockerfile.setup-tool:."
-          --add-data "images/favicon.ico:."
-          piselfhosting_installer.py
+          python -m PyInstaller --noconfirm --windowed \
+            --name "PiSelfhosting-Configurator" \
+            --add-data "configurator_app/templates:configurator_app/templates" \
+            --add-data "src:src" \
+            --add-data "config:config" \
+            --add-data "templates:templates" \
+            --add-data "piselfhosting_installer.py:." \
+            configurator_app/app.py
 
       - name: Create Installation Package
         run: |
           mkdir -p package
 
-          # Kopieer de benodigde bestanden
           cp dist/PiSelfhosting-Installer-Linux package/
           cp linux/install.sh package/
           cp images/piselfhosting-icon192x192.png package/

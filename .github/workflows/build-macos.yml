@@ -31,18 +31,15 @@ jobs:
 
       - name: Build with PyInstaller (macOS)
         run: >-
-          python -m PyInstaller --noconfirm
-          --windowed
-          --name "PiSelfhosting-Installer" 
-          --icon="images/piselfhosting-apple.icns"
-          --add-data "src:src"
-          --add-data "images/favicon.ico:."
-          --add-data "templates:templates"
-          --add-data "components_list.txt:."
-          --add-data "config:config"
-          --add-data "config/default_selected_components.txt:selected_components.txt"
-          --add-data "Dockerfile.setup-tool:."
-          piselfhosting_installer.py
+          python -m PyInstaller --noconfirm --windowed \
+            --name "PiSelfhosting-Configurator" \
+            --icon="path/to/your/apple-icon.icns" \
+            --add-data "configurator_app/templates:configurator_app/templates" \
+            --add-data "src:src" \
+            --add-data "config:config" \
+            --add-data "templates:templates" \
+            --add-data "piselfhosting_installer.py:." \
+            configurator_app/app.py
 
       - name: Create DMG
         run: |

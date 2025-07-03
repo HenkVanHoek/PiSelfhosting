@@ -16,21 +16,42 @@ Welcome to PiSelfhosting! This project provides a user-friendly system to deploy
 
 The project is split into two main workflows: the **Development & Build Cycle** (how the software is packaged) and the **User Deployment Cycle** (how you install it).
 
-![Development & Build Workflow Diagram](https://raw.githubusercontent.com/HenkVanHoek/PiSelfhosting/main/docs/images/development-cycle.png)
+![Development & Build Workflow Diagram](docs/images/development-cycle.png)
 
-![User Deployment Workflow Diagram](https://raw.githubusercontent.com/HenkVanHoek/PiSelfhosting/main/docs/images/user-experience.png)
+![User Deployment Workflow Diagram](docs/images/user-experience.png)
 
 In short, a user downloads a single installer package from GitHub. This package runs a local web-based "Configurator" for component selection, which then launches a command-line "Executor" to perform the actual installation on the Raspberry Pi.
 
-## 🚀 Quick Start Guide
+## 🚀 Quick Start Guide (For End-Users)
 
 Getting your self-hosted environment running is simple:
 
 1.  **Visit our Website**: Go to `piselfhosting.com` to see the available components and learn more.
 2.  **Download the Installer**: Use the download link on the website to get the latest installer package (`PiSelfhosting-Installer.zip`) from our GitHub Releases.
-3.  **Unzip & Run**: Unzip the file on your main computer (Windows, Mac, or Linux) and run the `start` script (`start.bat` or `start.sh`).
-4.  **Configure**: The `start` script will launch the **Configurator** in your web browser. Use this graphical interface to select the components you want to install and enter your server details (Pi's IP address, etc.).
+3.  **Unzip & Run**: Unzip the file on your main computer (Windows, Mac, or Linux) and run the single executable file (e.g., `PiSelfhosting-Configurator.exe`).
+4.  **Configure**: The executable will launch the **Configurator** in your web browser. Use this graphical interface to select the components you want to install and enter your server details (Pi's IP address, etc.).
 5.  **Deploy**: After you confirm your selection, the **Executor** will launch in a new terminal window. It will connect to your Raspberry Pi and handle the entire installation automatically. You can follow the progress live in this terminal.
+
+## 👨‍💻 Development Quick Start (Running from Source)
+
+If you have cloned this repository and want to run the Configurator application for development or testing, use the included start scripts. These scripts will launch the local Flask web application.
+
+### On Windows
+Simply double-click or run the `start.bat` file in your terminal:
+```bash
+.\start.bat
+```
+
+### On macOS & Linux
+First, make the script executable (you only need to do this once):
+```bash
+chmod +x start.sh
+```
+Then, run the script:
+```bash
+./start.sh
+```
+After running the script, a new tab should open in your default web browser pointing to the local Configurator.
 
 ## 🧩 Supported Components
 
@@ -82,7 +103,7 @@ After installation, some components require additional setup or have important c
 * **No other action is needed** for devices on your network to be protected once the router setting is changed.
 
 ### Jellyfin
-* **Hardware Acceleration**: For the best performance on a Raspberry Pi, it is highly recommended to enable hardware acceleration. Edit the `docker-compose.yml` file and uncomment the `devices:` section that corresponds to your Pi model (Pi 4 vs Pi 5) before starting the service.
+* **Hardware Acceleration**: For the best performance on a Raspberry Pi, it is highly recommended to enable hardware acceleration. The installer will automatically select the correct settings based on your Pi model.
 * **Media Libraries**: After starting Jellyfin, you will need to configure your media libraries inside the Jellyfin web UI. Point them to the correct paths inside the container (e.g., `/data/movies` and `/data/tvshows`).
 
 ## 🛠️ Using the Helper Tools
