@@ -8,12 +8,13 @@ from threading import Timer
 from flask import Flask, render_template, request, redirect, url_for
 
 # Assume component_manager.py is in the same directory or a reachable path
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
 from component_manager import ComponentManager
 
 # --- Configuration ---
-METADATA_FILE = os.path.join('config', 'components_metadata.json')
-SELECTED_COMPONENTS_OUTPUT_FILE = 'selected_components.txt'
-EXECUTOR_SCRIPT = 'piselfhosting_installer.py' # The main installer script
+METADATA_FILE = os.path.join('..', 'config', 'components_metadata.json')
+SELECTED_COMPONENTS_OUTPUT_FILE = os.path.join('..', 'selected_components.txt')
+EXECUTOR_SCRIPT = os.path.join('..', 'piselfhosting_installer.py')
 
 # --- Flask App Initialization ---
 app = Flask(__name__)
