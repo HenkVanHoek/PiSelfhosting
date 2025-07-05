@@ -20,7 +20,7 @@ The project is split into two main workflows: the **Development & Build Cycle** 
 
 ![User Deployment Workflow Diagram](https://raw.githubusercontent.com/HenkVanHoek/PiSelfhosting/main/docs/images/user-experience.png)
 
-In short, a user downloads a single installer package from GitHub. This package runs a local web-based "Configurator" for component selection, which then launches a command-line "Executor" to perform the actual installation on the Raspberry Pi.
+In short, a user downloads a single installer package from GitHub. The first step for the installer is to find the target Raspberry Pi on the network. The package then runs a local web-based "Configurator" for component selection, which launches a command-line "Executor" to perform the actual installation on the chosen Pi.
 
 ## 🚀 Quick Start Guide (For End-Users)
 
@@ -110,7 +110,13 @@ After installation, some components require additional setup or have important c
 
 After installation, you can manage your services using the included helper tools. These are located in the `scripts/` directory and are designed to be run via their wrapper scripts.
 
-For example, to configure cameras for Frigate, you would run:
+### Pi Network Scanner
+For development and advanced troubleshooting, a network scanner tool is included.
+* **`src/pi_scanner.py`**: This is the core Python module that contains the logic for finding Raspberry Pi devices on the network.
+* **`run_scanner_test.py`**: This script provides a simple command-line interface to run the scanner, ask for credentials, and see a report of discovered devices. It is the primary way to test the scanning functionality.
+
+### Frigate Camera Configuration
+To configure cameras for Frigate, you would run:
 ```bash
 bash scripts/run-frigate-config-tool.sh
 ```
@@ -141,4 +147,4 @@ The tool should get the container name and config paths from the central `.env` 
 
 ## 📄 License
 
-This project is open-source and available under the [MIT License](https://github.com/HenkVanHoek/PiSelfhosting/blob/main/LICENSE).
+This project is open-source and available under the <a href="https://github.com/HenkVanHoek/PiSelfhosting/blob/main/LICENSE" target="_blank" rel="noopener noreferrer">MIT License</a>.
