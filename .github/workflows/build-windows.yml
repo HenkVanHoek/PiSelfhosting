@@ -30,7 +30,7 @@ jobs:
         run: |
           python -m PyInstaller --noconfirm --windowed `
             --name "PiSelfhosting-Configurator" `
-            --icon="images/piselfhosting.ico" `
+            --icon="images/favicon.ico" `
             --add-data "configurator_app/templates;configurator_app/templates" `
             --add-data "src;src" `
             --add-data "config;config" `

@@ -40,7 +40,7 @@ jobs:
       - name: Create Installation Package
         run: |
           mkdir -p package
-          cp dist/PiSelfhosting-Configurator package/
+          cp -r dist/PiSelfhosting-Configurator package/
           cp linux/install.sh package/
           cp images/piselfhosting-icon192x192.png package/
           cp linux/piselfhosting-Configurator.desktop package/
