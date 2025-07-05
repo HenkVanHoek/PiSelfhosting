@@ -166,7 +166,13 @@ bash scripts/run-frigate-config-tool.sh
 
 We welcome contributions! Whether you want to add a new service, fix a bug, or improve documentation, your help is appreciated. Please open an issue or submit a pull request on GitHub.
 
-When contributing, especially when creating new helper tools, please adhere to the project's architectural principles.
+### Development Philosophy
+This project is developed using a Test-Driven Development (TDD) approach and follows several key architectural principles to ensure the codebase is robust, maintainable, and easy to contribute to.
+
+* **Test-Driven Development (TDD)**: We follow a "Red-Green-Refactor" cycle. Before a new feature is added, a failing test is written (Red). Then, the minimum amount of code is written to make the test pass (Green). Finally, the code is cleaned up and improved (Refactor).
+* **Separation of Concerns**: Logic is separated into small, focused modules with a single responsibility. For example, the `pi_scanner.py` module is only responsible for network discovery, while `piselfhosting_installer.py` is only responsible for the remote deployment.
+* **Single Source of Truth**: We strive to have a single source of truth for configuration. The `components_metadata.json` file is the central "database" for all information related to the supported components.
+* **User-First Abstraction**: We build tools (like the local web "Configurator") to abstract away complexity from the end-user. The goal is to provide a user-friendly experience, even for complex underlying tasks.
 
 ### Adding a New Component
 1.  Add the component's definition to `components_metadata.json`, including the `project_url`.
