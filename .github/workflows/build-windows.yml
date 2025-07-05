@@ -2,7 +2,7 @@ name: Build Windows Installer
 
 on:
   release:
-    types: [ published ]
+    types: [published]
 
 jobs:
   build:
@@ -27,22 +27,31 @@ jobs:
           pip install -r requirements.txt
 
       - name: Build with PyInstaller (Windows)
-        run: >-
-          python -m PyInstaller --noconfirm --windowed \
-           --name "PiSelfhosting-Configurator" \
-           --icon="path/to/your/icon.ico" \
-           --add-data "configurator_app/templates:configurator_app/templates" \
-           --add-data "src:src" \
-           --add-data "config:config" \
-           --add-data "templates:templates" \
-           --add-data "piselfhosting_installer.py:." \
-           configurator_app/app.py
+        run: |
+          python -m PyInstaller --noconfirm --windowed `
+            --name "PiSelfhosting-Configurator" `
+            --icon="images/piselfhosting.ico" `
+            --add-data "configurator_app/templates;configurator_app/templates" `
+            --add-data "src;src" `
+            --add-data "config;config" `
+            --add-data "templates;templates" `
+            --add-data "piselfhosting_installer.py;." `
+            configurator_app/app.py
+
+      - name: Create Installation Package
+        run: |
+          mkdir package
+          cp dist/PiSelfhosting-Configurator.exe package/
+          cp windows/install.bat package/
+          
+          # Use powershell to create the zip archive
+          powershell -Command "Compress-Archive -Path .\\package\\* -DestinationPath .\\PiSelfhosting-Installer-Windows.zip"
 
       - name: Upload Release Asset
         uses: svenstaro/upload-release-action@v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: ./dist/PiSelfhosting-Installer-Windows.exe
-          asset_name: PiSelfhosting-Installer-Windows.exe
+          file: ./PiSelfhosting-Installer-Windows.zip
+          asset_name: PiSelfhosting-Installer-Windows.zip
           tag: ${{ github.ref_name }}
           overwrite: true

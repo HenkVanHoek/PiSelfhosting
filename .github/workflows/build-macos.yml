@@ -23,40 +23,39 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pyinstaller
+          pip install pyinstaller create-dmg
           pip install -r requirements.txt
-
-      - name: Install create-dmg
-        run: brew install create-dmg
 
       - name: Build with PyInstaller (macOS)
         run: >-
-          python -m PyInstaller --noconfirm --windowed \
-            --name "PiSelfhosting-Configurator" \
-            --icon="path/to/your/apple-icon.icns" \
-            --add-data "configurator_app/templates:configurator_app/templates" \
-            --add-data "src:src" \
-            --add-data "config:config" \
-            --add-data "templates:templates" \
-            --add-data "piselfhosting_installer.py:." \
-            configurator_app/app.py
+          python -m PyInstaller --noconfirm --windowed
+          --name "PiSelfhosting-Configurator"
+          --icon="images/piselfhosting-apple.icns"
+          --add-data "configurator_app/templates:configurator_app/templates"
+          --add-data "src:src"
+          --add-data "config:config"
+          --add-data "templates:templates"
+          --add-data "piselfhosting_installer.py:."
+          configurator_app/app.py
 
-      - name: Create DMG
+      - name: Create DMG Image
         run: |
           create-dmg \
             --volname "PiSelfhosting Installer" \
             --window-pos 200 120 \
             --window-size 800 400 \
             --icon-size 100 \
+            --icon "PiSelfhosting-Configurator.app" 200 190 \
+            --hide-extension "PiSelfhosting-Configurator.app" \
             --app-drop-link 600 185 \
-            "dist/PiSelfhosting-Installer.dmg" \
-            "dist/PiSelfhosting-Installer.app"
+            "PiSelfhosting-Installer-macOS.dmg" \
+            "dist/PiSelfhosting-Configurator.app"
 
       - name: Upload Release Asset
         uses: svenstaro/upload-release-action@v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: ./dist/PiSelfhosting-Installer.dmg
+          file: ./PiSelfhosting-Installer-macOS.dmg
           asset_name: PiSelfhosting-Installer-macOS.dmg
           tag: ${{ github.ref_name }}
           overwrite: true
