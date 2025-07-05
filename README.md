@@ -34,24 +34,65 @@ Getting your self-hosted environment running is simple:
 
 ## 👨‍💻 Development Quick Start (Running from Source)
 
-If you have cloned this repository and want to run the Configurator application for development or testing, use the included start scripts. These scripts will launch the local Flask web application.
+If you have cloned this repository and want to run the application from source for development or testing, follow these steps.
 
-### On Windows
-Simply double-click or run the `start.bat` file in your terminal:
+### 1. Prerequisites
+Ensure you have the following software installed on your workstation:
+* `Git`
+* `Python 3.10+`
+* `pip` (Python's package installer)
+* `Nmap`: A network scanning tool used by the Pi-Scanner.
+    * **On macOS:** `brew install nmap`
+    * **On Debian/Ubuntu:** `sudo apt-get update && sudo apt-get install nmap`
+
+### 2. Setup the Project
+These commands are the same for all platforms.
 ```bash
+# Clone the repository
+git clone [https://github.com/HenkVanHoek/PiSelfhosting.git](https://github.com/HenkVanHoek/PiSelfhosting.git)
+cd PiSelfhosting
+
+# Create a Python virtual environment
+python3 -m venv .venv
+```
+
+### 3. Activate Environment & Install Dependencies
+This step is platform-specific. Run the commands for your operating system.
+
+#### On Windows (in PowerShell)
+```powershell
+# Activate the virtual environment
+.\.venv\Scripts\Activate.ps1
+
+# Install required Python packages
+pip install -r requirements.txt
+```
+
+#### On macOS & Linux (in Terminal)
+```bash
+# Activate the virtual environment
+source .venv/bin/activate
+
+# Install required Python packages
+pip install -r requirements.txt
+```
+
+### 4. Run the Configurator App
+With your virtual environment activated, use the start scripts to launch the local Flask web application.
+
+#### On Windows
+```powershell
 .\start.bat
 ```
 
-### On macOS & Linux
-First, make the script executable (you only need to do this once):
+#### On macOS & Linux
 ```bash
+# First, make the script executable (only needs to be done once)
 chmod +x start.sh
-```
-Then, run the script:
-```bash
+
+# Run the script
 ./start.sh
 ```
-After running the script, a new tab should open in your default web browser pointing to the local Configurator.
 
 ## 🧩 Supported Components
 
@@ -144,6 +185,33 @@ This is a core principle for all helper tools that change the configuration of a
 * **User Experience**: It automates the required restart, creating a seamless, one-command action for the user. They don't have to remember to run a separate restart command.
 
 The tool should get the container name and config paths from the central `.env` file to remain decoupled and robust.
+
+## ✅ Testing
+
+This project uses the **Pytest** framework for automated testing. We encourage contributors to add tests for new features and to run the existing test suite to ensure their changes don't break existing functionality.
+
+The test files are located in the `/tests` directory.
+
+### Running the Test Suite
+All unit tests should be run from within the development environment you have set up (e.g., your WSL/Debian terminal).
+
+1.  **Navigate to the project root:**
+    ```bash
+    cd /path/to/your/project
+    ```
+2.  **Activate the virtual environment:**
+    ```bash
+    source .venv/bin/activate
+    ```
+3.  **Run all tests:**
+    ```bash
+    pytest
+    ```
+
+### Writing New Tests
+* **Test-Driven Development (TDD)**: We aim to use a TDD approach. Before adding a new feature, try to write a failing test that defines what the feature should do. Then, write the code to make the test pass.
+* **File Naming**: Test files should be placed in the `tests/` directory and be named `test_*.py`.
+* **Mocking**: For tests that interact with external systems (like network scanners or file I/O), use Python's `unittest.mock` library to "mock" those interactions. This makes the tests fast and reliable. You can see examples of this in `tests/test_pi_scanner.py` and `tests/test_configurator.py`.
 
 ## 📄 License
 

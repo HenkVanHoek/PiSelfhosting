@@ -4,4 +4,3 @@ paramiko
 pytest
 jinja2
 python-dotenv
-scapy
