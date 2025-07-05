@@ -28,7 +28,7 @@ jobs:
 
       - name: Build with PyInstaller (Windows)
         run: |
-          python -m PyInstaller --noconfirm --onewindow --windowed `
+          python -m PyInstaller --noconfirm --onefile  --windowed `
             --name "PiSelfhosting-Configurator" `
             --icon="images/favicon.ico" `
             --add-data "configurator_app/templates;configurator_app/templates" `
