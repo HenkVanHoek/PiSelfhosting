@@ -1,9 +1,9 @@
 import subprocess
 import re
-import paramiko
 import os
 import sys
-import xml.etree.ElementTree as ET
+import json
+import socket
 
 
 class PiScanner:
@@ -11,28 +11,67 @@ class PiScanner:
     A tool to scan the local network and identify Raspberry Pi devices by calling
     the native nmap executable and parsing its XML output.
     """
-    RASPBERRY_PI_OUI_PREFIXES = [
-        'b8:27:eb',
-        'dc:a6:32',
-        'e4:5f:01',
-        '2c:cf:67',
-    ]
+
+    @staticmethod
+    def _load_prefixes():
+        """Loads the list of Raspberry Pi MAC prefixes from a JSON file."""
+        # This path is relative to the project root where the runner script is executed.
+        prefixes_path = os.path.join('config', 'raspberry_pi_oui.json')
+        try:
+            with open(prefixes_path, 'r') as f:
+                data = json.load(f)
+                return data.get('prefixes', [])
+        except (FileNotFoundError, json.JSONDecodeError):
+            print(f"Warning: Could not load or parse {prefixes_path}. Scanning may be incomplete.", file=sys.stderr)
+            return []
+
+    @staticmethod
+    def _parse_nmap_output(nmap_xml_output, pi_oui_prefixes):
+        """Parses the XML output from nmap to find Raspberry Pi devices."""
+        # Local import for fast startup
+        import xml.etree.ElementTree as etree
+
+        found_devices = []
+        found_macs = set()
+        try:
+            root = etree.fromstring(nmap_xml_output)
+            for host in root.findall('host'):
+                status = host.find('status')
+                if status is None or status.get('state') != 'up':
+                    continue
+
+                ip_address_element = host.find('address[@addrtype="ipv4"]')
+                mac_address_element = host.find('address[@addrtype="mac"]')
+
+                if ip_address_element is not None and mac_address_element is not None:
+                    ip = ip_address_element.get('addr')
+                    mac = mac_address_element.get('addr').lower()
+
+                    is_pi = any(mac.startswith(prefix) for prefix in pi_oui_prefixes)
+
+                    if is_pi and mac not in found_macs:
+                        found_devices.append({'ip': ip, 'mac': mac})
+                        found_macs.add(mac)
+        except etree.ParseError as e:
+            print(f"Error parsing nmap XML output: {e}", file=sys.stderr)
+
+        return found_devices
 
     @staticmethod
     def scan(target_subnet, debug=False):
         """
         Actively scans a given subnet using the nmap executable and parses XML output.
         """
+        pi_oui_prefixes = PiScanner._load_prefixes()
+        if not pi_oui_prefixes:
+            print("Warning: No Raspberry Pi MAC prefixes were loaded. Scan may not find any devices.", file=sys.stderr)
+
         if not target_subnet:
             print("Error: A target subnet must be provided.", file=sys.stderr)
             return []
-
-        found_devices = []
         try:
             print(f"--> Performing a privileged scan on {target_subnet} with nmap...")
-
-            # Use -oX - to output XML to stdout. -sn is a ping scan.
-            command = ['nmap', '-sn', '-oX', '-', target_subnet]
+            command = ['nmap', '-sn', '-n', '-oX', '-', target_subnet]
             if sys.platform != "win32":
                 command.insert(0, 'sudo')
 
@@ -47,30 +86,9 @@ class PiScanner:
                 print("----------------------------------------\n")
 
             print("--> Parsing results to identify Raspberry Pis...")
-
-            # Parse the XML output from nmap
-            root = ET.fromstring(nmap_result.stdout)
-            for host in root.findall('host'):
-                status = host.find('status')
-                # Ensure the host is reported as 'up'
-                if status is not None and status.get('state') == 'up':
-                    ip_address_element = host.find('address[@addrtype="ipv4"]')
-                    mac_address_element = host.find('address[@addrtype="mac"]')
-
-                    # Both IP and MAC must be present to be useful
-                    if ip_address_element is not None and mac_address_element is not None:
-                        ip = ip_address_element.get('addr')
-                        mac = mac_address_element.get('addr').lower()
-
-                        for prefix in PiScanner.RASPBERRY_PI_OUI_PREFIXES:
-                            if mac.startswith(prefix):
-                                print(f"    ✅ Found Raspberry Pi: {ip} ({mac})")
-                                if not any(d['mac'] == mac for d in found_devices):
-                                    found_devices.append({'ip': ip, 'mac': mac})
-                                break  # No need to check other prefixes for this MAC
-
+            found_devices = PiScanner._parse_nmap_output(nmap_result.stdout, pi_oui_prefixes)
             print(f"    Found {len(found_devices)} Pi(s) after parsing scan results.")
-
+            return found_devices
         except FileNotFoundError:
             print("Error: 'nmap' command not found. Please ensure Nmap is installed and in your system's PATH.",
                   file=sys.stderr)
@@ -78,58 +96,106 @@ class PiScanner:
             print(f"An error occurred running nmap. Do you have sudo/administrator permissions? Error: {e.stderr}",
                   file=sys.stderr)
         except subprocess.TimeoutExpired:
-            print("Error: The network scan timed out.", file=sys.stderr)
+            print("Error: The network scan timed out. Your network may be blocking ping scans.", file=sys.stderr)
         except Exception as e:
             print(f"An unexpected error occurred during scanning: {e}", file=sys.stderr)
+        return []
 
-        return found_devices
+    @staticmethod
+    def _is_port_open(ip, port, timeout=1.0):
+        """Checks if a TCP port is open on a given IP address."""
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(timeout)
+        try:
+            return sock.connect_ex((ip, port)) == 0
+        except socket.gaierror:
+            return False
+        finally:
+            sock.close()
 
     @staticmethod
     def get_device_details(ip, username, password):
-        """Connects to a device via SSH to get its unique serial number."""
+        """
+        Connects to a device via SSH to get detailed hardware information,
+        but only after checking if the SSH port is open.
+        """
+        # Local import for fast startup
+        import paramiko
+
+        if not PiScanner._is_port_open(ip, 22):
+            print(f"    Skipping SSH attempt for {ip}: Port 22 is not open.")
+            return None
+
         client = None
         try:
             client = paramiko.SSHClient()
             client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
             client.connect(hostname=ip, username=username, password=password, timeout=5)
 
-            stdin, stdout, stderr = client.exec_command("cat /proc/cpuinfo")
+            command = (
+                "cat /sys/firmware/devicetree/base/model; echo '---'; "
+                "free -h | grep Mem | awk '{print $2}'; echo '---'; "
+                "cat /proc/cpuinfo | grep Serial | awk '{print $3}'; echo '---'; "
+                "lsblk -o NAME,SIZE,TYPE,MOUNTPOINT --json"
+            )
+            _, stdout, _ = client.exec_command(command)
             output = stdout.read().decode().strip()
 
-            match = re.search(r"Serial\s*:\s*(\w+)", output)
-            if match:
-                return {'serial': match.group(1), 'ip': ip}
-
-        except (paramiko.AuthenticationException, paramiko.SSHException, TimeoutError):
-            # Suppress noisy error messages for non-accessible devices
-            pass
+            details = {'ip': ip}
+            parts = output.split('---')
+            if len(parts) >= 4:
+                details['model'] = parts[0].strip().replace('\x00', '')
+                details['ram'] = parts[1].strip()
+                details['serial'] = parts[2].strip()
+                try:
+                    disk_info = json.loads(parts[3].strip())
+                    details['disks'] = disk_info.get('blockdevices', [])
+                except json.JSONDecodeError:
+                    details['disks'] = []
+            return details
+        except (paramiko.AuthenticationException, paramiko.SSHException, TimeoutError) as e:
+            print(f"    Could not connect or get details for {ip}: {type(e).__name__}")
         except Exception as e:
             print(f"    An unexpected error occurred for {ip}: {e}", file=sys.stderr)
         finally:
             if client:
                 client.close()
+        return None
 
+    @staticmethod
+    def _detect_subnet_linux():
+        """Detects subnet on Linux."""
+        command = ['ip', '-o', '-4', 'addr', 'show']
+        result = subprocess.run(command, capture_output=True, text=True, check=True, timeout=5)
+        for line in result.stdout.strip().splitlines():
+            if ' lo ' not in line and ' docker' not in line:
+                parts = line.split()
+                if len(parts) >= 4:
+                    return parts[3]
+        return None
+
+    @staticmethod
+    def _detect_subnet_macos():
+        """Detects subnet on macOS."""
+        command = ['ifconfig']
+        result = subprocess.run(command, capture_output=True, text=True, check=True, timeout=5)
+        match = re.search(r"en\d:.*?inet (\d+\.\d+\.\d+\.\d+).*?netmask (0x[0-9a-fA-F]+)", result.stdout, re.DOTALL)
+        if match:
+            ip_address = match.group(1)
+            netmask_hex = match.group(2)
+            netmask_bin = bin(int(netmask_hex, 16))
+            cidr = sum(bit == '1' for bit in netmask_bin)
+            return f"{ip_address}/{cidr}"
         return None
 
     @staticmethod
     def detect_subnet():
         """Attempts to detect the primary local subnet."""
         try:
-            command = ['ip', '-o', '-4', 'addr', 'show']
-            if sys.platform == "win32":
-                # A different command would be needed for Windows, but 'ip' is fine for Linux/macOS
-                # For simplicity in this tool, we only support the Linux/macOS auto-detect for now.
-                return None
-
-            ip_result = subprocess.run(
-                command,
-                capture_output=True, text=True, check=True, timeout=5
-            )
-            for line in ip_result.stdout.strip().splitlines():
-                if ' lo ' not in line and ' docker' not in line:
-                    parts = line.split()
-                    if len(parts) >= 4:
-                        return parts[3]
+            if sys.platform.startswith('linux'):
+                return PiScanner._detect_subnet_linux()
+            elif sys.platform == "darwin":  # macOS
+                return PiScanner._detect_subnet_macos()
         except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
             return None
         return None

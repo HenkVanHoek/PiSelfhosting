@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>PiSelfhosting - Discover Pi</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            padding: 2em;
+        }
+
+        #results ul {
+            list-style-type: none;
+            padding: 0;
+        }
+
+        #results li {
+            background-color: #f0f0f0;
+            margin: 5px 0;
+            padding: 10px;
+            border-radius: 5px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+    </style>
+</head>
+<body>
+<h1>Step 1: Find Your Raspberry Pi</h1>
+<p>Scan your network to automatically discover Raspberry Pi devices, or enter the IP address manually.</p>
+
+<div>
+    <label for="subnet">Network to Scan (e.g., 192.168.1.0/24):</label>
+    <input type="text" id="subnet" value="192.168.1.0/24">
+    <button id="scan-btn">Scan Network</button>
+    <p id="scan-status" style="font-style: italic;"></p>
+</div>
+<div id="results"></div>
+
+<hr>
+<h2>Or, Enter Manually</h2>
+<form action="/select-pi" method="post">
+    <label for="pi_ip">Pi IP Address:</label>
+    <input type="text" id="pi_ip" name="pi_ip" required>
+    <button type="submit">Use this IP</button>
+</form>
+
+<script>
+    document.getElementById('scan-btn').addEventListener('click', async () => {
+        const subnet = document.getElementById('subnet').value;
+        const resultsDiv = document.getElementById('results');
+        const statusP = document.getElementById('scan-status');
+
+        resultsDiv.innerHTML = '';
+        statusP.textContent = 'Scanning... This may take a minute. Please be patient.';
+
+        try {
+            const response = await fetch('/scan', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({subnet: subnet})
+            });
+
+            if (!response.ok) {
+                throw new Error(`Scan failed with status: ${response.status}`);
+            }
+
+            const pis = await response.json();
+
+            statusP.textContent = `Scan complete. Found ${pis.length} Raspberry Pi(s).`;
+            resultsDiv.innerHTML = '<h3>Discovered Pis:</h3>';
+
+            if (pis.length === 0) {
+                resultsDiv.innerHTML += '<p>No Raspberry Pi devices found on this network.</p>';
+            } else {
+                const list = document.createElement('ul');
+                pis.forEach(pi => {
+                    const item = document.createElement('li');
+                    item.innerHTML = `
+                            <span>${pi.ip} (${pi.mac})</span>
+                            <form action="/select-pi" method="post" style="display:inline;">
+                                <input type="hidden" name="pi_ip" value="${pi.ip}">
+                                <button type="submit">Select</button>
+                            </form>`;
+                    list.appendChild(item);
+                });
+                resultsDiv.appendChild(list);
+            }
+        } catch (error) {
+            statusP.textContent = 'An error occurred during the scan.';
+            console.error('Scan error:', error);
+        }
+    });
+</script>
+</body>
+</html>
