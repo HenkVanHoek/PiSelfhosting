@@ -48,14 +48,33 @@ Ensure you have the following software installed on your workstation:
     * **On macOS:** `brew install nmap`
     * **On Debian/Ubuntu:** `sudo apt-get update && sudo apt-get install nmap`
 
-### 2. Setup the Project
+# Setting Up Your Development Environment
 
-These commands are the same for all platforms.
+1.  Clone your fork of the repository locally.
+    ```bash
+    git clone [https://github.com/YOUR-USERNAME/PiSelfhosting.git](https://github.com/YOUR-USERNAME/PiSelfhosting.git)
+    ```
+2.  Navigate to the project directory.
+    ```bash
+    cd PiSelfhosting
+    ```
+3.  It is recommended to create a virtual environment.
+    ```bash
+    python -m venv .venv
+    source .venv/bin/activate  # On Windows use `.venv\Scripts\activate`
+    ```
+4.  Install the required dependencies. The project uses three different files for managing Python packages:
+    * **`requirements.txt`**: Contains packages needed for the normal execution of the application on your workstation.
+    * **`requirements-dev.txt`**: Contains extra packages for development, such as testing tools.
+    * **`requirements-pi.txt`**: Contains packages that are required on the target Raspberry Pi. This file is handled automatically by the installer and does not need to be installed on your development machine.
 
-```bash
-# Clone the repository
-git clone [https://github.com/HenkVanHoek/PiSelfhosting.git](https://github.com/HenkVanHoek/PiSelfhosting.git)
-cd PiSelfhosting
+    To set up your development environment, install both the standard and development requirements:
+    ```bash
+    pip install -r requirements.txt -r requirements-dev.txt
+    ```
+5.  Run the application:
+    ```bash
+    python configurator_app/app.py
+    ```
 
-# Create a Python virtual environment
-python3 -m venv .venv
+We look forward to your contributions!

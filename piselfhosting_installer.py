@@ -1,4 +1,3 @@
-# piselfhosting_installer.py
 import paramiko
 import os
 import sys
@@ -26,7 +25,8 @@ except ImportError:
 EXCLUDED_ITEMS = [
     '.git/',
     '.idea/',
-    'venv/',
+    '.venv/',
+    '.venv-win/',  # Also exclude windows venv
     '__pycache__/',
     '.pytest_cache/',
     'tests/',
@@ -46,7 +46,7 @@ load_dotenv()
 # --- Default Configuration Values ---
 
 # SSH Defaults
-DEFAULT_PI_IP = os.getenv('PI_IP', 'raspberrypi.local')
+DEFAULT_PI_IP = os.getenv('PI_IP', '')  # Start with empty, as we ask user anyway
 DEFAULT_SSH_USERNAME = os.getenv('SSH_USERNAME', 'pi')
 DEFAULT_SSH_PASSWORD = os.getenv('SSH_PASSWORD', '')
 
@@ -54,7 +54,6 @@ DEFAULT_SSH_PASSWORD = os.getenv('SSH_PASSWORD', '')
 DEFAULT_DOMAIN = os.getenv('DOMAIN', 'yourdomain.com')
 DEFAULT_PUID = os.getenv('PUID', '1000')
 DEFAULT_PGID = os.getenv('PGID', '1000')
-DEFAULT_HOST_IP = os.getenv('HOST_IP', '')  # Let's try to auto-detect this first.
 DEFAULT_DB_USER = os.getenv('DB_USER', 'piselfhosting_user')
 DEFAULT_DB_PASS = os.getenv('DB_PASS', 'change_this_secure_password')
 DEFAULT_TZ = os.getenv('TZ', 'Europe/Amsterdam')
@@ -88,16 +87,6 @@ def get_password(prompt, use_previous=False, stored_value=None):
 
     pwd = getpass.getpass(f"- {prompt}: ")
     return pwd or stored_value
-
-
-def get_local_ip_address():
-    """Attempts to determine the local IP address of the machine running the script."""
-    try:
-        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
-            s.connect(("8.8.8.8", 80))
-            return s.getsockname()[0]
-    except Exception:
-        return None
 
 
 # --- Remote Execution and File Sync ---
@@ -158,20 +147,26 @@ def run_remote_command(ssh_client, command, check_exit_status=True):
 
 def _is_excluded(local_path, project_root, exclude_list):
     """Checks if a file or directory should be excluded from synchronization."""
+    # Ensure paths are normalized with forward slashes for consistent comparison
     relative_path = os.path.relpath(local_path, project_root).replace(os.sep, '/')
+
+    # If the path is the root itself, don't exclude it
     if relative_path == ".":
         return False
 
     for pattern in exclude_list:
-        norm_pattern = pattern.replace(os.sep, '/')
-        if norm_pattern.endswith('/'):  # Directory pattern
-            if relative_path.startswith(norm_pattern.rstrip('/')):
+        # A pattern ending in '/' signifies a directory
+        if pattern.endswith('/'):
+            # Match if the relative path is the directory itself or is inside that directory
+            if relative_path == pattern.rstrip('/') or relative_path.startswith(pattern):
                 return True
-        else:  # File pattern
-            if relative_path == norm_pattern:
-                return True
-            if '/' not in norm_pattern and os.path.basename(relative_path) == norm_pattern:
-                return True
+        # A pattern without a '/' is a file to be excluded everywhere
+        elif '/' not in pattern and os.path.basename(relative_path) == pattern:
+            return True
+        # A pattern with '/' is a specific file or path
+        elif relative_path == pattern:
+            return True
+
     return False
 
 
@@ -271,10 +266,12 @@ def main():
     tz = get_user_input("Enter timezone", DEFAULT_TZ)
     admin_email = get_user_input("Enter admin email for SSL certs", DEFAULT_ADMIN_EMAIL)
 
-    # Auto-detect IP if possible, else ask
-    detected_ip = get_local_ip_address()
-    host_ip_prompt = "Enter the Pi's local IP address"
-    host_ip = get_user_input(host_ip_prompt, detected_ip or DEFAULT_HOST_IP)
+    # <<<< START OF FIX >>>>
+    # The Pi's local IP address is crucial for Docker's extra_hosts setting.
+    # We re-use the IP address provided for the SSH connection to avoid confusion and errors from auto-detection in WSL.
+    print(f"- The Pi's local IP address will be set to: {pi_hostname}")
+    host_ip = pi_hostname
+    # <<<< END OF FIX >>>>
 
     db_user = get_user_input("Enter database username", DEFAULT_DB_USER)
     db_pass = get_password("Enter database password", stored_value=DEFAULT_DB_PASS)

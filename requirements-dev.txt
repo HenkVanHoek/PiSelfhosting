@@ -1,0 +1,7 @@
+# requirements-dev.txt
+-r requirements-pi.txt
+
+paramiko
+python-dotenv
+pytest
+flask

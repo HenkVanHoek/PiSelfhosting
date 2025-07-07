@@ -17,6 +17,7 @@ from component_manager import ComponentManager
 from pi_scanner import PiScanner
 
 
+# noinspection PyShadowingNames
 def create_app(test_config=None):
     """Application Factory Function"""
     app = Flask(__name__)
@@ -46,25 +47,89 @@ def create_app(test_config=None):
             return render_template('select_components.html', components=components_to_display,
                                    pi_ip=session['target_pi_ip'])
         else:
-            return render_template('select_pi.html')
+            detected_subnet = PiScanner.detect_subnet()
+            return render_template('select_pi.html', detected_subnet=detected_subnet)
 
     @app.route('/scan', methods=['POST'])
     def scan_network():
-        """API endpoint to run the PiScanner."""
+        """
+        API endpoint to run PiScanner and return both successfully identified
+        devices and devices that failed authentication.
+        """
         data = request.json
         subnet = data.get('subnet')
-        if not subnet:
-            return jsonify({'error': 'Subnet is required.'}), 400
+        username = data.get('username')
+        password = data.get('password')
 
-        # Note: This requires the start script to be run with sudo/admin rights
-        found_pis = PiScanner.scan(target_subnet=subnet)
-        return jsonify(found_pis)
+        if not all([subnet, username, password]):
+            return jsonify({'error': 'Subnet, username, and password are required.'}), 400
+
+        potential_pis = PiScanner.scan(target_subnet=subnet)
+        if not potential_pis:
+            return jsonify({'success': {}, 'failed': []})
+
+        results = {
+            'success': {},
+            'failed': []
+        }
+
+        for pi in potential_pis:
+            ip = pi['ip']
+            details = PiScanner.get_device_details(ip, username, password)
+            if details and details.get('serial'):
+                serial = details['serial']
+                if serial not in results['success']:
+                    results['success'][serial] = {
+                        'model': details.get('model', 'N/A'),
+                        'ram': details.get('ram', 'N/A'),
+                        'serial': serial,
+                        'disks': details.get('disks', []),
+                        'connections': [{'ip': ip, 'mac': pi['mac']}]
+                    }
+                else:
+                    results['success'][serial]['connections'].append({'ip': ip, 'mac': pi['mac']})
+            else:
+                # If details could not be fetched, add to the failed list
+                results['failed'].append(pi)
+
+        return jsonify(results)
+
+    @app.route('/get-details', methods=['POST'])
+    def get_device_details_for_ip():
+        """
+        API endpoint to get details for a single IP address with specific credentials.
+        Used for the "retry" functionality.
+        """
+        data = request.json
+        ip = data.get('ip')
+        mac = data.get('mac')
+        username = data.get('username')
+        password = data.get('password')
+
+        if not all([ip, mac, username, password]):
+            return jsonify({'error': 'IP, MAC, username, and password are required.'}), 400
+
+        details = PiScanner.get_device_details(ip, username, password)
+        if details and details.get('serial'):
+            # If successful, return the device details in the same format as the scan
+            serial = details['serial']
+            device_data = {
+                serial: {
+                    'model': details.get('model', 'N/A'),
+                    'ram': details.get('ram', 'N/A'),
+                    'serial': serial,
+                    'disks': details.get('disks', []),
+                    'connections': [{'ip': ip, 'mac': mac}]
+                }
+            }
+            return jsonify({'success': device_data})
+        else:
+            return jsonify({'error': 'Authentication failed or could not retrieve details.'}), 400
 
     @app.route('/select-pi', methods=['POST'])
     def select_pi():
         """Saves the selected Pi's IP address to the user's session."""
         session['target_pi_ip'] = request.form.get('pi_ip')
-        # Redirect back to the main page, which will now show the component selection
         return redirect(url_for('index'))
 
     @app.route('/save-and-install', methods=['POST'])
@@ -74,14 +139,11 @@ def create_app(test_config=None):
         with open(app.config['SELECTED_COMPONENTS_OUTPUT_FILE'], 'w') as f:
             f.write(' '.join(selected_ids))
 
-        # Save IP and credentials to the .env file for the executor to use
         env_path = app.config['ENV_PATH']
         set_key(env_path, "PI_IP", session.get('target_pi_ip', ''))
         set_key(env_path, "SSH_USER", request.form.get('ssh_user', ''))
         set_key(env_path, "SSH_PASSWORD", request.form.get('ssh_pass', ''))
 
-        # This version no longer launches a subprocess.
-        # It now renders a success page with the next steps for the user.
         return render_template('install_success.html')
 
     return app
@@ -93,7 +155,5 @@ if __name__ == '__main__':
 
 
     app = create_app()
-    # Open the browser automatically after a short delay
     Timer(1, open_browser).start()
-    # Run the Flask app
     app.run(host='127.0.0.1', port=5000, debug=False)

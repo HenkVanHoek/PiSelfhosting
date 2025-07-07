@@ -28,8 +28,8 @@ RUN apk update && apk add --no-cache \
 # Copy requirements.txt into the build context and install Python dependencies
 # This step leverages Docker's build cache: if requirements.txt doesn't change,
 # this layer (and subsequent layers) won't be rebuilt.
-COPY requirements.txt . /app/
-RUN pip install --no-cache-dir -r requirements.txt
+COPY requirements-pi.txt . /app/
+RUN pip install --no-cache-dir -r requirements-pi.txt
 
 # No CMD or ENTRYPOINT here. The command to run src/setup.py will be specified
 # directly via 'docker run' by the piselfhosting_installer.py script.
