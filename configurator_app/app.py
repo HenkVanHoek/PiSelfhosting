@@ -28,12 +28,16 @@ def create_app(test_config=None):
     app.config.from_mapping(
         METADATA_FILE=os.path.join(project_root, 'config', 'components_metadata.json'),
         SELECTED_COMPONENTS_OUTPUT_FILE=os.path.join(project_root, 'selected_components.txt'),
+        DOCS_OUTPUT_FILE=os.path.join(project_root, 'SUPPORTED_COMPONENTS.md'),
         ENV_PATH=os.path.join(project_root, '.env')
     )
     if test_config:
         app.config.from_mapping(test_config)
 
-    manager = ComponentManager(app.config['METADATA_FILE'])
+    manager = ComponentManager(
+        app.config['METADATA_FILE'],
+        docs_output_path=app.config['DOCS_OUTPUT_FILE']
+    )
 
     @app.route('/')
     def index():

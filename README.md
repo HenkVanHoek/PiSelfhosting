@@ -37,29 +37,48 @@ Getting your self-hosted environment running is simple:
 
 PiSelfhosting supports a curated list of popular and powerful self-hosted services. The installer allows you to select any combination of the following components.
 
-| Component | Project Name | Description | Official Link |
-|:---|:---|:---|:---|
-| **Portainer** | `portainer` | A powerful management UI for Docker environments. | [portainer.io](https://www.portainer.io/) |
-| **Dashy** | `dashy` | A highly customizable, open-source personal dashboard. | [dashy.to](https://dashy.to/) |
-| **Heimdall** | `heimdall` | A simple and elegant application dashboard. | [heimdall.site](https://heimdall.site/) |
-| **Homer** | `homer` | A dead simple, static homepage for your server. | [GitHub](https://github.com/bastienwirtz/homer) |
-| **Organizr** | `organizr` | A full-featured server organizer with a tabbed interface. | [organizr.app](https://organizr.app/) |
-| **Traefik** | `traefik` | A modern reverse proxy and load balancer. | [traefik.io](https://traefik.io/traefik/) |
-| **Nginx Proxy Manager**| `nginx-proxy-manager`| User-friendly interface for managing Nginx proxy hosts and SSL certificates. | [nginxproxymanager.com](https://nginxproxymanager.com/) |
-| **Pi-hole** | `pi-hole` | A network-wide ad blocker that acts as a DNS sinkhole. | [pi-hole.net](https://pi-hole.net/) |
-| **AdGuard Home** | `adguard-home` | Network-wide ad & tracker blocking DNS server. An alternative to Pi-hole. | [GitHub](https://github.com/AdguardTeam/AdGuardHome) |
-| **Unbound** | `unbound` | A validating, recursive, and caching DNS resolver for maximum privacy. | [nlnetlabs.nl](https://www.nlnetlabs.nl/projects/unbound/about/) |
-| **Home Assistant** | `homeassistant` | Open source home automation that puts local control and privacy first. | [home-assistant.io](https://www.home-assistant.io/) |
-| **Frigate** | `frigate` | NVR with real-time object detection for IP cameras. | [frigate.video](https://docs.frigate.video/) |
-| **Zigbee2MQTT** | `zigbee2mqtt` | Bridge the gap between your Zigbee devices and your MQTT broker. | [zigbee2mqtt.io](https://www.zigbee2mqtt.io/) |
-| **Scrypted** | `scrypted` | High-performance video integration platform for smart homes. | [scrypted.app](https://www.scrypted.app/) |
-| **Nextcloud** | `nextcloud` | The self-hosted productivity platform that keeps you in control. | [nextcloud.com](https://nextcloud.com/) |
-| **Jellyfin** | `jellyfin` | A Free Software Media System that puts you in control of your media. | [jellyfin.org](https://jellyfin.org/) |
-| **Sonarr** | `sonarr` | Smart PVR for newsgroup and bittorrent users to manage and download TV shows. | [sonarr.tv](https://sonarr.tv/) |
-| **Radarr** | `radarr` | A fork of Sonarr to work with movies. | [radarr.video](https://radarr.video/) |
-| **qBittorrent** | `qbittorrent` | A lightweight and powerful BitTorrent client. | [qbittorrent.org](https://www.qbittorrent.org/) |
-| **SABnzbd** | `sabnzbd` | The popular and easy-to-use Usenet download client. | [sabnzbd.org](https://sabnzbd.org/) |
-| **Vaultwarden** | `vaultwarden` | Lightweight, self-hosted password manager compatible with Bitwarden clients. | [GitHub](https://github.com/dani-garcia/vaultwarden) |
-| **UniFi Controller** | `unifi-controller` | Manage your UniFi networking devices from a central controller. | [ui.com/wi-fi](https://ui.com/wi-fi) |
-| **Uptime Kuma** | `uptime-kuma` | A fancy, easy-to-use self-hosted monitoring tool. | [GitHub](https://github.com/louislam/uptime-kuma) |
-| **Web Notepad** | `web-notepad` | Simple notepad to display the post-install summary. | [GitHub](
+For an up-to-date list of all supported components and their details, please see the automatically generated table here:
+
+➡️ [**Supported Components List**](./SUPPORTED_COMPONENTS.md)
+
+## 🔧 Component Specific Notes
+
+After installation, some components require additional setup or have important considerations. Find the notes for your installed services below.
+
+### Matrix (Conduit)
+* **❗️ Domain Name Required**: For your Matrix server to communicate with other servers (federation), it **must** be accessible on the internet via a domain name (e.g., `matrix.yourdomain.com`).
+* **Reverse Proxy**: You must configure your reverse proxy (like Traefik or Nginx Proxy Manager) to correctly route traffic to the Conduit container. This involves setting up specific `.well-known` files for server discovery.
+* **Client**: Conduit is a backend server. To use it, you need to connect with a Matrix client like [Element](https://element.io/).
+
+### Reverse Proxies (Traefik / Nginx Proxy Manager)
+* **Choose One**: You should only run **one** reverse proxy at a time. Both Traefik and Nginx Proxy Manager need to use the standard web ports (80 and 443) to function, and only one service can use a port at a time.
+
+### DNS Ad-Blockers (Pi-hole / AdGuard Home)
+* **Router Configuration**: After installation, you must log in to your router and change its **LAN/DHCP DNS server** setting to the IP address of your Raspberry Pi. This will route all network traffic from your devices through the ad-blocker.
+* **No other action is needed** for devices on your network to be protected once the router setting is changed.
+
+### Jellyfin
+* **Hardware Acceleration**: For the best performance on a Raspberry Pi, it is highly recommended to enable hardware acceleration. The installer will automatically select the correct settings based on your Pi model.
+* **Media Libraries**: After starting Jellyfin, you will need to configure your media libraries inside the Jellyfin web UI. Point them to the correct paths inside the container (e.g., `/data/movies` and `/data/tvshows`).
+
+## 🛠️ Using the Helper Tools
+
+After installation, you can manage your services using the included helper tools. These are located in the `scripts/` directory and are designed to be run via their wrapper scripts.
+
+### Pi Network Scanner
+For development and advanced troubleshooting, a network scanner tool is included.
+* **`src/pi_scanner.py`**: This is the core Python module that contains the logic for finding Raspberry Pi devices on the network.
+* **`run_scanner_test.py`**: This script provides a simple command-line interface to run the scanner, ask for credentials, and see a report of discovered devices. It is the primary way to test the scanning functionality.
+
+### Frigate Camera Configuration
+To configure cameras for Frigate, you would run:
+```bash
+bash scripts/run-frigate-config-tool.sh
+```
+## 🤝 Contributing
+
+We welcome contributions! For guidelines on how to contribute, please see our [CONTRIBUTING.md](CONTRIBUTING.md) file.
+
+## 📄 License
+
+This project is open-source and available under the <a href="https://github.com/HenkVanHoek/PiSelfhosting/blob/main/LICENSE" target="_blank" rel="noopener noreferrer">MIT License</a>.

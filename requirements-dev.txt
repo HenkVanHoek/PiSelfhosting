@@ -5,3 +5,4 @@ paramiko
 python-dotenv
 pytest
 flask
+bump2version

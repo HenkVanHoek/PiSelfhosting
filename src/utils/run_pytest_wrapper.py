@@ -16,7 +16,7 @@ pytest_args = [
     str(os.path.join(project_root, 'tests')) # Pass the test directory as a string
 ]
 
-# Als je de --no-header en --no-summary wilt behouden, kun je ze HIER toevoegen:
+# If you want to keep --no-header and --no-summary, you can add them HERE:
 # pytest_args.append('--no-header')
 # pytest_args.append('--no-summary')
 
