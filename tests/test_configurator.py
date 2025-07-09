@@ -1,7 +1,7 @@
 import pytest
 import json
 import os
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 from flask import session, url_for
 
 # Ensure the app module can be found
@@ -46,18 +46,13 @@ def app(mock_paths):
     # Use the factory to create the app, passing all necessary paths in the test config
     app = create_app({
         'TESTING': True,
-        # A secret key is needed for session testing
         'SECRET_KEY': 'test-secret-key',
-        # Point the app to our temporary files
         'METADATA_FILE': str(mock_paths["metadata_file"]),
         'SELECTED_COMPONENTS_OUTPUT_FILE': str(mock_paths["output_file"]),
         'ENV_PATH': str(mock_paths["env_file"]),
     })
 
-    # CORRECTION: Manually set the template folder for the test app instance.
-    # This ensures Flask uses our temporary templates instead of the real ones.
     app.template_folder = str(mock_paths["template_dir"])
-
     yield app
 
 
@@ -90,35 +85,63 @@ def test_index_shows_components_when_pi_in_session(client, app):
     response = client.get('/')
     assert response.status_code == 200
     assert b"<h1>Select Components</h1>" in response.data
-    assert b"192.168.1.100" in response.data  # Check if Pi IP is displayed
-    assert b"Dashy" in response.data  # Check if a component is rendered
+    assert b"192.168.1.100" in response.data
+    assert b"Dashy" in response.data
 
 
+@patch('configurator_app.app.PiScanner.get_device_details')
 @patch('configurator_app.app.PiScanner.scan')
-def test_scan_network_endpoint(mock_scan, client):
+def test_scan_network_endpoint(mock_scan, mock_get_details, client):
     """
-    GIVEN a mocked PiScanner
-    WHEN the '/scan' endpoint is called with a subnet
-    THEN check that the scanner is called and returns the mocked data.
+    GIVEN mocked PiScanner methods
+    WHEN the '/scan' endpoint is called
+    THEN check that the scanner is called and returns a structured response.
     """
-    mock_scan.return_value = [{"ip": "192.168.1.101", "hostname": "raspberrypi"}]
+    # --- Setup Mocks ---
+    # 1. Mock the initial scan to find one potential Pi
+    mock_scan.return_value = [{'ip': '192.168.1.101', 'mac': 'e4:5f:01:aa:bb:cc'}]
+    # 2. Mock the details retrieval for that Pi
+    mock_get_details.return_value = {
+        'model': 'Raspberry Pi 5', 'ram': '8GiB', 'serial': '10000000abcdef', 'disks': []
+    }
 
-    response = client.post('/scan', json={'subnet': '192.168.1.0/24'})
+    # --- Call Endpoint ---
+    response = client.post('/scan', json={
+        'subnet': '192.168.1.0/24',
+        'username': 'pi',
+        'password': 'raspberry'
+    })
 
+    # --- Assertions ---
     assert response.status_code == 200
-    assert response.json == [{"ip": "192.168.1.101", "hostname": "raspberrypi"}]
     mock_scan.assert_called_once_with(target_subnet='192.168.1.0/24')
+    mock_get_details.assert_called_once_with('192.168.1.101', 'pi', 'raspberry')
+
+    # Assert the complex JSON structure is correct
+    expected_json = {
+        'success': {
+            '10000000abcdef': {
+                'model': 'Raspberry Pi 5',
+                'ram': '8GiB',
+                'serial': '10000000abcdef',
+                'disks': [],
+                'connections': [{'ip': '192.168.1.101', 'mac': 'e4:5f:01:aa:bb:cc'}]
+            }
+        },
+        'failed': []
+    }
+    assert response.json == expected_json
 
 
 def test_scan_network_fails_without_subnet(client):
     """
     GIVEN a Flask client
-    WHEN the '/scan' endpoint is called without a subnet
+    WHEN the '/scan' endpoint is called without required data
     THEN check that a 400 Bad Request error is returned.
     """
     response = client.post('/scan', json={})
     assert response.status_code == 400
-    assert response.json == {'error': 'Subnet is required.'}
+    assert response.json == {'error': 'Subnet, username, and password are required.'}
 
 
 def test_select_pi_saves_ip_and_redirects(client):
@@ -128,13 +151,8 @@ def test_select_pi_saves_ip_and_redirects(client):
     THEN check that the IP is stored in the session and the user is redirected.
     """
     response = client.post('/select-pi', data={'pi_ip': '192.168.1.102'})
-
-    # Check for redirection to the index page
     assert response.status_code == 302
-    # In a test environment, location is a full URL
     assert response.headers['Location'].endswith('/')
-
-    # Check that the session was updated correctly
     with client.session_transaction() as sess:
         assert sess['target_pi_ip'] == '192.168.1.102'
 
@@ -143,10 +161,9 @@ def test_select_pi_saves_ip_and_redirects(client):
 def test_save_and_install(mock_set_key, client, app, mock_paths):
     """
     GIVEN a mocked set_key function and a client with a Pi IP in session
-    WHEN a POST request is made to '/save-and-install' with component and user data
-    THEN check that the output file is created, .env keys are set, and the success page is rendered.
+    WHEN a POST request is made to '/save-and-install'
+    THEN check that files are written and credentials are saved.
     """
-    # First, set the PI IP in the session, as the route requires it
     with client.session_transaction() as sess:
         sess['target_pi_ip'] = '192.168.1.103'
 
@@ -158,18 +175,14 @@ def test_save_and_install(mock_set_key, client, app, mock_paths):
 
     response = client.post('/save-and-install', data=form_data)
 
-    # 1. Check response
     assert response.status_code == 200
     assert b"<h1>Installation Success</h1>" in response.data
 
-    # 2. Check that the output file was written correctly
     output_file = mock_paths["output_file"]
     assert output_file.exists()
     content = output_file.read_text()
-    assert "dashy" in content
-    assert "portainer" in content
+    assert "dashy" in content and "portainer" in content
 
-    # 3. Check that set_key was called to save credentials to .env
     env_path = str(mock_paths["env_file"])
     mock_set_key.assert_any_call(env_path, "PI_IP", '192.168.1.103')
     mock_set_key.assert_any_call(env_path, "SSH_USER", 'pi')

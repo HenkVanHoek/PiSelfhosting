@@ -1,177 +1,190 @@
-# tests/test_piselfhosting_installer.py (FINALE VERSIE 5.0 - ALL-IN)
 import pytest
-import os
-import sys
-from unittest.mock import patch, MagicMock
 import json
-import time
+import os
+from unittest.mock import patch, MagicMock
+from flask import session, url_for
 
-# Voeg de project-root toe aan het pad zodat de installer gevonden kan worden
-current_test_file_dir = os.path.dirname(os.path.abspath(__file__))
-project_root_from_test_dir = os.path.dirname(current_test_file_dir)
-if project_root_from_test_dir not in sys.path:
-    sys.path.insert(0, project_root_from_test_dir)
-
-import piselfhosting_installer as installer
-
-
-# --- Fixtures ---
-
-@pytest.fixture
-def mock_ssh_client():
-    with patch('paramiko.SSHClient') as mock_client_class:
-        mock_client = mock_client_class.return_value
-        mock_client.set_missing_host_key_policy = MagicMock()
-        mock_client.connect = MagicMock()
-
-        # Realistische mock voor exec_command die een werkend channel object teruggeeft
-        mock_stdout = MagicMock()
-        mock_stdout.read.return_value = b'stdout_output'
-        mock_stdout.channel.recv_exit_status.return_value = 0  # Succes status
-
-        mock_stderr = MagicMock()
-        mock_stderr.read.return_value = b''
-
-        mock_client.exec_command.return_value = (MagicMock(), mock_stdout, mock_stderr)
-        mock_client.open_sftp.return_value = MagicMock()
-        yield mock_client
+# Ensure the app module can be found
+from configurator_app.app import create_app
 
 
 @pytest.fixture
-def mock_getenv():
-    with patch('os.getenv') as mock_get:
-        mock_get.side_effect = lambda key, default=None: {
-            'PI_IP': '192.168.1.10', 'SSH_USERNAME': 'pi', 'SSH_PASSWORD': 'testpassword',
-            'DOMAIN': 'yourdomain.com', 'PUID': '1000', 'PGID': '1000',
-            'HOST_IP': '192.168.1.100', 'DB_USER': 'testdbuser', 'DB_PASS': 'testpassword',
-            'TZ': 'Europe/London', 'ADMIN_EMAIL': 'admin@yourdomain.com',
-            'FRIGATE_RTSP_PASSWORD': 'testpassword', 'PHPMYADMIN_BLOWFISH_SECRET': 'testsecret',
-            'PMA_HOST': 'testmariadb', 'PISELFHOSTING_REUSE_VARIABLES': 'false',
-        }.get(key, default)
-        yield mock_get
+def mock_paths(tmp_path):
+    """Creates a dictionary of temporary paths for mock files."""
+    # Create subdirectories for config and templates
+    config_dir = tmp_path / "config"
+    template_dir = tmp_path / "templates"
+    config_dir.mkdir()
+    template_dir.mkdir()
+
+    # Define paths for all the dummy files our test app will need
+    return {
+        "root": tmp_path,
+        "config_dir": config_dir,
+        "template_dir": template_dir,
+        "metadata_file": config_dir / "components_metadata.json",
+        "output_file": tmp_path / "selected_components.txt",
+        "env_file": tmp_path / ".env",
+    }
 
 
 @pytest.fixture
-def mock_input(monkeypatch):
-    inputs = []
+def app(mock_paths):
+    """Create and configure a new app instance for each test."""
+    # Create a dummy metadata file for the app to load
+    mock_components = {
+        "dashy": {"name": "Dashy", "description": "A dashboard."},
+        "portainer": {"name": "Portainer", "description": "Container management."}
+    }
+    mock_paths["metadata_file"].write_text(json.dumps(mock_components))
 
-    def fake_input(prompt):
-        if not inputs: return '3'
-        return inputs.pop(0)
+    # Create dummy template files
+    (mock_paths["template_dir"] / "select_pi.html").write_text("<h1>Select a Pi</h1>")
+    (mock_paths["template_dir"] / "select_components.html").write_text("<h1>Select Components</h1><p>{{ pi_ip }}</p>{% for c in components.values() %}<p>{{ c.name }}</p>{% endfor %}")
+    (mock_paths["template_dir"] / "install_success.html").write_text("<h1>Installation Success</h1>")
 
-    monkeypatch.setattr('builtins.input', fake_input)
-    return inputs
+    # Use the factory to create the app, passing all necessary paths in the test config
+    app = create_app({
+        'TESTING': True,
+        'SECRET_KEY': 'test-secret-key',
+        'METADATA_FILE': str(mock_paths["metadata_file"]),
+        'SELECTED_COMPONENTS_OUTPUT_FILE': str(mock_paths["output_file"]),
+        'ENV_PATH': str(mock_paths["env_file"]),
+    })
 
-
-@pytest.fixture
-def mock_getpass(monkeypatch):
-    passwords = []
-
-    def fake_getpass(prompt):
-        if passwords: return passwords.pop(0)
-        return "default_password"
-
-    monkeypatch.setattr('getpass.getpass', fake_getpass)
-    return passwords
-
-
-@pytest.fixture
-def mock_set_key():
-    with patch('dotenv.set_key') as mock_sk: yield mock_sk
-
-
-@pytest.fixture
-def mock_urandom():
-    with patch('os.urandom') as mock_u: mock_u.return_value = b'\x01' * 32; yield mock_u
+    app.template_folder = str(mock_paths["template_dir"])
+    yield app
 
 
 @pytest.fixture
-def mock_run_remote_command_global():
-    with patch('piselfhosting_installer.run_remote_command') as mock_rc:
-        mock_rc.return_value = (True, '', '')
-        yield mock_rc
+def client(app):
+    """A test client for the app."""
+    return app.test_client()
 
 
-# --- Tests ---
-
-def test_get_user_input(mock_input):
-    mock_input.append('user_val')
-    assert installer.get_user_input("Prompt", "default") == "user_val"
-
-
-def test_get_user_input_default(mock_input):
-    mock_input.append('')
-    assert installer.get_user_input("Prompt", "default") == "default"
-
-
-@patch('socket.socket')
-def test_get_local_ip_address_success(mock_socket_class):
-    mock_socket_instance = mock_socket_class.return_value.__enter__.return_value
-    mock_socket_instance.getsockname.return_value = ('192.168.1.50', 12345)
-    assert installer.get_local_ip_address() == '192.168.1.50'
+def test_index_redirects_to_select_pi_when_no_pi_in_session(client):
+    """
+    GIVEN a Flask client
+    WHEN the '/' page is requested and no Pi IP is in the session
+    THEN check that the "Select a Pi" page is rendered.
+    """
+    response = client.get('/')
+    assert response.status_code == 200
+    assert b"<h1>Select a Pi</h1>" in response.data
 
 
-@patch('socket.socket', side_effect=Exception("Network error"))
-def test_get_local_ip_address_failure(mock_socket_class):
-    assert installer.get_local_ip_address() is None
+def test_index_shows_components_when_pi_in_session(client, app):
+    """
+    GIVEN a Flask client and app
+    WHEN a Pi IP is added to the session and '/' is requested
+    THEN check that the "Select Components" page is rendered with component data.
+    """
+    with client.session_transaction() as sess:
+        sess['target_pi_ip'] = '192.168.1.100'
+
+    response = client.get('/')
+    assert response.status_code == 200
+    assert b"<h1>Select Components</h1>" in response.data
+    assert b"192.168.1.100" in response.data
+    assert b"Dashy" in response.data
 
 
-# OPLOSSING: De @patch decorators voor Thread en Event zijn verwijderd.
-@patch('time.sleep')
-def test_run_remote_command_success(mock_sleep, mock_ssh_client):
-    success, stdout, _ = installer.run_remote_command(mock_ssh_client, "echo hello")
-    assert success is True
-    assert stdout == "stdout_output"
-    mock_ssh_client.exec_command.assert_called_with("echo hello")
+@patch('configurator_app.app.PiScanner.get_device_details')
+@patch('configurator_app.app.PiScanner.scan')
+def test_scan_network_endpoint(mock_scan, mock_get_details, client):
+    """
+    GIVEN mocked PiScanner methods
+    WHEN the '/scan' endpoint is called
+    THEN check that the scanner is called and returns a structured response.
+    """
+    # --- Setup Mocks ---
+    # 1. Mock the initial scan to find one potential Pi
+    mock_scan.return_value = [{'ip': '192.168.1.101', 'mac': 'e4:5f:01:aa:bb:cc'}]
+    # 2. Mock the details retrieval for that Pi
+    mock_get_details.return_value = {
+        'model': 'Raspberry Pi 5', 'ram': '8GiB', 'serial': '10000000abcdef', 'disks': []
+    }
+
+    # --- Call Endpoint ---
+    response = client.post('/scan', json={
+        'subnet': '192.168.1.0/24',
+        'username': 'pi',
+        'password': 'raspberry'
+    })
+
+    # --- Assertions ---
+    assert response.status_code == 200
+    mock_scan.assert_called_once_with(target_subnet='192.168.1.0/24')
+    mock_get_details.assert_called_once_with('192.168.1.101', 'pi', 'raspberry')
+
+    # Assert the complex JSON structure is correct
+    expected_json = {
+        'success': {
+            '10000000abcdef': {
+                'model': 'Raspberry Pi 5',
+                'ram': '8GiB',
+                'serial': '10000000abcdef',
+                'disks': [],
+                'connections': [{'ip': '192.168.1.101', 'mac': 'e4:5f:01:aa:bb:cc'}]
+            }
+        },
+        'failed': []
+    }
+    assert response.json == expected_json
 
 
-def test_is_excluded_directory():
-    installer.EXCLUDED_ITEMS = ['dir_to_exclude/']
-    assert installer._is_excluded('/project_root/dir_to_exclude/sub_file.txt', '/project_root',
-                                  installer.EXCLUDED_ITEMS) is True
+def test_scan_network_fails_without_subnet(client):
+    """
+    GIVEN a Flask client
+    WHEN the '/scan' endpoint is called without required data
+    THEN check that a 400 Bad Request error is returned.
+    """
+    response = client.post('/scan', json={})
+    assert response.status_code == 400
+    assert response.json == {'error': 'Subnet, username, and password are required.'}
 
 
-@patch('os.walk')
-def test_sync_files_to_pi_respects_exclusions(mock_walk, mock_ssh_client, mock_run_remote_command_global):
-    mock_sftp = mock_ssh_client.open_sftp.return_value
-    mock_walk.return_value = [
-        ('/local/path', ['subdir1'], ['file1.txt', 'excluded_file.txt']),
-        ('/local/path/subdir1', [], ['subfile1.txt']),
-    ]
-    installer.EXCLUDED_ITEMS = ['subdir1/', 'excluded_file.txt']
-    installer.sync_files_to_pi(mock_ssh_client, '/local/path', '/remote/path')
-
-    expected_local = '/local/path/file1.txt'
-    expected_remote_normalized = os.path.normpath('/remote/path/file1.txt')
-
-    mock_sftp.put.assert_called_once()
-    actual_call = mock_sftp.put.call_args
-    assert actual_call.args[0] == expected_local
-    assert os.path.normpath(actual_call.args[1]) == expected_remote_normalized
+def test_select_pi_saves_ip_and_redirects(client):
+    """
+    GIVEN a Flask client
+    WHEN a POST request is made to '/select-pi' with an IP address
+    THEN check that the IP is stored in the session and the user is redirected.
+    """
+    response = client.post('/select-pi', data={'pi_ip': '192.168.1.102'})
+    assert response.status_code == 302
+    assert response.headers['Location'].endswith('/')
+    with client.session_transaction() as sess:
+        assert sess['target_pi_ip'] == '192.168.1.102'
 
 
-@patch('piselfhosting_installer.sync_files_to_pi')
-def test_main_function_flow(mock_sync, mock_run_remote_command_global, mock_ssh_client, mock_input, mock_getpass,
-                            mock_getenv, mock_set_key, mock_urandom):
-    # Deze test vangt de SystemExit af die aan het einde van main() wordt verwacht.
-    with pytest.raises(SystemExit):
-        mock_input.extend([
-            'pi.local', 'pi', 'password', 'mydomain.com', '1000', '1000',
-            'Europe/Amsterdam', 'admin@email.com', '192.168.1.10',
-            'dbuser', 'dbpass', 'frigatepass', '3'  # Exit
-        ])
-        mock_getpass.extend(['password', 'dbpass', 'frigatepass'])
+@patch('configurator_app.app.set_key')
+def test_save_and_install(mock_set_key, client, app, mock_paths):
+    """
+    GIVEN a mocked set_key function and a client with a Pi IP in session
+    WHEN a POST request is made to '/save-and-install'
+    THEN check that files are written and credentials are saved.
+    """
+    with client.session_transaction() as sess:
+        sess['target_pi_ip'] = '192.168.1.103'
 
-        mock_run_remote_command_global.side_effect = [
-            (True, '/home/pi', ''),
-            (True, 'Linux...', ''),
-            (True, '/usr/bin/docker', ''),
-            (True, 'active', ''),
-            (True, 'pi docker', ''),
-            (True, '', ''),
-            (True, '', ''),
-            (True, 'Build success', ''),
-            (True, json.dumps({}), ''),
-        ]
+    form_data = {
+        'components': ['dashy', 'portainer'],
+        'ssh_user': 'pi',
+        'ssh_pass': 'raspberry'
+    }
 
-        installer.main()
+    response = client.post('/save-and-install', data=form_data)
+
+    assert response.status_code == 200
+    assert b"<h1>Installation Success</h1>" in response.data
+
+    output_file = mock_paths["output_file"]
+    assert output_file.exists()
+    content = output_file.read_text()
+    assert "dashy" in content and "portainer" in content
+
+    env_path = str(mock_paths["env_file"])
+    mock_set_key.assert_any_call(env_path, "PI_IP", '192.168.1.103')
+    mock_set_key.assert_any_call(env_path, "SSH_USER", 'pi')
+    mock_set_key.assert_any_call(env_path, "SSH_PASSWORD", 'raspberry')
+    assert mock_set_key.call_count == 3
