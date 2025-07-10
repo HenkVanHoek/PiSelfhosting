@@ -36,5 +36,4 @@ jobs:
       # The 'working-directory' is already the repository root by default for 'actions/checkout'.
       # We call the wrapper script that internally calls pytest.
       run: |
-        source .venv/bin/activate # Re-activate the venv for the current shell session
         python src/utils/run_pytest_wrapper.py # Execute the wrapper script
