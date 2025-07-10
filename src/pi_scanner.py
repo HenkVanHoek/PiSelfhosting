@@ -1,3 +1,4 @@
+import logging
 import subprocess
 import re
 import os
@@ -6,6 +7,7 @@ import json
 import socket
 import ipaddress
 
+logger = logging.getLogger(__name__)
 
 class PiScanner:
     """
@@ -59,66 +61,73 @@ class PiScanner:
         return found_devices
 
     @staticmethod
-    def scan(target_subnet, debug=False):
+    def scan(target_subnet):
         """
-        Actively scans a given subnet. From WSL, it calls the Windows nmap executable.
-        Otherwise, it uses the native nmap command.
+        Scans the given subnet for potential Raspberry Pi devices using nmap.
+
+        Args:
+            target_subnet (str): The network subnet to scan (e.g., '192.168.1.0/24').
+
+        Returns:
+            list: A list of dictionaries, where each dictionary represents a
+                  potential Pi with its 'ip' and 'mac' address.
         """
-        pi_oui_prefixes = PiScanner._load_prefixes()
-        if not pi_oui_prefixes:
-            print("Warning: No Raspberry Pi MAC prefixes were loaded. Scan may not find any devices.", file=sys.stderr)
-
-        if not target_subnet:
-            print("Error: A target subnet must be provided.", file=sys.stderr)
-            return []
-
-        # --- Command selection logic ---
-        is_wsl = 'WSL_DISTRO_NAME' in os.environ
-        nmap_path_windows = '/mnt/c/Program Files (x86)/Nmap/nmap.exe'
-
-        if is_wsl and os.path.exists(nmap_path_windows):
-            # If in WSL and Windows Nmap exists, use it. No sudo needed.
-            print("--> In WSL, using native Windows Nmap for scan...")
-            command = [nmap_path_windows, '-sn', '-n', '-oX', '-', target_subnet]
-        else:
-            # Otherwise, use the original logic for native Linux, macOS, or Windows
-            print(f"--> Performing a privileged scan on {target_subnet} with nmap...")
-            command = ['nmap', '-sn', '-n', '-PR', '-oX', '-', target_subnet]
-            if sys.platform != "win32" and not is_wsl:
-                command.insert(0, 'sudo')
-        # --- End of command selection ---
-
+        logger.info(f"Starting nmap scan on subnet: {target_subnet}")
         try:
-            nmap_result = subprocess.run(
-                command, capture_output=True, text=True, check=True, timeout=120
+            # Use nmap to find hosts that are up and have the SSH port (22) open.
+            # -p 22: Only scan for port 22
+            # --open: Only show hosts where the port is open
+            # -sn: Ping scan to discover hosts (can be redundant with -p but good practice)
+            command = ['nmap', '-sn', '-p', '22', '--open', target_subnet]
+            logger.debug(f"Executing nmap command: {' '.join(command)}")
+
+            result = subprocess.run(
+                command,
+                capture_output=True,
+                text=True,
+                check=False  # Do not raise an exception on non-zero exit code
             )
-            print("    Scan complete.")
 
-            if debug:
-                print("\n--- Raw Nmap XML Output (Debug Mode) ---")
-                print(nmap_result.stdout)
-                print("----------------------------------------\n")
+            # --- Diagnostic Logging ---
+            # Log the raw output from nmap to help debug discovery issues.
+            logger.debug(f"nmap scan completed with exit code: {result.returncode}")
+            if result.stdout:
+                logger.debug(f"--- nmap stdout ---\n{result.stdout}\n--- end nmap stdout ---")
+            if result.stderr:
+                # nmap often prints warnings to stderr, so we log it as a warning.
+                logger.warning(f"--- nmap stderr ---\n{result.stderr}\n--- end nmap stderr ---")
+            # --- End Diagnostic Logging ---
 
-            print("--> Parsing results to identify Raspberry Pis...")
-            found_devices = PiScanner._parse_nmap_output(nmap_result.stdout, pi_oui_prefixes)
-            print(f"    Found {len(found_devices)} Pi(s) after parsing scan results.")
-            return found_devices
+            if result.returncode != 0 and "command not found" in result.stderr.lower():
+                logger.critical(
+                    "The 'nmap' command was not found. Please ensure nmap is installed and accessible in the system's PATH.")
+                return []
+
+            # Parse the nmap output to find devices with a Raspberry Pi MAC address.
+            # Regex to find blocks of text for each host.
+            host_blocks = re.findall(r"Nmap scan report for ([\s\S]*?)(?=\nNmap scan report for|\Z)", result.stdout)
+            potential_pis = []
+
+            for block in host_blocks:
+                ip_match = re.search(r"(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})", block)
+                mac_match = re.search(r"MAC Address: ([0-9A-F:]+) \((Raspberry Pi.*?)\)", block, re.IGNORECASE)
+
+                if ip_match and mac_match:
+                    ip = ip_match.group(1)
+                    mac = mac_match.group(1)
+                    logger.info(f"Found potential Pi at {ip} with MAC {mac}")
+                    potential_pis.append({'ip': ip, 'mac': mac})
+
+            logger.info(f"Scan finished. Found {len(potential_pis)} potential Raspberry Pi devices.")
+            return potential_pis
+
         except FileNotFoundError:
-            if is_wsl:
-                print(
-                    f"Error: Nmap for Windows not found at '{nmap_path_windows}'. Please install it to the default location.",
-                    file=sys.stderr)
-            else:
-                print("Error: 'nmap' command not found. Please ensure Nmap is installed and in your system's PATH.",
-                      file=sys.stderr)
-        except subprocess.CalledProcessError as e:
-            print(f"An error occurred running nmap. Do you have sudo/administrator permissions? Error: {e.stderr}",
-                  file=sys.stderr)
-        except subprocess.TimeoutExpired:
-            print("Error: The network scan timed out. Your network may be blocking ping scans.", file=sys.stderr)
+            logger.critical(
+                "The 'nmap' command was not found. Please ensure nmap is installed and accessible in the system's PATH.")
+            return []
         except Exception as e:
-            print(f"An unexpected error occurred during scanning: {e}", file=sys.stderr)
-        return []
+            logger.error(f"An unexpected error occurred during the nmap scan: {e}", exc_info=True)
+            return []
 
     @staticmethod
     def _is_port_open(ip, port, timeout=1.0):
