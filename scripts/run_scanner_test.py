@@ -1,18 +1,18 @@
+# scripts/run_scanner_test.py
 import getpass
 import sys
 import os
 import yaml
 from dotenv import load_dotenv, set_key
 
-# --- Path Setup ---
-project_root = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 src_path = os.path.join(project_root, 'src')
 if src_path not in sys.path:
     sys.path.insert(0, src_path)
 
 from pi_scanner import PiScanner
 
-
+# --- MAIN FUNCTION ---
 def main():
     """Main function to run the network scanner test."""
     # Check for command-line arguments
