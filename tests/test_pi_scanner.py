@@ -4,7 +4,6 @@ from unittest.mock import patch, MagicMock
 import sys
 import os
 import paramiko
-import json
 
 # Ensure the 'src' directory is on the path
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -16,61 +15,34 @@ from src.pi_scanner import PiScanner
 
 
 @pytest.fixture
-def mock_nmap_xml_output():
-    """Provides a fake nmap XML output string for testing."""
-    # FIX: Removed the leading blank line.
-    return """<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE nmaprun>
-<nmaprun scanner="nmap" args="nmap -sn -oX - 192.168.1.0/24" start="1672531200">
-<host>
-    <status state="up" reason="arp-response"/>
-    <address addr="192.168.1.15" addrtype="ipv4"/>
-    <address addr="E4:5F:01:AA:BB:CC" addrtype="mac" vendor="Raspberry Pi Foundation"/>
-</host>
-<host>
-    <status state="up" reason="arp-response"/>
-    <address addr="192.168.1.20" addrtype="ipv4"/>
-    <address addr="00:1A:2B:3C:4D:5E" addrtype="mac" vendor="SomeOther Inc"/>
-</host>
-<runstats><finished time="1672531205" elapsed="5"/></runstats>
-</nmaprun>"""
+def mock_nmap_text_output():
+    """Provides a fake nmap plain text output string for testing."""
+    return """
+Nmap scan report for 192.168.1.15
+Host is up (0.0021s latency).
+MAC Address: E4:5F:01:AA:BB:CC (Raspberry Pi Foundation)
+
+Nmap scan report for 192.168.1.20
+Host is up (0.0030s latency).
+MAC Address: 00:1A:2B:3C:4D:5E (SomeOther Inc)
+"""
 
 
-def test_scan_with_nmap_finds_pi(mock_nmap_xml_output):
-    """Tests if the scanner can correctly parse mocked nmap XML output."""
-    with patch('subprocess.run') as mock_run:
-        mock_run.return_value = MagicMock(stdout=mock_nmap_xml_output, returncode=0)
-        found_pis = PiScanner.scan('192.168.1.0/24')
+@patch('src.pi_scanner.subprocess.run')
+def test_scan_with_nmap_finds_pi(mock_run, mock_nmap_text_output):
+    """
+    Tests if the scanner can correctly parse mocked nmap plain text output.
+    """
+    # Configure the mock to return the plain text output
+    mock_run.return_value = MagicMock(stdout=mock_nmap_text_output, stderr="", returncode=0)
+
+    found_pis = PiScanner.scan('192.168.1.0/24')
 
     assert len(found_pis) == 1
     found_pi = found_pis[0]
     assert found_pi['ip'] == '192.168.1.15'
+    # Assert that the MAC address was correctly lowercased by the scan method
     assert found_pi['mac'] == 'e4:5f:01:aa:bb:cc'
-
-
-def test_parse_nmap_output_identifies_pi():
-    """Ensures that a known Raspberry Pi MAC address is correctly parsed from mock XML."""
-    # FIX: Added the <status> tag, which the parsing logic requires.
-    mock_xml = """<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE nmaprun>
-<nmaprun>
-  <host>
-    <status state="up"/>
-    <address addr="192.168.1.50" addrtype="ipv4"/>
-    <address addr="b8:27:eb:01:02:03" addrtype="mac" vendor="Raspberry Pi Foundation"/>
-  </host>
-  <host>
-    <status state="up"/>
-    <address addr="192.168.1.51" addrtype="ipv4"/>
-    <address addr="00:1a:2b:01:02:03" addrtype="mac" vendor="Some Other Vendor"/>
-  </host>
-</nmaprun>
-"""
-    pi_prefixes = ["b8:27:eb"]
-    devices = PiScanner._parse_nmap_output(mock_xml, pi_prefixes)
-    assert len(devices) == 1
-    assert devices[0]['ip'] == '192.168.1.50'
-    assert devices[0]['mac'] == 'b8:27:eb:01:02:03'
 
 
 def test_scan_handles_nmap_not_found():
@@ -133,17 +105,3 @@ def test_get_device_details_ssh_connection_fails(mock_ssh_client_class, mock_is_
 
     assert details is None
     mock_ssh_instance.close.assert_called_once()
-
-
-def test_parse_nmap_output_handles_host_with_no_mac():
-    """Ensures that a host found by nmap but missing a MAC address is gracefully ignored."""
-    mock_xml = """<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE nmaprun>
-<nmaprun>
-  <host>
-    <status state="up"/>
-    <address addr="192.168.1.55" addrtype="ipv4"/>
-  </host>
-</nmaprun>"""
-    devices = PiScanner._parse_nmap_output(mock_xml, ["b8:27:eb"])
-    assert len(devices) == 0
