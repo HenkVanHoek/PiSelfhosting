@@ -74,11 +74,7 @@ class PiScanner:
         """
         logger.info(f"Starting nmap scan on subnet: {target_subnet}")
         try:
-            # Use nmap to find hosts that are up and have the SSH port (22) open.
-            # -p 22: Only scan for port 22
-            # --open: Only show hosts where the port is open
-            # -sn: Ping scan to discover hosts (can be redundant with -p but good practice)
-            command = ['nmap', '-sn', '-p', '22', '--open', target_subnet]
+            command = ['nmap', '-sn', target_subnet]
             logger.debug(f"Executing nmap command: {' '.join(command)}")
 
             result = subprocess.run(
