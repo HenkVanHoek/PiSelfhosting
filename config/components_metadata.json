@@ -25,7 +25,8 @@
       "unifi-controller",
       "uptime-kuma",
       "web-notepad",
-      "conduit"
+      "conduit",
+      "gitlab"
     ]
   },
   "portainer": {
@@ -302,6 +303,32 @@
     "access_info": {
       "local_path": "",
       "notes": "This is a backend server. Connect to it using a Matrix client like Element."
+    }
+  },
+  "gitlab": {
+    "name": "GitLab",
+    "project_url": "https://about.gitlab.com/",
+    "description": "A complete DevOps platform for project planning, source code management, CI/CD, and monitoring.",
+    "dashy_section": "Development",
+    "uniqueness_group": "git_server",
+    "has_ui": true,
+    "ui_port": 10080,
+    "icon": "fab fa-gitlab",
+    "protocol": "http",
+    "config_options": {
+      "groups": [
+        {
+          "name": "developers",
+          "path": "developers",
+          "description": "Main group for all developers",
+          "project_creation_level": "developer"
+        },
+        {
+          "name": "viewers",
+          "path": "viewers",
+          "description": "Group with read-only access"
+        }
+      ]
     }
   }
 }

@@ -1,16 +1,15 @@
 # .github/workflows/release.yml
-name: Release Build
+name: Release Pipeline
 
 on:
   push:
     tags:
       - 'v*'
   workflow_dispatch:
+
 jobs:
   build-executables:
-    # De naam van de job
     name: Build for ${{ matrix.os }}
-
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -34,13 +33,81 @@ jobs:
         pip install pyinstaller
 
     - name: Build the executable with PyInstaller
+      shell: bash
       run: |
-        # Dit commando bouwt de configurator app tot een enkele executable
-        # Pas de naam en het pad aan indien nodig
-        pyinstaller --name "PiSelfhosting-Configurator-${{ matrix.os }}" --onefile --windowed configurator_app/app.py
+        # Set OS-specific variables for the build command
+        if [ "$RUNNER_OS" == "Windows" ]; then
+          SEP=";"
+          ICON_ARG="--icon=images/favicon.ico"
+        else
+          SEP=":"
+          # You can add --icon for macOS (.icns) or Linux (.png) here later
+          ICON_ARG=""
+        fi
+
+        # Build the executable with all necessary paths and data files
+        pyinstaller --name "PiSelfhosting-Configurator-${{ matrix.os }}" \
+          --onefile \
+          --windowed \
+          --paths src \
+          --add-data "configurator_app/templates${SEP}configurator_app/templates" \
+          --add-data "config${SEP}config" \
+          --add-data "templates${SEP}templates" \
+          $ICON_ARG \
+          configurator_app/app.py
+
+    - name: Package the executable
+      shell: bash
+      run: |
+        # Create a directory for the artifact
+        mkdir -p artifact
+        
+        # Move the executable into the directory
+        if [ "$RUNNER_OS" == "Windows" ]; then
+          mv dist/PiSelfhosting-Configurator-windows-latest.exe artifact/PiSelfhosting-Configurator.exe
+        elif [ "$RUNNER_OS" == "macOS" ]; then
+          mv dist/PiSelfhosting-Configurator-macos-latest artifact/PiSelfhosting-Configurator
+        else
+          mv dist/PiSelfhosting-Configurator-ubuntu-latest artifact/PiSelfhosting-Configurator
+        fi
 
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: PiSelfhosting-Installer-${{ matrix.os }}
-        path: dist/PiSelfhosting-Configurator-${{ matrix.os }}*
+        name: installer-${{ matrix.os }}
+        path: artifact/
+
+  release:
+    name: Create GitHub Release
+    # This job will only run after all build jobs have successfully completed
+    needs: build-executables
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # Required to create/update a release
+
+    steps:
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: installers
+          # The pattern matches the artifact names from the build job
+          pattern: installer-*
+          merge-multiple: true
+
+      - name: Zip installers for release
+        run: |
+          # Create zip files for each platform's installer
+          zip -j PiSelfhosting-Installer-Windows.zip installers/PiSelfhosting-Configurator.exe
+          zip -j PiSelfhosting-Installer-macOS.zip installers/PiSelfhosting-Configurator
+          zip -j PiSelfhosting-Installer-Linux.zip installers/PiSelfhosting-Configurator
+
+      - name: Upload assets to release
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          # Attach to the release corresponding to the git tag
+          tag: ${{ github.ref_name }}
+          # Upload all zip files created in the previous step
+          file: "PiSelfhosting-Installer-*"
+          file_glob: true
+          overwrite: true
