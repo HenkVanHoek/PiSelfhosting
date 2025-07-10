@@ -3,7 +3,8 @@ import os
 import sys
 import pytest
 
-project_root = os.path.abspath(os.path.dirname(__file__))
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+
 src_path = os.path.join(project_root, 'src')
 
 if src_path not in sys.path:
@@ -12,10 +13,10 @@ if src_path not in sys.path:
 # Arguments to pass to pytest.
 # Keep it simple here to ensure default pytest behavior.
 # We explicitly list the test path, and no output-suppressing flags.
+tests_path = os.path.join(project_root, 'tests')
 pytest_args = [
-    str(os.path.join(project_root, 'tests')) # Pass the test directory as a string
+    str(tests_path)
 ]
-
 # If you want to keep --no-header and --no-summary, you can add them HERE:
 # pytest_args.append('--no-header')
 # pytest_args.append('--no-summary')
