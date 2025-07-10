@@ -22,14 +22,14 @@ jobs:
       uses: actions/setup-python@v5
       with:
         python-version: '3.11' # Use Python 3.11, consistent with your local setup
+        cache: 'pip'
+        cache-dependency-path: 'requirements-dev.txt'
 
     - name: Install dependencies
       # Install dependencies into a virtual environment
       run: |
         python -m pip install --upgrade pip
-        python -m venv .venv # Create the virtual environment
-        source .venv/bin/activate # Activate the virtual environment
-        pip install -r requirements.txt # Install dependencies from requirements.txt
+        pip install -r requirements-dev.txt # Install dependencies from requirements.txt
 
     - name: Run Pytest tests
       # This step executes the tests.
@@ -37,4 +37,4 @@ jobs:
       # We call the wrapper script that internally calls pytest.
       run: |
         source .venv/bin/activate # Re-activate the venv for the current shell session
-        python run_pytest_wrapper.py # Execute the wrapper script
+        python src/utils/run_pytest_wrapper.py # Execute the wrapper script
