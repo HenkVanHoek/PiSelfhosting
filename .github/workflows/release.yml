@@ -5,7 +5,7 @@ on:
   push:
     tags:
       - 'v*'
-
+  workflow_dispatch:
 jobs:
   build-executables:
     # De naam van de job
