@@ -50,7 +50,7 @@ jobs:
           --onefile \
           --windowed \
           --paths src \
-          --add-data "configurator_app/templates${SEP}" \
+          --add-data "configurator_app/templates${SEP}templates" \
           --add-data "config${SEP}config" \
           --add-data "templates${SEP}templates" \
           $ICON_ARG \
