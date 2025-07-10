@@ -114,7 +114,7 @@ class PiScanner:
 
                 if ip_match and mac_match:
                     ip = ip_match.group(1)
-                    mac = mac_match.group(1).lower
+                    mac = mac_match.group(1).lower()
                     logger.info(f"Found potential Pi at {ip} with MAC {mac}")
                     potential_pis.append({'ip': ip, 'mac': mac})
 

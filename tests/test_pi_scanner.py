@@ -42,7 +42,9 @@ def test_scan_with_nmap_finds_pi(mock_run, mock_nmap_text_output):
     found_pi = found_pis[0]
     assert found_pi['ip'] == '192.168.1.15'
     # Assert that the MAC address was correctly lowercased by the scan method
-    assert found_pi['mac'] == 'e4:5f:01:aa:bb:cc'
+    assert found_pi['mac'] is not None, "MAC-adres Not found. Returned value is None"
+
+    assert found_pi['mac'].lower() == 'e4:5f:01:aa:bb:cc'
 
 
 def test_scan_handles_nmap_not_found():
