@@ -2,6 +2,7 @@ import json
 import os
 import sys
 import webbrowser
+import logging
 from threading import Timer
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 from dotenv import set_key
@@ -16,6 +17,12 @@ if src_path not in sys.path:
 from component_manager import ComponentManager
 from pi_scanner import PiScanner
 
+logging.basicConfig(
+    filename='configurator.log',
+    filemode='w',  # 'w' overwrites the log on each start, use 'a' to append
+    level=logging.DEBUG,  # Log everything from DEBUG level and higher
+    format='%(asctime)s - %(levelname)s - %(name)s - %(message)s'
+)
 
 # noinspection PyShadowingNames
 def create_app(test_config=None):
@@ -23,6 +30,8 @@ def create_app(test_config=None):
     app = Flask(__name__)
     # A secret key is required for session management
     app.secret_key = os.urandom(24)
+
+    app.logger.info("Flask application starting up...")
 
     # --- Configuration ---
     app.config.from_mapping(
@@ -41,19 +50,24 @@ def create_app(test_config=None):
 
     @app.route('/')
     def index():
-        """
-        Main page: shows the Pi discovery/selection page if no Pi is selected,
-        otherwise shows the component selection page.
-        """
-        if 'target_pi_ip' in session:
-            all_components = manager.get_all_components()
-            components_to_display = {k: v for k, v in all_components.items() if not k.startswith('_')}
-            return render_template('select_components.html', components=components_to_display,
-                                   pi_ip=session['target_pi_ip'])
-        else:
-            detected_subnet = PiScanner.detect_subnet()
-            return render_template('select_pi.html', detected_subnet=detected_subnet)
-
+        try:
+            """
+            Main page: shows the Pi discovery/selection page if no Pi is selected,
+            otherwise shows the component selection page.
+            """
+            if 'target_pi_ip' in session:
+                all_components = manager.get_all_components()
+                components_to_display = {k: v for k, v in all_components.items() if not k.startswith('_')}
+                return render_template('select_components.html', components=components_to_display,
+                                       pi_ip=session['target_pi_ip'])
+            else:
+                detected_subnet = PiScanner.detect_subnet()
+                return render_template('select_pi.html', detected_subnet=detected_subnet)
+        except Exception as e:
+            # 4. Log the full error if something goes wrong
+            app.logger.error("An unhandled exception occurred in the index route!", exc_info=True)
+            # You can still let Flask show the generic 500 error page to the user
+            raise
     @app.route('/scan', methods=['POST'])
     def scan_network():
         """
