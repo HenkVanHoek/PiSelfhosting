@@ -1,0 +1,46 @@
+# .github/workflows/release.yml
+name: Release Build
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-executables:
+    # De naam van de job
+    name: Build for ${{ matrix.os }}
+
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+        cache-dependency-path: 'requirements-dev.txt'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements-dev.txt
+        pip install pyinstaller
+
+    - name: Build the executable with PyInstaller
+      run: |
+        # Dit commando bouwt de configurator app tot een enkele executable
+        # Pas de naam en het pad aan indien nodig
+        pyinstaller --name "PiSelfhosting-Configurator-${{ matrix.os }}" --onefile --windowed configurator_app/app.py
+
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: PiSelfhosting-Installer-${{ matrix.os }}
+        path: dist/PiSelfhosting-Configurator-${{ matrix.os }}*
