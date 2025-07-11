@@ -1,6 +1,6 @@
 # tests/test_pi_scanner.py
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, call
 import sys
 import os
 import paramiko
@@ -42,7 +42,7 @@ def test_scan_with_nmap_finds_pi(mock_run, mock_nmap_text_output):
     found_pi = found_pis[0]
     assert found_pi['ip'] == '192.168.1.15'
     # Assert that the MAC address was correctly lowercased by the scan method
-    assert found_pi['mac'] is not None, "MAC-adres Not found. Returned value is None"
+    assert found_pi['mac'] is not None, "MAC-address not found. Returned value is None"
 
     assert found_pi['mac'].lower() == 'e4:5f:01:aa:bb:cc'
 
@@ -57,9 +57,23 @@ def test_scan_handles_nmap_not_found():
 @patch('src.pi_scanner.PiScanner._is_port_open', return_value=True)
 @patch('paramiko.SSHClient')
 def test_get_device_details_success(mock_ssh_client_class, mock_is_port_open):
-    """Tests successful retrieval of device details via SSH."""
+    """
+    Tests successful retrieval of device details via SSH,
+    simulating a key auth failure followed by a password success.
+    """
     mock_ssh_instance = MagicMock()
     mock_ssh_client_class.return_value = mock_ssh_instance
+
+    # --- CORRECTED MOCK SETUP ---
+    # 1. Simulate the two-step connection:
+    #    - The first call (key auth) raises an exception.
+    #    - The second call (password auth) succeeds (returns None).
+    mock_ssh_instance.connect.side_effect = [
+        paramiko.AuthenticationException("Key auth failed"),
+        None  # Successful connection
+    ]
+
+    # 2. Mock the command execution with proper stdout and stderr mocks
     fake_output = (
         "Raspberry Pi 5 Model B\x00\n---\n"
         "8GiB\n---\n"
@@ -68,14 +82,27 @@ def test_get_device_details_success(mock_ssh_client_class, mock_is_port_open):
     )
     mock_stdout = MagicMock()
     mock_stdout.read.return_value = fake_output.encode()
-    mock_ssh_instance.exec_command.return_value = (None, mock_stdout, None)
+    mock_stderr = MagicMock()
+    mock_stderr.read.return_value = b''  # No error output
+    mock_ssh_instance.exec_command.return_value = (None, mock_stdout, mock_stderr)
 
+    # --- RUN THE TEST ---
     details = PiScanner.get_device_details('192.168.1.50', 'pi', 'raspberry')
 
+    # --- CORRECTED ASSERTIONS ---
     mock_is_port_open.assert_called_once_with('192.168.1.50', 22)
-    mock_ssh_instance.connect.assert_called_once_with(
-        hostname='192.168.1.50', username='pi', password='raspberry', timeout=5
-    )
+
+    # 3. Assert that connect was called twice with the correct arguments each time
+    assert mock_ssh_instance.connect.call_count == 2
+    expected_calls = [
+        # First call for key-based auth
+        call(hostname='192.168.1.50', username='pi', password=None, timeout=5),
+        # Second call for password-based auth
+        call(hostname='192.168.1.50', username='pi', password='raspberry', timeout=5)
+    ]
+    mock_ssh_instance.connect.assert_has_calls(expected_calls)
+
+    # 4. Assert the final details are correct
     assert details is not None
     assert details['model'] == 'Raspberry Pi 5 Model B'
     assert details['serial'] == '10000000abcdef'
@@ -101,9 +128,13 @@ def test_get_device_details_ssh_connection_fails(mock_ssh_client_class, mock_is_
     """Tests that SSH connection failures are handled gracefully."""
     mock_ssh_instance = MagicMock()
     mock_ssh_client_class.return_value = mock_ssh_instance
+    # We only need to simulate the final failure here
     mock_ssh_instance.connect.side_effect = raised_exception
 
     details = PiScanner.get_device_details('192.168.1.52', 'user', 'pass')
+
+    # Assert that the port check was performed before the connection attempt
+    mock_is_port_open.assert_called_once_with('192.168.1.52', 22)
 
     assert details is None
     mock_ssh_instance.close.assert_called_once()
