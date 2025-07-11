@@ -140,21 +140,41 @@ class PiScanner:
     @staticmethod
     def get_device_details(ip, username, password):
         """
-        Connects to a device via SSH to get detailed hardware information,
-        but only after checking if the SSH port is open.
+        Connects to a device via SSH to get detailed hardware information.
+        It first attempts to connect using a discoverable SSH key, and falls
+        back to the provided password if key authentication fails.
         """
         # Local import for fast startup
         import paramiko
 
+        logger.debug(f"Attempting to get details for {ip} with user '{username}'.")
         if not PiScanner._is_port_open(ip, 22):
-            print(f"    Skipping SSH attempt for {ip}: Port 22 is not open.")
+            logger.warning(f"Skipping SSH attempt for {ip}: Port 22 is not open.")
             return None
 
         client = None
         try:
             client = paramiko.SSHClient()
             client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-            client.connect(hostname=ip, username=username, password=password, timeout=5)
+
+            # --- Improved Connection Logic ---
+            try:
+                # 1. First, try to connect using discoverable SSH keys (password=None).
+                #    This works in a dev environment but will likely fail in the .exe.
+                logger.debug(f"Attempting SSH key authentication for {ip}...")
+                client.connect(hostname=ip, username=username, password=None, timeout=5)
+                logger.info(f"Successfully connected to {ip} using an SSH key.")
+            except paramiko.AuthenticationException:
+                # 2. If key auth fails, try the provided password.
+                logger.debug(f"Key authentication failed for {ip}. Falling back to password authentication...")
+                #    Ensure a password was actually provided before trying.
+                if password:
+                    client.connect(hostname=ip, username=username, password=password, timeout=5)
+                    logger.info(f"Successfully connected to {ip} using the provided password.")
+                else:
+                    # If no password was given, we can't proceed.
+                    raise paramiko.AuthenticationException("No password provided for fallback.")
+            # --- End of Improved Connection Logic ---
 
             command = (
                 "cat /sys/firmware/devicetree/base/model; echo '---'; "
@@ -162,7 +182,14 @@ class PiScanner:
                 "cat /proc/cpuinfo | grep Serial | awk '{print $3}'; echo '---'; "
                 "lsblk -o NAME,SIZE,TYPE,MOUNTPOINT --json"
             )
-            _, stdout, _ = client.exec_command(command)
+            _, stdout, stderr = client.exec_command(command)
+
+            # Check for errors from the command itself
+            error_output = stderr.read().decode().strip()
+            if error_output:
+                logger.error(f"Error executing command on {ip}: {error_output}")
+                return None
+
             output = stdout.read().decode().strip()
 
             details = {'ip': ip}
@@ -176,11 +203,14 @@ class PiScanner:
                     details['disks'] = disk_info.get('blockdevices', [])
                 except json.JSONDecodeError:
                     details['disks'] = []
+
+            logger.info(f"Successfully retrieved details for {ip}.")
             return details
+
         except (paramiko.AuthenticationException, paramiko.SSHException, TimeoutError) as e:
-            print(f"    Could not connect or get details for {ip}: {type(e).__name__}")
+            logger.error(f"Could not connect to or get details from {ip}: {type(e).__name__}")
         except Exception as e:
-            print(f"    An unexpected error occurred for {ip}: {e}", file=sys.stderr)
+            logger.error(f"An unexpected error occurred for {ip}: {e}", exc_info=True)
         finally:
             if client:
                 client.close()
