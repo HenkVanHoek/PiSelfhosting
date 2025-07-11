@@ -3,6 +3,7 @@ import os
 import sys
 import webbrowser
 import logging
+from collections import defaultdict
 from logging.handlers import RotatingFileHandler
 from threading import Timer
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
@@ -87,29 +88,33 @@ def create_app(test_config=None):
                 all_components = manager.get_all_components()
                 uniqueness_groups = manager.get_uniqueness_groups()
 
-                # Filter out internal metadata keys like '_piselfhosting'
-                components_to_display = {k: v for k, v in all_components.items() if not k.startswith('_')}
-
-                # Use the order defined in _piselfhosting if it exists
+                # --- Grouping Logic ---
+                # Use a defaultdict to easily group components by their section.
+                grouped_components = defaultdict(list)
                 order = all_components.get('_piselfhosting', {}).get('components_order', [])
-                if order:
-                    # Create a new dictionary that respects the specified order
-                    ordered_components = {key: components_to_display[key] for key in order if
-                                          key in components_to_display}
-                    # Add any components not in the order list to the end
-                    for key, value in components_to_display.items():
-                        if key not in ordered_components:
-                            ordered_components[key] = value
-                    components_to_display = ordered_components
+
+                # Iterate through the defined order to maintain consistency
+                for component_id in order:
+                    component_data = all_components.get(component_id)
+                    if component_data:
+                        # Use 'Uncategorized' as a fallback group
+                        section_name = component_data.get('dashy_section', 'Uncategorized')
+                        # Append the full component info, including its ID
+                        grouped_components[section_name].append({
+                            'id': component_id,
+                            'data': component_data
+                        })
+                # --- End of Grouping Logic ---
 
                 return render_template('select_components.html',
-                                       components=components_to_display,
+                                       # Pass the new grouped data structure to the template
+                                       grouped_components=grouped_components,
                                        pi_ip=session['target_pi_ip'],
                                        uniqueness_groups=json.dumps(uniqueness_groups))
             else:
                 detected_subnet = PiScanner.detect_subnet()
                 return render_template('select_pi.html', detected_subnet=detected_subnet)
-        except Exception:  # Corrected: Removed unused 'as e'
+        except Exception:
             # Log the full error if something goes wrong
             app.logger.error("An unhandled exception occurred in the index route!", exc_info=True)
             # You can still let Flask show the generic 500 error page to the user

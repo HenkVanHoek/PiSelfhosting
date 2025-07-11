@@ -31,17 +31,39 @@ def mock_paths(tmp_path):
 @pytest.fixture
 def app(mock_paths):
     """Create and configure a new app instance for each test."""
-    # Create a dummy metadata file for the app to load
+    # --- CORRECTED: Mock data now includes keys needed for grouping ---
     mock_components = {
-        "dashy": {"name": "Dashy", "description": "A dashboard."},
-        "portainer": {"name": "Portainer", "description": "Container management."}
+        "_piselfhosting": {
+            "components_order": ["portainer", "dashy"]
+        },
+        "dashy": {
+            "name": "Dashy",
+            "description": "A dashboard.",
+            "dashy_section": "Dashboards"
+        },
+        "portainer": {
+            "name": "Portainer",
+            "description": "Container management.",
+            "dashy_section": "Utilities"
+        }
     }
     mock_paths["metadata_file"].write_text(json.dumps(mock_components))
 
     # Create dummy template files
     (mock_paths["template_dir"] / "select_pi.html").write_text("<h1>Select a Pi</h1>")
-    (mock_paths["template_dir"] / "select_components.html").write_text(
-        "<h1>Select Components</h1><p>{{ pi_ip }}</p>{% for c in components.values() %}<p>{{ c.name }}</p>{% endfor %}")
+
+    # --- CORRECTED: Mock template now uses the 'grouped_components' variable ---
+    select_components_template = """
+    <h1>Select Components</h1>
+    <p>{{ pi_ip }}</p>
+    {% for group_name, component_list in grouped_components.items() %}
+        <h2>{{ group_name }}</h2>
+        {% for component in component_list %}
+            <p>{{ component.data.name }}</p>
+        {% endfor %}
+    {% endfor %}
+    """
+    (mock_paths["template_dir"] / "select_components.html").write_text(select_components_template)
     (mock_paths["template_dir"] / "install_success.html").write_text("<h1>Installation Success</h1>")
 
     # Use the factory to create the app, passing all necessary paths in the test config
@@ -87,7 +109,11 @@ def test_index_shows_components_when_pi_in_session(client, app):
     assert response.status_code == 200
     assert b"<h1>Select Components</h1>" in response.data
     assert b"192.168.1.100" in response.data
+    # --- CORRECTED: Assertions now check for group and component names ---
+    assert b"<h2>Dashboards</h2>" in response.data
     assert b"Dashy" in response.data
+    assert b"<h2>Utilities</h2>" in response.data
+    assert b"Portainer" in response.data
 
 
 @patch('configurator_app.app.PiScanner.get_device_details')
@@ -165,6 +191,7 @@ def test_select_pi_saves_ip_and_redirects(client):
     # after the request is complete.
     with client.session_transaction() as sess:
         assert sess['target_pi_ip'] == '192.168.1.102'
+
 
 @patch('configurator_app.app.set_key')
 def test_save_and_install(mock_set_key, client, app, mock_paths):
