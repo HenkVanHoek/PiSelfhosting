@@ -133,7 +133,7 @@ def test_scan_network_endpoint(mock_scan, mock_get_details, client):
     assert response.json == expected_json
 
 
-def test_scan_network_fails_without_subnet(client):
+def test_scan_network_fails_without_required_data(client):
     """
     GIVEN a Flask client
     WHEN the '/scan' endpoint is called without required data
@@ -141,7 +141,9 @@ def test_scan_network_fails_without_subnet(client):
     """
     response = client.post('/scan', json={})
     assert response.status_code == 400
-    assert response.json == {'error': 'Subnet, username, and password are required.'}
+    # --- CORRECTED ---
+    # The password is now optional, so the error message has changed.
+    assert response.json == {'error': 'Subnet and username are required.'}
 
 
 def test_select_pi_saves_ip_and_redirects(client):
@@ -152,9 +154,12 @@ def test_select_pi_saves_ip_and_redirects(client):
     """
     response = client.post('/select-pi', data={'pi_ip': '192.168.1.102'})
     assert response.status_code == 302
-    assert response.headers['Location'].endswith('/')
-    with client.session_transaction() as sess:
-        assert sess['target_pi_ip'] == '192.168.1.102'
+    # Use url_for to get the expected location, which is more robust
+    with client:
+        assert response.headers['Location'] == url_for('index', _external=False)
+        # Check the session variable
+        with client.session_transaction() as sess:
+            assert sess['target_pi_ip'] == '192.168.1.102'
 
 
 @patch('configurator_app.app.set_key')
