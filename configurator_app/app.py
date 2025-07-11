@@ -8,9 +8,25 @@ from threading import Timer
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 from dotenv import set_key
 
+
+def get_project_root():
+    """
+    Returns the correct root path whether running from source or as a
+    PyInstaller bundle. In a bundle, this points to the temporary directory
+    where all assets (like the 'config' folder) are unpacked.
+    """
+    # noinspection PyProtectedMember
+    if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+        # Running in a PyInstaller bundle (frozen)
+        return sys._MEIPASS
+    else:
+        # Running in a normal Python environment (from source)
+        return os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+
+
 # --- Path and Module Setup ---
 # This ensures the app can find your other source files
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+project_root = get_project_root()
 src_path = os.path.join(project_root, 'src')
 if src_path not in sys.path:
     sys.path.insert(0, src_path)
@@ -18,18 +34,12 @@ if src_path not in sys.path:
 from component_manager import ComponentManager
 from pi_scanner import PiScanner
 
-logging.basicConfig(
-    filename='configurator.log',
-    filemode='w',  # 'w' overwrites the log on each start, use 'a' to append
-    level=logging.DEBUG,  # Log everything from DEBUG level and higher
-    format='%(asctime)s - %(levelname)s - %(name)s - %(message)s'
-)
-
+# --- Professional, Rotating Logging Setup ---
 log_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(name)s - %(message)s')
 log_handler = RotatingFileHandler(
     'configurator.log',
     maxBytes=1024 * 1024,  # 1 Megabyte
-    backupCount=3,         # Keep up to 3 old log files
+    backupCount=3,  # Keep up to 3 old log files
     encoding='utf-8'
 )
 log_handler.setFormatter(log_formatter)
@@ -40,6 +50,7 @@ root_logger = logging.getLogger()
 root_logger.setLevel(logging.DEBUG)
 if not root_logger.handlers:
     root_logger.addHandler(log_handler)
+
 
 # noinspection PyShadowingNames
 def create_app(test_config=None):
@@ -74,17 +85,36 @@ def create_app(test_config=None):
             """
             if 'target_pi_ip' in session:
                 all_components = manager.get_all_components()
+                uniqueness_groups = manager.get_uniqueness_groups()
+
+                # Filter out internal metadata keys like '_piselfhosting'
                 components_to_display = {k: v for k, v in all_components.items() if not k.startswith('_')}
-                return render_template('select_components.html', components=components_to_display,
-                                       pi_ip=session['target_pi_ip'])
+
+                # Use the order defined in _piselfhosting if it exists
+                order = all_components.get('_piselfhosting', {}).get('components_order', [])
+                if order:
+                    # Create a new dictionary that respects the specified order
+                    ordered_components = {key: components_to_display[key] for key in order if
+                                          key in components_to_display}
+                    # Add any components not in the order list to the end
+                    for key, value in components_to_display.items():
+                        if key not in ordered_components:
+                            ordered_components[key] = value
+                    components_to_display = ordered_components
+
+                return render_template('select_components.html',
+                                       components=components_to_display,
+                                       pi_ip=session['target_pi_ip'],
+                                       uniqueness_groups=json.dumps(uniqueness_groups))
             else:
                 detected_subnet = PiScanner.detect_subnet()
                 return render_template('select_pi.html', detected_subnet=detected_subnet)
-        except Exception as e:
-            # 4. Log the full error if something goes wrong
+        except Exception:  # Corrected: Removed unused 'as e'
+            # Log the full error if something goes wrong
             app.logger.error("An unhandled exception occurred in the index route!", exc_info=True)
             # You can still let Flask show the generic 500 error page to the user
             raise
+
     @app.route('/scan', methods=['POST'])
     def scan_network():
         """
@@ -94,10 +124,10 @@ def create_app(test_config=None):
         data = request.json
         subnet = data.get('subnet')
         username = data.get('username')
-        password = data.get('password')
+        password = data.get('password')  # Can be None for key-based auth
 
-        if not all([subnet, username, password]):
-            return jsonify({'error': 'Subnet, username, and password are required.'}), 400
+        if not all([subnet, username]):
+            return jsonify({'error': 'Subnet and username are required.'}), 400
 
         potential_pis = PiScanner.scan(target_subnet=subnet)
         if not potential_pis:
@@ -139,10 +169,10 @@ def create_app(test_config=None):
         ip = data.get('ip')
         mac = data.get('mac')
         username = data.get('username')
-        password = data.get('password')
+        password = data.get('password')  # Can be None
 
-        if not all([ip, mac, username, password]):
-            return jsonify({'error': 'IP, MAC, username, and password are required.'}), 400
+        if not all([ip, mac, username]):
+            return jsonify({'error': 'IP, MAC, and username are required.'}), 400
 
         details = PiScanner.get_device_details(ip, username, password)
         if details and details.get('serial'):
