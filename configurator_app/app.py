@@ -3,6 +3,7 @@ import os
 import sys
 import webbrowser
 import logging
+from logging.handlers import RotatingFileHandler
 from threading import Timer
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 from dotenv import set_key
@@ -23,6 +24,22 @@ logging.basicConfig(
     level=logging.DEBUG,  # Log everything from DEBUG level and higher
     format='%(asctime)s - %(levelname)s - %(name)s - %(message)s'
 )
+
+log_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(name)s - %(message)s')
+log_handler = RotatingFileHandler(
+    'configurator.log',
+    maxBytes=1024 * 1024,  # 1 Megabyte
+    backupCount=3,         # Keep up to 3 old log files
+    encoding='utf-8'
+)
+log_handler.setFormatter(log_formatter)
+log_handler.setLevel(logging.DEBUG)
+
+# Get the root logger and add our handler.
+root_logger = logging.getLogger()
+root_logger.setLevel(logging.DEBUG)
+if not root_logger.handlers:
+    root_logger.addHandler(log_handler)
 
 # noinspection PyShadowingNames
 def create_app(test_config=None):
