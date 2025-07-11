@@ -25,6 +25,10 @@ MAC Address: E4:5F:01:AA:BB:CC (Raspberry Pi Foundation)
 Nmap scan report for 192.168.1.20
 Host is up (0.0030s latency).
 MAC Address: 00:1A:2B:3C:4D:5E (SomeOther Inc)
+
+Nmap scan report for 192.168.1.25
+Host is up (0.0040s latency).
+MAC Address: 2C:CF:67:C3:35:22 (Raspberry Pi (Trading))
 """
 
 
@@ -38,13 +42,16 @@ def test_scan_with_nmap_finds_pi(mock_run, mock_nmap_text_output):
 
     found_pis = PiScanner.scan('192.168.1.0/24')
 
-    assert len(found_pis) == 1
-    found_pi = found_pis[0]
-    assert found_pi['ip'] == '192.168.1.15'
-    # Assert that the MAC address was correctly lowercased by the scan method
-    assert found_pi['mac'] is not None, "MAC-address not found. Returned value is None"
+    # The mock data contains two different Pi vendors
+    assert len(found_pis) == 2
 
-    assert found_pi['mac'].lower() == 'e4:5f:01:aa:bb:cc'
+    # Check the first Pi
+    pi1 = next(p for p in found_pis if p['ip'] == '192.168.1.15')
+    assert pi1['mac'] == 'e4:5f:01:aa:bb:cc'
+
+    # Check the second Pi
+    pi2 = next(p for p in found_pis if p['ip'] == '192.168.1.25')
+    assert pi2['mac'] == '2c:cf:67:c3:35:22'
 
 
 def test_scan_handles_nmap_not_found():
@@ -54,22 +61,30 @@ def test_scan_handles_nmap_not_found():
     assert found_pis == []
 
 
+@pytest.mark.parametrize(
+    "key_auth_failure_exception",
+    [
+        paramiko.AuthenticationException("Key auth failed"),
+        paramiko.SSHException("A generic SSH error occurred during key auth")
+    ]
+)
 @patch('src.pi_scanner.PiScanner._is_port_open', return_value=True)
 @patch('paramiko.SSHClient')
-def test_get_device_details_success(mock_ssh_client_class, mock_is_port_open):
+def test_get_device_details_success_after_key_fail(mock_ssh_client_class, mock_is_port_open,
+                                                   key_auth_failure_exception):
     """
-    Tests successful retrieval of device details via SSH,
-    simulating a key auth failure followed by a password success.
+    Tests successful retrieval of device details via password
+    after any key-based authentication attempt fails.
+    This directly tests the fix for the last logged issue.
     """
     mock_ssh_instance = MagicMock()
     mock_ssh_client_class.return_value = mock_ssh_instance
 
-    # --- CORRECTED MOCK SETUP ---
     # 1. Simulate the two-step connection:
-    #    - The first call (key auth) raises an exception.
-    #    - The second call (password auth) succeeds (returns None).
+    #    - The first call (key auth) raises the specified exception.
+    #    - The second call (password auth) succeeds.
     mock_ssh_instance.connect.side_effect = [
-        paramiko.AuthenticationException("Key auth failed"),
+        key_auth_failure_exception,
         None  # Successful connection
     ]
 
@@ -89,7 +104,7 @@ def test_get_device_details_success(mock_ssh_client_class, mock_is_port_open):
     # --- RUN THE TEST ---
     details = PiScanner.get_device_details('192.168.1.50', 'pi', 'raspberry')
 
-    # --- CORRECTED ASSERTIONS ---
+    # --- ASSERTIONS ---
     mock_is_port_open.assert_called_once_with('192.168.1.50', 22)
 
     # 3. Assert that connect was called twice with the correct arguments each time
