@@ -160,13 +160,13 @@ class PiScanner:
             # --- Improved Connection Logic ---
             try:
                 # 1. First, try to connect using discoverable SSH keys (password=None).
-                #    This works in a dev environment but will likely fail in the .exe.
                 logger.debug(f"Attempting SSH key authentication for {ip}...")
                 client.connect(hostname=ip, username=username, password=None, timeout=5)
                 logger.info(f"Successfully connected to {ip} using an SSH key.")
-            except paramiko.AuthenticationException:
-                # 2. If key auth fails, try the provided password.
-                logger.debug(f"Key authentication failed for {ip}. Falling back to password authentication...")
+            except Exception as key_auth_error:  # CORRECTED: Catch any exception during key auth
+                # 2. If key auth fails for any reason, try the provided password.
+                logger.debug(
+                    f"Key authentication failed for {ip} ({type(key_auth_error).__name__}). Falling back to password authentication...")
                 #    Ensure a password was actually provided before trying.
                 if password:
                     client.connect(hostname=ip, username=username, password=password, timeout=5)
