@@ -2,31 +2,38 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Configuration Saved</title>
+    <title>Ready to Install</title>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; padding: 20px; max-width: 800px; margin: auto; background-color: #f4f4f9; }
         .container { background-color: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 20px 40px; margin-top: 50px; text-align: center; }
         h1 { color: #27ae60; }
         p { color: #333; font-size: 1.1em;}
-        code {
-            display: inline-block;
-            background-color: #2d2d2d;
-            color: #f1f1f1;
-            padding: 15px;
+        .start-button {
+            background-color: #28a745;
+            color: white;
+            padding: 15px 25px;
+            border: none;
             border-radius: 5px;
-            font-family: 'Courier New', Courier, monospace;
-            white-space: pre;
-            margin-top: 10px;
+            cursor: pointer;
+            font-size: 1.2em;
+            margin-top: 20px;
+            font-weight: bold;
+            text-decoration: none; /* For the <a> tag */
+            display: inline-block;
+        }
+        .start-button:hover {
+            background-color: #218838;
         }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>✅ Configuration Saved!</h1>
-        <p>Your component selections have been saved to <strong>selected_components.txt</strong>.</p>
-        <p>You can now close this browser tab and go back to your terminal.</p>
-        <p>If you stopped the server (with CTRL+C), run the following command to start the installation:</p>
-        <code>python3 piselfhosting_installer.py</code>
+        <p>Your selections and credentials have been saved.</p>
+        <p>Click the button below to begin the installation and view the live progress.</p>
+
+        <!-- --- MODIFIED: Changed from a form to a simple link styled as a button --- -->
+        <a href="{{ url_for('live_log') }}" class="start-button">Start Installation & View Log</a>
     </div>
 </body>
 </html>

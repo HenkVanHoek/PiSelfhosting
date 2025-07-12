@@ -3,10 +3,11 @@ import os
 import sys
 import webbrowser
 import logging
+import subprocess  # <-- Import subprocess
 from collections import defaultdict
 from logging.handlers import RotatingFileHandler
 from threading import Timer
-from flask import Flask, render_template, request, jsonify, session, redirect, url_for
+from flask import Flask, render_template, request, jsonify, session, redirect, url_for, Response  # <-- Import Response
 from dotenv import set_key
 
 
@@ -215,6 +216,50 @@ def create_app(test_config=None):
         set_key(env_path, "SSH_PASSWORD", request.form.get('ssh_pass', ''))
 
         return render_template('install_success.html')
+
+    @app.route('/live-log')
+    def live_log():
+        """Renders the page that will display the live installation log."""
+        return render_template('live_log.html')
+
+    @app.route('/install-stream')
+    def install_stream():
+        """
+        Runs the installer script as a subprocess and streams its
+        stdout and stderr to the client using Server-Sent Events.
+        """
+        def generate_log():
+            # Path to the installer script, relative to the project root
+            installer_script_path = os.path.join(project_root, 'piselfhosting_installer.py')
+
+            if not os.path.exists(installer_script_path):
+                yield f"data: FATAL ERROR: Installer script not found at {installer_script_path}\n\n"
+                yield "data: --- SCRIPT FINISHED ---\n\n"
+                return
+
+            # Use Popen to run the script as a non-blocking subprocess
+            # We merge stdout and stderr to capture all output in one stream
+            process = subprocess.Popen(
+                [sys.executable, installer_script_path],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                encoding='utf-8',
+                errors='replace',
+                bufsize=1  # Line-buffered
+            )
+
+            # Read output line by line as it's generated
+            for line in iter(process.stdout.readline, ''):
+                # Format the line for SSE and yield it to the client
+                yield f"data: {line.strip()}\n\n"
+
+            process.stdout.close()
+            return_code = process.wait()
+            yield f"data: \n--- SCRIPT FINISHED (Exit Code: {return_code}) ---\n\n"
+
+        # Return a streaming response
+        return Response(generate_log(), mimetype='text/event-stream')
 
     return app
 
