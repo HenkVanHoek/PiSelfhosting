@@ -1,8 +1,6 @@
 # requirements-dev.txt
+-r requirements.txt
 -r requirements-pi.txt
 
-paramiko
-python-dotenv
-pytest
-flask
 bump2version
+pytest

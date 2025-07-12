@@ -58,7 +58,9 @@ representative at an online or offline event.
 
 ## Enforcement
 
-Instances of abusive, harassing, or oth  erwise unacceptable behavior may be
+## Enforcement
+
+Instances of abusive, harassing, or otherwise unacceptable behavior may be
 reported by filling out our **[private reporting form](https://tally.so/r/3EV7WX)**.
 All complaints will be reviewed and investigated promptly and fairly.
 

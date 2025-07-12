@@ -1,7 +1,6 @@
 # requirements.txt
 PyYAML
 paramiko
-pytest
 jinja2
 python-dotenv
 flask

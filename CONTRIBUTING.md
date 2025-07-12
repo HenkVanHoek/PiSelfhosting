@@ -63,10 +63,10 @@ Ensure you have the following software installed on your workstation:
     python -m venv .venv
     source .venv/bin/activate  # On Windows use .venv\Scripts\activate
     
-4.  Install the required dependencies. The project uses separate files for workstation and development packages. To set up your development environment, install both the standard and development requirements:
+4.  Install the required dependencies. The project uses separate files for workstation and development packages. To set up your development environment, you only need to install the development file, which includes all other requirements:
 
-    pip install -r requirements.txt -r requirements-dev.txt
-    
+    pip install -r requirements-dev.txt
+5. 
 5.  Run the application:
 
     python configurator_app/app.py
