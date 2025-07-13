@@ -24,6 +24,12 @@ The project is split into two main workflows: the **Development & Build Cycle** 
 
 In short, a user downloads a single installer package from GitHub. The installer runs a local web-based "Configurator" for device discovery and component selection, which then streams the installation process directly into the browser.
 
+## 🗺️ Project Roadmap
+
+We have a public roadmap that outlines our current priorities and future plans. If you're interested in where the project is headed or want to contribute, this is a great place to start.
+
+➡️ **View the Project Roadmap**
+
 ## 🚀 Quick Start Guide (For End-Users)
 
 Getting your self-hosted environment running is simple:
@@ -33,6 +39,7 @@ Getting your self-hosted environment running is simple:
 3.  **Unzip & Run**: Unzip the file on your main computer (Windows, Mac, or Linux) and run the single executable file (e.g., `PiSelfhosting-Configurator.exe`).
 4.  **Configure**: The executable will launch the **Configurator** in your web browser. Use this graphical interface to find your Pi, select the components you want to install, and enter your server details.
 5.  **Deploy & Watch**: After you confirm your selection, you will be taken to a new page in your browser where you can follow the installation progress live.
+
 
 ## 🧩 Supported Components
 

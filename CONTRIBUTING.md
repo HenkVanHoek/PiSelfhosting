@@ -28,6 +28,7 @@ A great way to contribute is to send a detailed issue when you encounter a probl
 
 We are always open to new ideas! However, before submitting a feature request:
 
+* **Check the [Project Roadmap](ROADMAP.md)** to see if your idea is already planned.
 * **Search for existing requests** to avoid duplicates. If you find a similar request, add your thoughts to that conversation.
 * Be precise about the proposed outcome and how it relates to existing features.
 * Fully complete the feature request template to start a productive conversation.
