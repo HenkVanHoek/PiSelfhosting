@@ -3,11 +3,11 @@ import os
 import sys
 import webbrowser
 import logging
-import subprocess  # <-- Import subprocess
+import subprocess
 from collections import defaultdict
 from logging.handlers import RotatingFileHandler
 from threading import Timer
-from flask import Flask, render_template, request, jsonify, session, redirect, url_for, Response  # <-- Import Response
+from flask import Flask, render_template, request, jsonify, session, redirect, url_for, Response
 from dotenv import set_key
 
 
@@ -17,9 +17,10 @@ def get_project_root():
     PyInstaller bundle. In a bundle, this points to the temporary directory
     where all assets (like the 'config' folder) are unpacked.
     """
-    # noinspection PyProtectedMember
     if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
-        # Running in a PyInstaller bundle (frozen)
+        # Running in a PyInstaller bundle (frozen).
+        # This is the correct, documented way to get the path.
+        # noinspection PyProtectedMember
         return sys._MEIPASS
     else:
         # Running in a normal Python environment (from source)
@@ -66,6 +67,7 @@ def create_app(test_config=None):
     # --- Configuration ---
     app.config.from_mapping(
         METADATA_FILE=os.path.join(project_root, 'config', 'components_metadata.json'),
+        DEFAULT_COMPONENTS_FILE=os.path.join(project_root, 'config', 'default_selected_components.txt'),
         SELECTED_COMPONENTS_OUTPUT_FILE=os.path.join(project_root, 'selected_components.txt'),
         DOCS_OUTPUT_FILE=os.path.join(project_root, 'SUPPORTED_COMPONENTS.md'),
         ENV_PATH=os.path.join(project_root, '.env')
@@ -107,11 +109,25 @@ def create_app(test_config=None):
                         })
                 # --- End of Grouping Logic ---
 
+                # --- Load Default Selections ---
+                default_components = []
+                try:
+                    with open(app.config['DEFAULT_COMPONENTS_FILE'], 'r') as f:
+                        # Read the file, strip whitespace, and split by spaces/newlines
+                        default_components = f.read().strip().split()
+                except FileNotFoundError:
+                    app.logger.warning(
+                        f"Default components file not found at {app.config['DEFAULT_COMPONENTS_FILE']}. "
+                        f"No components will be pre-selected."
+                    )
+                # --- End of Default Selections ---
+
                 return render_template('select_components.html',
                                        # Pass the new grouped data structure to the template
                                        grouped_components=grouped_components,
                                        pi_ip=session['target_pi_ip'],
-                                       uniqueness_groups=json.dumps(uniqueness_groups))
+                                       uniqueness_groups=json.dumps(uniqueness_groups),
+                                       default_components=default_components)
             else:
                 detected_subnet = PiScanner.detect_subnet()
                 return render_template('select_pi.html', detected_subnet=detected_subnet)

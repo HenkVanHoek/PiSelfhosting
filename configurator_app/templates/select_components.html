@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <title>PiSelfhosting - Select Components</title>
     <style>
-        /* ... (CSS remains exactly the same) ... */
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             line-height: 1.6;
@@ -136,7 +135,6 @@
         </div>
         <hr>
 
-        <!-- REFACTORED: Use nested loops to render grouped components -->
         {% for group_name, component_list in grouped_components.items() %}
             <div class="component-group">
                 <h2>{{ group_name }}</h2>
@@ -144,7 +142,7 @@
                     {% for component in component_list %}
                         <div class="component" id="component-{{ component.id }}">
                             <label>
-                                <input type="checkbox" name="components" value="{{ component.id }}" data-component-id="{{ component.id }}">
+                                <input type="checkbox" name="components" value="{{ component.id }}" data-component-id="{{ component.id }}" {% if component.id in default_components %}checked{% endif %}>
                                 <strong>{{ component.data.name }}</strong>
                             </label>
                             <p>{{ component.data.description }}</p>
@@ -153,7 +151,6 @@
                 </div>
             </div>
         {% endfor %}
-        <!-- End of Refactoring -->
 
         <br>
         <input type="submit" value="Save and Prepare Installation">
@@ -162,11 +159,9 @@
 
 <script>
     document.addEventListener('DOMContentLoaded', function () {
-        // The JavaScript for uniqueness groups does not need to change!
         const uniquenessGroups = {{ uniqueness_groups|tojson|safe }};
         const checkboxes = document.querySelectorAll('input[data-component-id]');
 
-        // ... (rest of the script remains exactly the same) ...
         function findGroupForComponent(componentId) {
             for (const groupName in uniquenessGroups) {
                 if (uniquenessGroups[groupName].includes(componentId)) {

@@ -26,7 +26,8 @@
       "uptime-kuma",
       "web-notepad",
       "conduit",
-      "gitlab"
+      "gitlab",
+      "piselfhosting-backup-tool"
     ]
   },
   "portainer": {
@@ -330,5 +331,17 @@
         }
       ]
     }
+  },
+  "piselfhosting-backup-tool": {
+    "name": "Backup & Restore Tool",
+    "project_url": "https://github.com/HenkVanHoek/PiSelfhosting",
+    "description": "A simple tool to back up and restore all your persistent service data.",
+    "dashy_section": "System Tools",
+    "category": "Management Tool",
+    "uniqueness_group": null,
+    "has_ui": true,
+    "ui_port": 9901,
+    "icon": "fas fa-save",
+    "protocol": "http"
   }
 }

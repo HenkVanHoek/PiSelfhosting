@@ -21,7 +21,8 @@ This phase is focused on creating a rock-solid, feature-rich, and user-friendly 
 *   **[In Progress] Comprehensive Testing**: Expand the `pytest` suite to ensure the reliability of the installer and utility functions.
 *   **[In Progress] Documentation**: Create clear documentation for both end-users and contributors.
 *   **[Planned] Integrated Backup & Restore**: Develop a user-friendly, Flask-based tool to back up and restore all persistent service data. This is a critical feature for data security and user peace of mind.
-    *   **Implementation**: This will be a new, optional management tool built with Flask. It will provide a simple web UI to automatically detect and back up all persistent Docker volumes. The tool will feature **smart, configurable defaults**, allowing users to easily exclude large data volumes (like Frigate video recordings) to ensure fast and efficient backups of critical configuration data.*   **MariaDB as the Primary Database**: Standardize on MariaDB as the sole database option to ensure stability and reduce testing complexity. This provides excellent compatibility for the vast majority of popular self-hosted applications.
+    *   **Implementation**: This will be a new, optional management tool built with Flask. It will provide a simple web UI to automatically detect and back up all persistent Docker volumes. The tool will feature **smart, configurable defaults**, allowing users to easily exclude large data volumes (like Frigate video recordings) to ensure fast and efficient backups of critical configuration data.
+*   **MariaDB as the Primary Database**: Standardize on MariaDB as the sole database option to ensure stability and reduce testing complexity. This provides excellent compatibility for the vast majority of popular self-hosted applications.
 
 ---
 
@@ -40,6 +41,7 @@ Once the foundation is stable and well-documented, this phase will focus on expa
 
 This is a collection of ideas that are being considered for the long-term future, beyond Phase 2.
 
+*   **Provider-Agnostic Off-site Backups**: Enhance the Backup & Restore tool with an automated off-site capability. To respect user privacy and data sovereignty, this will be implemented using a generic tool like `rclone`. This will allow users to send their encrypted backups to any of the 70+ cloud storage providers `rclone` supports, including European alternatives and other self-hosted solutions, rather than being locked into specific Big Tech ecosystems.
 *   **Plugin Marketplace**: An interface where the community can submit new component templates for easy inclusion.
 *   **Multi-Node/Clustering Support**: The ability to deploy services across multiple Raspberry Pi devices.
 *   **Enhanced Security Auditing**: Tools to scan configurations for common security misconfigurations.
