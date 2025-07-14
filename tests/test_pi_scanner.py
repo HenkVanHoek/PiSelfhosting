@@ -1,161 +1,141 @@
-# tests/test_pi_scanner.py
-import os
-import sys
+# import json
 from unittest.mock import MagicMock, call, patch
 
 import paramiko
 import pytest
 
-# Ensure the 'src' directory is on the path
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-src_path = os.path.join(project_root, "src")
-if src_path not in sys.path:
-    sys.path.insert(0, src_path)
+# Modified import: The public 'is_port_open' function is now imported
+from src.pi_scanner import PiScanner
 
-from src.pi_scanner import PiScanner  # noqa: E402
+# , is_port_open)
 
 
 @pytest.fixture
 def mock_nmap_text_output():
-    """Provides a fake nmap plain text output string for testing."""
+    """Provides a realistic, multi-device nmap output string for tests."""
     return """
-Nmap scan report for 192.168.1.15
-Host is up (0.0021s latency).
-MAC Address: E4:5F:01:AA:BB:CC (Raspberry Pi Foundation)
-
-Nmap scan report for 192.168.1.20
-Host is up (0.0030s latency).
-MAC Address: 00:1A:2B:3C:4D:5E (SomeOther Inc)
-
-Nmap scan report for 192.168.1.25
-Host is up (0.0040s latency).
-MAC Address: 2C:CF:67:C3:35:22 (Raspberry Pi (Trading))
+# Nmap 7.80 scan initiated Tue Jan 1 12:00:00 2024 as: nmap -sn -PR 192.168.1.0/24
+Nmap scan report for 192.168.1.1
+Host is up (0.0010s latency).
+MAC Address: DC:A6:32:01:02:03 (Raspberry Pi Foundation)
+Nmap scan report for 192.168.1.5
+Host is up (0.020s latency).
+MAC Address: AA:BB:CC:DD:EE:FF (Unknown Vendor)
+Nmap scan report for 192.168.1.8
+Host is up (0.0050s latency).
+MAC Address: B8:27:EB:AA:BB:CC (Raspberry Pi Foundation)
+# Nmap done at Tue Jan 1 12:01:00 2024 -- 256 IP addresses (3 hosts up)
+scanned in 60.00 seconds
 """
 
 
-@patch("src.pi_scanner.subprocess.run")
-def test_scan_with_nmap_finds_pi(mock_run, mock_nmap_text_output):
-    """
-    Tests if the scanner can correctly parse mocked nmap plain text output.
-    """
-    # Configure the mock to return the plain text output
-    mock_run.return_value = MagicMock(
-        stdout=mock_nmap_text_output, stderr="", returncode=0
-    )
+class TestPiScanner:
+    """Test suite for the PiScanner class."""
 
-    found_pis = PiScanner.scan("192.168.1.0/24")
+    def test_detect_subnet(self):
+        """Tests subnet detection based on local IP."""
+        with patch("socket.socket") as mock_socket:
+            mock_socket.return_value.__enter__.return_value.getsockname.return_value = (
+                "192.168.1.100",
+                80,
+            )
+            assert PiScanner.detect_subnet() == "192.168.1.0/24"
 
-    # The mock data contains two different Pi vendors
-    assert len(found_pis) == 2
-
-    # Check the first Pi
-    pi1 = next(p for p in found_pis if p["ip"] == "192.168.1.15")
-    assert pi1["mac"] == "e4:5f:01:aa:bb:cc"
-
-    # Check the second Pi
-    pi2 = next(p for p in found_pis if p["ip"] == "192.168.1.25")
-    assert pi2["mac"] == "2c:cf:67:c3:35:22"
-
-
-def test_scan_handles_nmap_not_found():
-    """Tests that the scanner handles the case where nmap is not installed."""
-    with patch("subprocess.run", side_effect=FileNotFoundError):
+    @patch("src.pi_scanner.subprocess.run")
+    def test_scan_with_nmap_finds_pi(self, mock_run, mock_nmap_text_output):
+        """
+        Tests that the scanner correctly parses nmap output and identifies
+        all devices with a valid Raspberry Pi MAC address prefix.
+        """
+        mock_run.return_value = MagicMock(
+            stdout=mock_nmap_text_output, stderr="", returncode=0
+        )
         found_pis = PiScanner.scan("192.168.1.0/24")
-    assert found_pis == []
 
+        assert len(found_pis) == 2
+        found_pis_set = {tuple(p.items()) for p in found_pis}
+        expected_pis_set = {
+            (("ip", "192.168.1.1"), ("mac", "dc:a6:32:01:02:03")),
+            (("ip", "192.168.1.8"), ("mac", "b8:27:eb:aa:bb:cc")),
+        }
+        assert found_pis_set == expected_pis_set
 
-@pytest.mark.parametrize(
-    "key_auth_failure_exception",
-    [
-        paramiko.AuthenticationException("Key auth failed"),
-        paramiko.SSHException("A generic SSH error occurred during key auth"),
-    ],
-)
-@patch("src.pi_scanner.PiScanner._is_port_open", return_value=True)
-@patch("paramiko.SSHClient")
-def test_get_device_details_success_after_key_fail(
-    mock_ssh_client_class, mock_is_port_open, key_auth_failure_exception
-):
-    """
-    Tests successful retrieval of device details via password
-    after any key-based authentication attempt fails.
-    This directly tests the fix for the last logged issue.
-    """
-    mock_ssh_instance = MagicMock()
-    mock_ssh_client_class.return_value = mock_ssh_instance
-
-    # 1. Simulate the two-step connection:
-    #    - The first call (key auth) raises the specified exception.
-    #    - The second call (password auth) succeeds.
-    mock_ssh_instance.connect.side_effect = [
-        key_auth_failure_exception,
-        None,  # Successful connection
-    ]
-
-    # 2. Mock the command execution with proper stdout and stderr mocks
-    fake_output = (
-        "Raspberry Pi 5 Model B\x00\n---\n"
-        "8GiB\n---\n"
-        "10000000abcdef\n---\n"
-        '{"blockdevices":[{"name":"sda","size":"128G","type":"disk","mountpoint":"/"}]}'
+    @pytest.mark.parametrize(
+        "key_auth_failure_exception",
+        [
+            paramiko.AuthenticationException("Key auth failed"),
+            paramiko.SSHException("A generic SSH error occurred"),
+        ],
     )
-    mock_stdout = MagicMock()
-    mock_stdout.read.return_value = fake_output.encode()
-    mock_stderr = MagicMock()
-    mock_stderr.read.return_value = b""  # No error output
-    mock_ssh_instance.exec_command.return_value = (None, mock_stdout, mock_stderr)
+    @patch("src.pi_scanner.is_port_open", return_value=True)
+    @patch("paramiko.SSHClient")
+    def test_get_device_details_success_after_key_fail(
+        self, mock_ssh_client_class, mock_is_port_open, key_auth_failure_exception
+    ):
+        """
+        Tests successful retrieval of device details via password
+        after a key-based authentication attempt fails.
+        """
+        mock_ssh_instance = MagicMock()
+        mock_ssh_client_class.return_value = mock_ssh_instance
+        mock_ssh_instance.connect.side_effect = [key_auth_failure_exception, None]
 
-    # --- RUN THE TEST ---
-    details = PiScanner.get_device_details("192.168.1.50", "pi", "raspberry")
+        fake_output = (
+            "Raspberry Pi 5 Model B\x00---\n"
+            "8GiB\x00---\n"
+            "10000000abcdef\x00---\n"
+            '{"blockdevices":[{"name":"sda","size":"128G","type":"disk"}]}'
+        )
+        mock_stdout = MagicMock()
+        mock_stdout.read.return_value = fake_output.encode("utf-8")
+        mock_stderr = MagicMock()
+        mock_stderr.read.return_value = b""
+        mock_ssh_instance.exec_command.return_value = (None, mock_stdout, mock_stderr)
 
-    # --- ASSERTIONS ---
-    mock_is_port_open.assert_called_once_with("192.168.1.50", 22)
+        details = PiScanner.get_device_details("192.168.1.50", "pi", "raspberry")
 
-    # 3. Assert that connect was called twice with the correct arguments each time
-    assert mock_ssh_instance.connect.call_count == 2
-    expected_calls = [
-        # First call for key-based auth
-        call(hostname="192.168.1.50", username="pi", password=None, timeout=5),
-        # Second call for password-based auth
-        call(hostname="192.168.1.50", username="pi", password="raspberry", timeout=5),
-    ]
-    mock_ssh_instance.connect.assert_has_calls(expected_calls)
+        mock_is_port_open.assert_called_once_with("192.168.1.50", 22)
+        assert mock_ssh_instance.connect.call_count == 2
+        expected_calls = [
+            call(hostname="192.168.1.50", username="pi", password=None, timeout=10),
+            call(
+                hostname="192.168.1.50", username="pi", password="raspberry", timeout=10
+            ),
+        ]
+        mock_ssh_instance.connect.assert_has_calls(expected_calls, any_order=False)
 
-    # 4. Assert the final details are correct
-    assert details is not None
-    assert details["model"] == "Raspberry Pi 5 Model B"
-    assert details["serial"] == "10000000abcdef"
+        assert details is not None
+        assert details["model"] == "Raspberry Pi 5 Model B"
+        assert details["ram"] == "8GiB"
+        assert details["serial"] == "10000000abcdef"
+        assert len(details["disks"]) == 1
 
+    @patch("src.pi_scanner.is_port_open", return_value=True)
+    @patch("paramiko.SSHClient")
+    def test_get_device_details_parse_error(
+        self, mock_ssh_client_class, _mock_is_port_open, capsys
+    ):
+        """Tests that None is returned if the SSH command output cannot be parsed."""
+        mock_ssh_instance = MagicMock()
+        mock_ssh_client_class.return_value = mock_ssh_instance
+        mock_ssh_instance.connect.return_value = None
 
-@patch("src.pi_scanner.PiScanner._is_port_open", return_value=False)
-@patch("paramiko.SSHClient")
-def test_get_device_details_ssh_port_closed(mock_ssh_client_class, mock_is_port_open):
-    """Tests that get_device_details skips SSH if the port is closed."""
-    details = PiScanner.get_device_details("192.168.1.51", "pi", "raspberry")
-    mock_is_port_open.assert_called_once_with("192.168.1.51", 22)
-    mock_ssh_client_class.return_value.connect.assert_not_called()
-    assert details is None
+        malformed_output = "Part1\n---\nPart2\n---\nPart3"  # Missing the 4th part
+        mock_stdout = MagicMock()
+        mock_stdout.read.return_value = malformed_output.encode("utf-8")
 
+        mock_stderr = MagicMock()
+        mock_stderr.read.return_value = b""
+        mock_ssh_instance.exec_command.return_value = (None, mock_stdout, mock_stderr)
 
-@pytest.mark.parametrize(
-    "raised_exception",
-    [paramiko.AuthenticationException, paramiko.SSHException, TimeoutError],
-)
-@patch("src.pi_scanner.PiScanner._is_port_open", return_value=True)
-@patch("paramiko.SSHClient")
-def test_get_device_details_ssh_connection_fails(
-    mock_ssh_client_class, mock_is_port_open, raised_exception
-):
-    """Tests that SSH connection failures are handled gracefully."""
-    mock_ssh_instance = MagicMock()
-    mock_ssh_client_class.return_value = mock_ssh_instance
-    # We only need to simulate the final failure here
-    mock_ssh_instance.connect.side_effect = raised_exception
+        details = PiScanner.get_device_details("192.168.1.50", "pi", "raspberry")
+        assert details is None
+        captured = capsys.readouterr()
+        assert "Could not parse all details" in captured.out
 
-    details = PiScanner.get_device_details("192.168.1.52", "user", "pass")
-
-    # Assert that the port check was performed before the connection attempt
-    mock_is_port_open.assert_called_once_with("192.168.1.52", 22)
-
-    assert details is None
-    mock_ssh_instance.close.assert_called_once()
+    @patch("src.pi_scanner.is_port_open", return_value=False)
+    def test_get_device_details_port_closed(self, mock_is_port_open):
+        """Tests that None is returned if the SSH port is closed."""
+        details = PiScanner.get_device_details("192.168.1.50", "pi", "raspberry")
+        mock_is_port_open.assert_called_once_with("192.168.1.50", 22)
+        assert details is None

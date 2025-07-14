@@ -53,6 +53,7 @@ def app(mock_paths):
         "<h1>Step 1: Find Your Raspberry Pi</h1>"
     )
 
+    # MODIFICATION: The <input> tag is now on a single line to produce predictable HTML
     select_components_template = """
     <h1>Step 2: Select Components for {{ pi_ip }}</h1>
     {% for group_name, component_list in grouped_components.items() %}
@@ -60,8 +61,8 @@ def app(mock_paths):
         {% for component in component_list %}
             <label>
                 <input type="checkbox" name="components" value="{{ component.id }}"
-                 data-component-id="{{ component.id }}"
-                 {% if component.id in default_components %}checked{% endif %}>
+                data-component-id="{{ component.id }}"{% if component.id
+                in default_components %} checked{% endif %}>
                 <strong>{{ component.data.name }}</strong>
             </label>
         {% endfor %}
@@ -125,17 +126,16 @@ def test_index_shows_components_and_checks_defaults_when_pi_in_session(client):
     assert b"Dashy" in response.data
     assert b"Portainer" in response.data
 
+    # Normalize whitespace to make the test more robust
+    normalized_data = b" ".join(response.data.split())
+
     assert (
-        b'<input type="checkbox" '
-        b'name="components" '
-        b'value="dashy" '
-        b'data-component-id="dashy"  checked>' in response.data
+        b'<input type="checkbox" name="components" value="dashy" '
+        b'data-component-id="dashy" checked>' in normalized_data
     )
     assert (
-        b'<input type="checkbox" '
-        b'name="components" '
-        b'value="portainer" '
-        b'data-component-id="portainer" >' in response.data
+        b'<input type="checkbox" name="components" value="portainer" '
+        b'data-component-id="portainer">' in normalized_data
     )
 
 
