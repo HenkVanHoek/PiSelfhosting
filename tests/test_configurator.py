@@ -161,7 +161,7 @@ def test_scan_network_endpoint(mock_scan, mock_get_details, client):
     )
 
     assert response.status_code == 200
-    mock_scan.assert_called_once_with(target_subnet="192.168.1.0/24")
+    mock_scan.assert_called_once_with(subnet="192.168.1.0/24")
     mock_get_details.assert_called_once_with("192.168.1.101", "pi", "raspberry")
     assert "10000000abcdef" in response.json["success"]
 
