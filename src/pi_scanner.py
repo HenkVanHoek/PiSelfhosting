@@ -37,6 +37,7 @@ class PiScanner:
         "e4:5f:01",  # Raspberry Pi Foundation
         "28:cd:c1",  # Raspberry Pi (Trading) Ltd
         "d8:3a:dd",  # Raspberry Pi (Trading) Ltd
+        "2c:cf:67",  # Raspberry Pi (Trading) Ltd
     ]
 
     SSH_COMMAND: str = (
@@ -50,10 +51,8 @@ class PiScanner:
     def detect_subnet() -> str:
         """
         Detects the most likely local subnet of the machine running the script.
-        Tries a primary method and falls back to a platform-specific one for robustness.
+        Tries a primary method and falls back to a platform-specific one.
         """
-        # Method 1: Connect to a public DNS server. This is fast but can be
-        # blocked by firewalls or fail on networks without an internet gateway.
         try:
             with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
                 s.settimeout(1.0)
@@ -64,35 +63,52 @@ class PiScanner:
         except (socket.error, OSError):
             pass  # Proceed to the fallback method.
 
-        # Method 2: Platform-specific fallback. More reliable locally.
         try:
             system = platform.system()
             if system == "Windows":
-                # On Windows, parse 'ipconfig' output.
+                try:
+                    output = subprocess.check_output(
+                        "ipconfig", text=True, errors="replace", timeout=5
+                    )
+                    ip_pattern = (
+                        r"IPv4 Address[.\s]+: "
+                        r"((?:192\.168|172\.(?:1[6-9]|2[0-9]|3[0-1])|10)\.\d+\.\d+)"
+                    )
+                    match = re.search(ip_pattern, output)
+                    if match:
+                        local_ip = match.group(1)
+                        return ".".join(local_ip.split(".")[:-1]) + ".0/24"
+                except (
+                    subprocess.CalledProcessError,
+                    FileNotFoundError,
+                    subprocess.TimeoutExpired,
+                ):
+                    pass  # Fallback to the more robust 'route' command.
+
                 output = subprocess.check_output(
-                    "ipconfig", text=True, errors="replace"
+                    ["route", "print", "-4"], text=True, errors="replace", timeout=5
                 )
-                # This regex looks for common private IPv4 address ranges.
-                match = re.search(
-                    r"IPv4 Address[.\s]+: "
-                    r"((?:192\.168|172\.(?:1[6-9]|2[0-9]|3[0-1])|10)\.\d+\.\d+)",
-                    output,
-                )
+                route_pattern = r"^\s*0\.0\.0\.0\s+0\.0\.0\.0\s+[\d.]+\s+([\d.]+)"
+                match = re.search(route_pattern, output, re.MULTILINE)
                 if match:
                     local_ip = match.group(1)
                     return ".".join(local_ip.split(".")[:-1]) + ".0/24"
 
             elif system == "Linux":
-                # On Linux, 'hostname -I' is a reliable way to get local IPs.
-                output = subprocess.check_output(["hostname", "-I"], text=True)
+                output = subprocess.check_output(
+                    ["hostname", "-I"], text=True, timeout=5
+                )
                 local_ip = output.strip().split(" ")[0]
                 if local_ip:
                     return ".".join(local_ip.split(".")[:-1]) + ".0/24"
-        except (subprocess.CalledProcessError, FileNotFoundError, IndexError):
-            # If platform-specific commands fail, we have no more options.
+        except (
+            subprocess.CalledProcessError,
+            FileNotFoundError,
+            IndexError,
+            subprocess.TimeoutExpired,
+        ):
             pass
 
-        # Return an empty string if all detection methods fail.
         return ""
 
     @classmethod
@@ -120,18 +136,17 @@ class PiScanner:
                 errors="replace",
             )
 
-            # Log errors if nmap fails or writes to stderr
             if result.returncode != 0:
                 print(f"Nmap exited with code {result.returncode}")
                 if result.stderr:
                     print(f"Nmap error output: {result.stderr.strip()}")
 
-            # Process stdout for device information
             nmap_stdout = result.stdout
             found_pis = []
             pattern = re.compile(
-                r"Nmap scan report for "
-                r"([\d.]+)\s+Host is up.*?\s+MAC Address: ([0-9A-F:]+)",
+                r"Nmap scan report for .*?\(?([\d.]+)\)?\s+"
+                r"Host is up.*?\s+"
+                r"MAC Address: ([0-9A-F:]+)",
                 re.DOTALL | re.IGNORECASE,
             )
             matches = pattern.findall(nmap_stdout)
@@ -141,13 +156,15 @@ class PiScanner:
                 if any(mac_lower.startswith(p) for p in cls.PI_MAC_PREFIXES):
                     found_pis.append({"ip": ip, "mac": mac_lower})
 
-            print(f"Scan complete. Found {len(found_pis)} potential Raspberry Pi(s).")
-            # Return all parts from the result object directly
+            print(
+                f"Scan complete. Found {len(found_pis)} potential " f"Raspberry Pi(s)."
+            )
             return found_pis, result.stdout, result.stderr
 
         except FileNotFoundError:
             err_msg = (
-                "Error: 'nmap' command not found. Is nmap installed and in your PATH?"
+                "Error: 'nmap' command not found. "
+                "Is nmap installed and in your PATH?"
             )
             print(err_msg)
             return [], "", err_msg
@@ -176,11 +193,15 @@ class PiScanner:
             except (paramiko.AuthenticationException, paramiko.SSHException):
                 if password is not None:
                     ssh.connect(
-                        hostname=ip, username=username, password=password, timeout=10
+                        hostname=ip,
+                        username=username,
+                        password=password,
+                        timeout=10,
                     )
                 else:
                     raise paramiko.AuthenticationException(
-                        "Key-based authentication failed and no password was provided."
+                        "Key-based authentication failed and no password was "
+                        "provided."
                     )
 
             _stdin, stdout, stderr = ssh.exec_command(PiScanner.SSH_COMMAND, timeout=15)
@@ -193,7 +214,9 @@ class PiScanner:
 
             parts = output.split("\x00---\n")
             if len(parts) < 4:
-                print(f"Could not parse all details from {ip}. Raw output: {output}")
+                print(
+                    f"Could not parse all details from {ip}. " f"Raw output: {output}"
+                )
                 return None
 
             model = parts[0].strip().replace("\x00", "")
