@@ -179,7 +179,7 @@ def create_app(test_config=None):
         if not all([subnet, username]):
             return jsonify({"error": "Subnet and username are required."}), 400
 
-        potential_pis = PiScanner.scan(target_subnet=subnet)
+        potential_pis = PiScanner.scan(subnet=subnet)
         if not potential_pis:
             return jsonify({"success": {}, "failed": []})
 
