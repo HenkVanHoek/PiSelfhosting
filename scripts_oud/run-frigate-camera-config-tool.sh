@@ -37,4 +37,3 @@ docker compose -f "$BASE_DIR_HOST/docker-compose.yml" exec frigate \
 
 echo "--- Frigate Camera Configuration Tool Finished ---"
 echo "Remember to restart Frigate if changes were made: bash $BASE_DIR_HOST/scripts/restart-all.sh"
-

@@ -30,4 +30,3 @@ volumes:
 networks:
   piselfhosting_net:
     external: true
-

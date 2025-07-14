@@ -58,5 +58,3 @@ fi
 echo "---"
 echo "All Git operations completed successfully!"
 echo "---"
-
-

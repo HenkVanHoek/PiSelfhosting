@@ -22,4 +22,3 @@ appConfig:
   # The run-dashy-tile-config-tool.sh script will populate the 'sections' below.
   # This template starts with an empty section to prevent Dashy from crashing.
 sections: [] # This section will be populated by the Python script
-

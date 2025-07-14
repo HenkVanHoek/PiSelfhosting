@@ -76,7 +76,7 @@ def manage_existing_certs(domain_name, cert_path, key_path):
     """Copies existing certificates to the centralized storage location."""
     print("\n--- Using Existing SSL Certificates ---")
     print("You will need to provide the full paths to your existing certificate and private key files.")
-    
+
     existing_fullchain_path = get_user_input("Enter the full path to your existing fullchain.pem or .crt file: ")
     existing_privkey_path = get_user_input("Enter the full path to your existing privkey.pem or .key file: ")
 
@@ -170,7 +170,7 @@ def main():
         else:
             print("Invalid choice. Please try again.")
             continue
-        
+
         if success:
             print("\n--- Configuration for Services Using Certificates ---")
             print(f"Your certificates should now be available on the host at: `{CERT_STORAGE_HOST_PATH}/`")
@@ -187,7 +187,7 @@ def main():
             print(f"      - {CERT_STORAGE_HOST_PATH}/privkey.pem:/etc/dovecot/privkey.pem:ro")
             print("\n  After updating configs and Docker Compose, rebuild and restart your Mailserver:")
             print(f"  `bash {os.path.join(os.getenv('BASE_DIR_HOST'), 'scripts', 'restart-all.sh')} mailserver`")
-            
+
             print("\n**For Nginx Proxy Manager (if you used Self-Signed or Existing Certs):**")
             print("  You will need to import these certificates into NPM's UI or ensure NPM is configured to use them for your proxy hosts.")
             print("\n--- SSL Certificate Management Complete ---")
@@ -199,4 +199,3 @@ if __name__ == "__main__":
         # This script does not use async functions for now.
         pass
     main()
-

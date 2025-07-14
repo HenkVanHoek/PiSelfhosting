@@ -49,4 +49,3 @@ docker run --rm -it \
 
 echo "✅ SSL Certificate Manager execution complete."
 echo "Remember to update your services' configurations to use the new certificates if needed."
-

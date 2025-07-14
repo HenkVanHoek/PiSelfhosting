@@ -26,4 +26,3 @@ FLUSH PRIVILEGES;
 -- CREATE DATABASE IF NOT EXISTS frigate_db;
 -- GRANT ALL PRIVILEGES ON frigate_db.* TO '${DB_USER}'@'%'; -- Kan dezelfde gebruiker zijn
 -- FLUSH PRIVILEGES;
-

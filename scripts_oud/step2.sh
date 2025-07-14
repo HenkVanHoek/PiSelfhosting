@@ -36,10 +36,10 @@ in_services_block {
         # Calculate how many spaces to remove from the beginning of the line
         # This is the difference between current indent and the service_line_indent (2 spaces)
         spaces_to_remove = service_line_indent;
-        
+
         # Strip those leading spaces
         line_content = substr($0, spaces_to_remove + 1);
-        
+
         # Prepend the correct absolute indentation (4 spaces)
         # This maintains the relative spacing if it's already correct in the template
         print "    " line_content;

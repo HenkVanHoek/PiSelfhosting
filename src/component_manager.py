@@ -1,6 +1,5 @@
 import json
 import logging
-import sys
 from pathlib import Path
 
 # Get a logger instance that will use the central configuration from app.py
@@ -44,18 +43,24 @@ class ComponentManager:
                 f"FATAL: Metadata file not found at '{self.metadata_path}'. "
                 f"The application cannot start without this file."
             )
-            raise FileNotFoundError(f"Required configuration file not found: {self.metadata_path}")
+            raise FileNotFoundError(
+                f"Required configuration file not found: {self.metadata_path}"
+            )
 
         try:
-            with open(self.metadata_path, 'r', encoding='utf-8') as f:
+            with open(self.metadata_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
                 logger.info(f"Successfully loaded metadata for {len(data)} components.")
                 return data
         except json.JSONDecodeError as e:
-            logger.critical(f"FATAL: Failed to parse JSON from '{self.metadata_path}'. Error: {e}")
+            logger.critical(
+                f"FATAL: Failed to parse JSON from '{self.metadata_path}'. Error: {e}"
+            )
             raise  # Re-raise the exception to stop the application
         except IOError as e:
-            logger.critical(f"FATAL: Could not read file at '{self.metadata_path}'. Error: {e}")
+            logger.critical(
+                f"FATAL: Could not read file at '{self.metadata_path}'. Error: {e}"
+            )
             raise
 
     def get_all_components(self):
@@ -88,10 +93,10 @@ class ComponentManager:
         groups = {}
         for component_id, details in self._components.items():
             # Skip internal metadata entries like '_piselfhosting'
-            if component_id.startswith('_'):
+            if component_id.startswith("_"):
                 continue
 
-            group_name = details.get('uniqueness_group')
+            group_name = details.get("uniqueness_group")
             if group_name:
                 if group_name not in groups:
                     groups[group_name] = []

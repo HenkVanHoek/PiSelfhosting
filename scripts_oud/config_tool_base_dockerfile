@@ -17,4 +17,3 @@ WORKDIR /app
 # The entrypoint is now determined by the shell script that runs the container,
 # which will mount and execute the specific tool.
 # This Dockerfile now serves as a general base image for configuration scripts.
-

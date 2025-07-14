@@ -46,7 +46,7 @@ record:
     pre_capture: 5 # seconds to record before detection
     post_capture: 5 # seconds to record after detection
     required_zones: [] # Require detection in specific zones
-    
+
 # Rtmp settings (for real-time streams)
 rtmp:
   enabled: True
@@ -66,4 +66,3 @@ rtmp:
 #     objects:
 #       - person
 #       - car
-

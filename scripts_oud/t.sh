@@ -110,4 +110,3 @@ else
     echo "❌ Failed to start one or more services. Check Docker logs for details."
     exit 1
 fi
-

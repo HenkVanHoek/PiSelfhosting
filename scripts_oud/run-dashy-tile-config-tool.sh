@@ -63,4 +63,3 @@ docker run --rm \
 
 echo "✅ Dashy tile configuration tool execution complete."
 echo "Remember to restart Dashy if changes were made: $BASE_DIR/scripts/restart-all.sh dashy"
-

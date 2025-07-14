@@ -87,8 +87,7 @@
 
         // Fetch stats immediately and then every 30 seconds
         fetchStats();
-        setInterval(fetchStats, 30000); 
+        setInterval(fetchStats, 30000);
     </script>
 </body>
 </html>
-

@@ -63,7 +63,7 @@ def hash_password(password):
     # For basic file-based virtual users, a simple SHA512 might suffice for Dovecot.
     # Exim4's passwd.byname typically expects plaintext or specific obscure hashes, simpler to use plaintext with strong file permissions.
     # For a robust setup, integrate with a database or a secure password hashing library.
-    
+
     # For Dovecot's 'passwd-file' with {SHA512-CRYPT}
     # This generates a hash compatible with Dovecot's {SHA512-CRYPT} scheme.
     # The 'salt' should be a random string.
@@ -108,7 +108,7 @@ def save_virtual_users(users):
                 # For simplicity, we just save username:hash. uid/gid/home will be defaulted by Dovecot.
                 f.write(f"{user}:{pwd_hash}\n")
         print(f"✅ Dovecot virtual users saved to {DOVECOT_USERS_CONF}")
-        
+
         # Save for Exim4 (format: user:password)
         # Exim's passwd.byname for SMTP AUTH usually expects plaintext for basic file auth
         # or specific hashes. For simplicity, we will use plaintext here.
@@ -120,7 +120,7 @@ def save_virtual_users(users):
             # OR refactor password handling to store plain during user input temporarily.
             # For this basic version, we will ask for plaintext again for Exim's file.
             # In a real scenario, use a secure password store and lookup for Exim.
-            
+
             # Since the tool only stores hashes in `users` dict, for Exim we'll provide a warning
             # and instruct user to manually add the plaintext password.
             f.write("# Please manually add users and plaintext passwords here for Exim4 if needed for SMTP AUTH.\n")
@@ -239,7 +239,7 @@ auth_mechanisms = plain login # Supported authentication mechanisms
     except Exception as e:
         print(f"❌ Error writing Dovecot auth config: {e}")
         sys.exit(1)
-        
+
     # Create required auth-passwdfile.conf.ext (used by 10-auth.conf)
     # This file tells Dovecot to use the 'users.conf' file for authentication
     auth_passwdfile_ext_content = f"""
@@ -374,8 +374,7 @@ if __name__ == "__main__":
     # asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy()) is removed for mailserver_config_tool.py as it does not use asyncio
     # For local testing compatibility on Windows, if it's needed for other parts that might get integrated,
     # it should be part of a proper async setup. The current main function is synchronous.
-    
+
     # If the tool needed async functions (like ONVIF discovery), it would be structured like frigate_config_tool.py
     # For the mailserver tool, `asyncio` is not used, so setting event loop policy is unnecessary here.
-    main() 
-
+    main()

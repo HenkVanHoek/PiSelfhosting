@@ -50,4 +50,3 @@ docker run --rm -it \
 
 echo "✅ Mailserver configuration tool execution complete."
 echo "Remember to rebuild and restart your Mailserver if changes were made: $BASE_DIR_HOST/scripts/restart-all.sh mailserver"
-

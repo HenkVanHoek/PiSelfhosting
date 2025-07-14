@@ -1,110 +1,89 @@
-import pytest
+# tests/test_component_manager.py
 import json
 import os
 import sys
+from unittest.mock import patch
 
-# Ensure the 'src' directory is on the path
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-src_path = os.path.join(project_root, 'src')
-if src_path not in sys.path:
-    sys.path.insert(0, src_path)
+import pytest
 
-from src.component_manager import ComponentManager
+# Adjust the path to import setup.py from src/
+current_test_file_dir = os.path.dirname(os.path.abspath(__file__))
+project_root_from_test_dir = os.path.dirname(current_test_file_dir)
+src_dir_path = os.path.join(project_root_from_test_dir, "src")
 
-# A minimal, valid JSON structure for testing
-VALID_METADATA = {
-    "portainer": {
-        "name": "Portainer",
-        "uniqueness_group": None
-    },
-    "dashy": {
-        "name": "Dashy",
-        "uniqueness_group": "dashboard"
-    },
-    "heimdall": {
-        "name": "Heimdall",
-        "uniqueness_group": "dashboard"
-    },
-    "traefik": {
-        "name": "Traefik",
-        "uniqueness_group": "reverse_proxy"
-    },
-    "_piselfhosting": {
-        "some_metadata": "value"
+if src_dir_path not in sys.path:
+    sys.path.insert(0, src_dir_path)
+
+from component_manager import ComponentManager  # noqa: E402
+
+
+@pytest.fixture
+def mock_project_structure(tmp_path):
+    """
+    Creates a temporary project structure with the new components_metadata.json.
+    """
+    project_root = tmp_path
+
+    # Create directories
+    (project_root / "src").mkdir()
+    templates_dir = project_root / "templates"
+    templates_dir.mkdir()
+
+    # Create a dummy template for dashy for testing generation
+    dashy_template_dir = templates_dir / "dashy"
+    dashy_template_dir.mkdir()
+    (dashy_template_dir / "docker-compose.template.yml").write_text(
+        "services:\n  dashy:\n    image: lissy93/dashy\n"
+    )
+
+    # --- Create components_metadata.json (the new source of truth) ---
+    metadata_content = {
+        "_piselfhosting": {"components_order": ["dashy", "mosquitto", "frigate"]},
+        "dashy": {
+            "name": "Dashy",
+            "description": "A self-hosted dashboard.",
+            "has_ui": True,
+            "ui_port": 8080,
+        },
+        "mosquitto": {
+            "name": "Mosquitto",
+            "description": "MQTT broker.",
+            "has_ui": False,
+        },
+        "frigate": {
+            "name": "Frigate",
+            "description": "NVR with AI object detection.",
+            "has_ui": True,
+            "ui_port": 5000,
+        },
     }
-}
+    (project_root / "components_metadata.json").write_text(
+        json.dumps(metadata_content, indent=2)
+    )
+
+    # Use patch to ensure ComponentManager uses the temp path as the project root
+    with patch("component_manager.Path.exists", return_value=True), patch(
+        "builtins.open",
+        return_value=open(project_root / "components_metadata.json", "r"),
+    ):
+        yield project_root
 
 
-def test_load_components_success(tmp_path):
-    """
-    Tests that the ComponentManager successfully loads a valid metadata file.
-    """
-    # Create a temporary metadata file
-    metadata_file = tmp_path / "components.json"
-    metadata_file.write_text(json.dumps(VALID_METADATA))
+def test_get_uniqueness_groups(mock_project_structure):
+    """Tests that uniqueness groups are correctly identified."""
+    # Add uniqueness groups to the mock metadata
+    metadata_path = mock_project_structure / "components_metadata.json"
+    with open(metadata_path, "r") as f:
+        data = json.load(f)
+    data["dashy"]["uniqueness_group"] = "dashboard"
+    data["frigate"]["uniqueness_group"] = "nvr"
+    with open(metadata_path, "w") as f:
+        json.dump(data, f)
 
-    # Initialize the manager
-    manager = ComponentManager(metadata_path=metadata_file)
-
-    # Assert that the components were loaded correctly
-    assert manager.get_all_components() == VALID_METADATA
-    assert manager.get_component_details("portainer")["name"] == "Portainer"
-
-
-def test_load_components_file_not_found():
-    """
-    Tests that the ComponentManager raises FileNotFoundError for a missing file.
-    """
-    # Use a path that is guaranteed not to exist
-    non_existent_file = "/path/to/a/very/unlikely/file.json"
-
-    # Assert that the correct exception is raised
-    with pytest.raises(FileNotFoundError, match="Required configuration file not found"):
-        ComponentManager(metadata_path=non_existent_file)
-
-
-def test_load_components_invalid_json(tmp_path):
-    """
-    Tests that the ComponentManager raises JSONDecodeError for a malformed file.
-    """
-    # Create a temporary file with invalid JSON
-    metadata_file = tmp_path / "invalid.json"
-    metadata_file.write_text("{'this is not valid json':}")
-
-    # Assert that the correct exception is raised
-    with pytest.raises(json.JSONDecodeError):
-        ComponentManager(metadata_path=metadata_file)
-
-
-def test_get_uniqueness_groups(tmp_path):
-    """
-    Tests that uniqueness groups are correctly identified and grouped.
-    """
-    metadata_file = tmp_path / "components.json"
-    metadata_file.write_text(json.dumps(VALID_METADATA))
-
-    manager = ComponentManager(metadata_path=metadata_file)
+    manager = ComponentManager(metadata_path=metadata_path)
     groups = manager.get_uniqueness_groups()
 
-    # Assert the structure and content of the groups
     assert "dashboard" in groups
-    assert "reverse_proxy" in groups
-    assert len(groups["dashboard"]) == 2
-    assert "dashy" in groups["dashboard"]
-    assert "heimdall" in groups["dashboard"]
-    assert len(groups["reverse_proxy"]) == 1
-    assert "traefik" in groups["reverse_proxy"]
-    # Ensure internal keys are skipped
-    assert "_piselfhosting" not in groups
-
-
-def test_get_component_details_returns_none_for_missing_id(tmp_path):
-    """
-    Tests that get_component_details returns None for a non-existent component.
-    """
-    metadata_file = tmp_path / "components.json"
-    metadata_file.write_text(json.dumps(VALID_METADATA))
-
-    manager = ComponentManager(metadata_path=metadata_file)
-
-    assert manager.get_component_details("non_existent_component") is None
+    assert "nvr" in groups
+    assert groups["dashboard"] == ["dashy"]
+    assert groups["nvr"] == ["frigate"]

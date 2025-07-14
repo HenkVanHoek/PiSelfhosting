@@ -63,7 +63,7 @@ ensure_docker_and_compose() {
 
         # Install Docker CE, Docker Compose (plugin)
         sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-        
+
         # Add current user to docker group
         if ! getent group docker | grep -q "\b$(whoami)\b"; then
             echo "Info: Adding current user to 'docker' group. You may need to log out and back in for changes to take effect."
@@ -303,4 +303,3 @@ echo "You have configured your essential variables and selected your components.
 echo "The next step is to run the deployment script:"
 echo "  bash $SCRIPTS_DIR/deploy.sh"
 echo "This will set up the Docker environment and deploy the selected services."
-

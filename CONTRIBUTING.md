@@ -54,20 +54,20 @@ Ensure you have the following software installed on your workstation:
 1.  Clone your fork of the repository locally.
 
     git clone https://github.com/YOUR-USERNAME/PiSelfhosting.git
-    
+
 2.  Navigate to the project directory.
 
     cd PiSelfhosting
-    
+
 3.  It is recommended to create a virtual environment.
 
     python -m venv .venv
     source .venv/bin/activate  # On Windows use .venv\Scripts\activate
-    
+
 4.  Install the required dependencies. The project uses separate files for workstation and development packages. To set up your development environment, you only need to install the development file, which includes all other requirements:
 
     pip install -r requirements-dev.txt
-5. 
+5.
 5.  Run the application:
 
     python configurator_app/app.py

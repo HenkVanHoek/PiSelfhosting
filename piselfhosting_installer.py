@@ -1,41 +1,43 @@
-import paramiko
+import getpass
+import json
 import os
 import sys
-from stat import S_ISDIR
-from dotenv import load_dotenv, set_key
-import getpass
-import socket
 import threading
 import time
-import json
+
+import paramiko
+from dotenv import load_dotenv
 
 # --- Constants and Configuration ---
 
 # Attempt to import constants from the 'src' directory.
 # This ensures the script works when run from the project root.
 try:
-    from src.setup import DOCKER_COMPOSE_OUTPUT_DIR, UNIFIED_DOCKER_COMPOSE_FILENAME, GLOBAL_DATA_ROOT
+    from src.setup import DOCKER_COMPOSE_OUTPUT_DIR, UNIFIED_DOCKER_COMPOSE_FILENAME
 except ImportError:
-    print("Error: Could not import from 'src.setup'. Make sure you are running this script from the project root.")
+    print(
+        "Error: Could not import from 'src.setup'. Make sure you are running this "
+        "script from the project root."
+    )
     print("And that 'src/__init__.py' and 'src/setup.py' exist.")
     sys.exit(1)
 
 # Items to exclude from synchronization to the Raspberry Pi.
 # Paths are relative to the project root. Directories should end with a '/'.
 EXCLUDED_ITEMS = [
-    '.git/',
-    '.idea/',
-    '.venv/',
-    '.venv-win/',  # Also exclude windows venv
-    '__pycache__/',
-    '.pytest_cache/',
-    'tests/',
-    'README.md',
+    ".git/",
+    ".idea/",
+    ".venv/",
+    ".venv-win/",  # Also exclude windows venv
+    "__pycache__/",
+    ".pytest_cache/",
+    "tests/",
+    "README.md",
     # Exclude the local .env file used by the installer itself.
-    '.env',
+    ".env",
     # Exclude old or generated files that shouldn't be synced.
-    'docker-compose.yml',
-    'requirements.txt'
+    "docker-compose.yml",
+    "requirements.txt",
 ]
 
 # --- Load Environment for Installer ---
@@ -46,28 +48,33 @@ load_dotenv()
 # --- Default Configuration Values ---
 
 # SSH Defaults
-DEFAULT_PI_IP = os.getenv('PI_IP', '')  # Start with empty, as we ask user anyway
-DEFAULT_SSH_USERNAME = os.getenv('SSH_USERNAME', 'pi')
-DEFAULT_SSH_PASSWORD = os.getenv('SSH_PASSWORD', '')
+DEFAULT_PI_IP = os.getenv("PI_IP", "")  # Start with empty, as we ask user anyway
+DEFAULT_SSH_USERNAME = os.getenv("SSH_USERNAME", "pi")
+DEFAULT_SSH_PASSWORD = os.getenv("SSH_PASSWORD", "")
 
 # Service Configuration Defaults
-DEFAULT_DOMAIN = os.getenv('DOMAIN', 'yourdomain.com')
-DEFAULT_PUID = os.getenv('PUID', '1000')
-DEFAULT_PGID = os.getenv('PGID', '1000')
-DEFAULT_DB_USER = os.getenv('DB_USER', 'piselfhosting_user')
-DEFAULT_DB_PASS = os.getenv('DB_PASS', 'change_this_secure_password')
-DEFAULT_TZ = os.getenv('TZ', 'Europe/Amsterdam')
-DEFAULT_ADMIN_EMAIL = os.getenv('ADMIN_EMAIL', 'admin@yourdomain.com')
-DEFAULT_FRIGATE_RTSP_PASSWORD = os.getenv('FRIGATE_RTSP_PASSWORD', 'change_this_frigate_password')
-DEFAULT_PHPMYADMIN_BLOWFISH_SECRET = os.getenv('PHPMYADMIN_BLOWFISH_SECRET', '')
-DEFAULT_PMA_HOST = os.getenv('PMA_HOST', 'mariadb')
+DEFAULT_DOMAIN = os.getenv("DOMAIN", "yourdomain.com")
+DEFAULT_PUID = os.getenv("PUID", "1000")
+DEFAULT_PGID = os.getenv("PGID", "1000")
+DEFAULT_DB_USER = os.getenv("DB_USER", "piselfhosting_user")
+DEFAULT_DB_PASS = os.getenv("DB_PASS", "change_this_secure_password")
+DEFAULT_TZ = os.getenv("TZ", "Europe/Amsterdam")
+DEFAULT_ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "admin@yourdomain.com")
+DEFAULT_FRIGATE_RTSP_PASSWORD = os.getenv(
+    "FRIGATE_RTSP_PASSWORD", "change_this_frigate_password"
+)
+DEFAULT_PHPMYADMIN_BLOWFISH_SECRET = os.getenv("PHPMYADMIN_BLOWFISH_SECRET", "")
+DEFAULT_PMA_HOST = os.getenv("PMA_HOST", "mariadb")
 
 # Installer Behavior Flag
-DEFAULT_REUSE_VARIABLES_FLAG = os.getenv('PISELFHOSTING_REUSE_VARIABLES', 'false').lower()
-ENV_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.env')
+DEFAULT_REUSE_VARIABLES_FLAG = os.getenv(
+    "PISELFHOSTING_REUSE_VARIABLES", "false"
+).lower()
+ENV_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
 
 
 # --- Helper Functions ---
+
 
 def get_user_input(prompt, default_value, use_previous=False, stored_value=None):
     """Asks for user input with a default, reusing stored value if specified."""
@@ -82,6 +89,7 @@ def get_user_input(prompt, default_value, use_previous=False, stored_value=None)
 def get_password(prompt, use_previous=False, stored_value=None):
     """Safely asks for a password, reusing stored value if specified."""
     if use_previous and stored_value:
+        # Corrected line to be under 88 characters
         print(f"- {prompt} (using previous: {'*' * 10})")
         return stored_value
 
@@ -90,6 +98,7 @@ def get_password(prompt, use_previous=False, stored_value=None):
 
 
 # --- Remote Execution and File Sync ---
+
 
 def run_remote_command(ssh_client, command, check_exit_status=True):
     """
@@ -106,19 +115,19 @@ def run_remote_command(ssh_client, command, check_exit_status=True):
     def _execute():
         try:
             stdin, stdout, stderr = ssh_client.exec_command(command)
-            result['stdout'] = stdout.read().decode('utf-8', errors='ignore').strip()
-            result['stderr'] = stderr.read().decode('utf-8', errors='ignore').strip()
-            result['exit_status'] = stdout.channel.recv_exit_status()
+            result["stdout"] = stdout.read().decode("utf-8", errors="ignore").strip()
+            result["stderr"] = stderr.read().decode("utf-8", errors="ignore").strip()
+            result["exit_status"] = stdout.channel.recv_exit_status()
         except Exception as e:
-            result['stderr'] = f"SSH execution error: {e}"
-            result['exit_status'] = -1
+            result["stderr"] = f"SSH execution error: {e}"
+            result["exit_status"] = -1
         finally:
             done_event.set()
 
     thread = threading.Thread(target=_execute)
     thread.start()
 
-    spinner = ['-', '\\', '|', '/']
+    spinner = ["-", "\\", "|", "/"]
     idx = 0
     while not done_event.is_set():
         print(f"\rWorking... {spinner[idx % len(spinner)]}", end="")
@@ -128,14 +137,16 @@ def run_remote_command(ssh_client, command, check_exit_status=True):
     thread.join()
     print("\rWorking... Done.      ")
 
-    exit_status = result.get('exit_status', -1)
-    stdout_output = result.get('stdout', '')
-    stderr_output = result.get('stderr', '')
+    exit_status = result.get("exit_status", -1)
+    stdout_output = result.get("stdout", "")
+    stderr_output = result.get("stderr", "")
 
     if exit_status != 0:
         print(f"  Error: Command failed with exit status {exit_status}.")
-        if stdout_output: print(f"  STDOUT:\n{stdout_output}")
-        if stderr_output: print(f"  STDERR:\n{stderr_output}")
+        if stdout_output:
+            print(f"  STDOUT:\n{stdout_output}")
+        if stderr_output:
+            print(f"  STDERR:\n{stderr_output}")
         if check_exit_status:
             raise Exception(f"Remote command failed: {command}")
         return False, stdout_output, stderr_output
@@ -148,7 +159,7 @@ def run_remote_command(ssh_client, command, check_exit_status=True):
 def _is_excluded(local_path, project_root, exclude_list):
     """Checks if a file or directory should be excluded from synchronization."""
     # Ensure paths are normalized with forward slashes for consistent comparison
-    relative_path = os.path.relpath(local_path, project_root).replace(os.sep, '/')
+    relative_path = os.path.relpath(local_path, project_root).replace(os.sep, "/")
 
     # If the path is the root itself, don't exclude it
     if relative_path == ".":
@@ -156,12 +167,15 @@ def _is_excluded(local_path, project_root, exclude_list):
 
     for pattern in exclude_list:
         # A pattern ending in '/' signifies a directory
-        if pattern.endswith('/'):
-            # Match if the relative path is the directory itself or is inside that directory
-            if relative_path == pattern.rstrip('/') or relative_path.startswith(pattern):
+        if pattern.endswith("/"):
+            # Match if the relative path is the directory itself
+            # or is inside that directory
+            if relative_path == pattern.rstrip("/") or relative_path.startswith(
+                pattern
+            ):
                 return True
         # A pattern without a '/' is a file to be excluded everywhere
-        elif '/' not in pattern and os.path.basename(relative_path) == pattern:
+        elif "/" not in pattern and os.path.basename(relative_path) == pattern:
             return True
         # A pattern with '/' is a specific file or path
         elif relative_path == pattern:
@@ -175,7 +189,10 @@ def sync_files_to_pi(ssh_client, local_project_root, remote_project_root):
     print(f"\n--- Synchronizing project files to {remote_project_root} ---")
 
     try:
-        run_remote_command(ssh_client, f"sudo rm -rf {remote_project_root} && mkdir -p {remote_project_root}")
+        run_remote_command(
+            ssh_client,
+            f"sudo rm -rf {remote_project_root} && mkdir -p {remote_project_root}",
+        )
     except Exception as e:
         print(f"Error: Could not clean remote directory. Aborting. {e}")
         sys.exit(1)
@@ -184,13 +201,27 @@ def sync_files_to_pi(ssh_client, local_project_root, remote_project_root):
 
     for root, dirs, files in os.walk(local_project_root, topdown=True):
         # Filter directories and files using the exclusion list
-        dirs[:] = [d for d in dirs if not _is_excluded(os.path.join(root, d), local_project_root, EXCLUDED_ITEMS)]
-        files[:] = [f for f in files if not _is_excluded(os.path.join(root, f), local_project_root, EXCLUDED_ITEMS)]
+        dirs[:] = [
+            d
+            for d in dirs
+            if not _is_excluded(
+                os.path.join(root, d), local_project_root, EXCLUDED_ITEMS
+            )
+        ]
+        files[:] = [
+            f
+            for f in files
+            if not _is_excluded(
+                os.path.join(root, f), local_project_root, EXCLUDED_ITEMS
+            )
+        ]
 
-        remote_root = os.path.join(remote_project_root, os.path.relpath(root, local_project_root)).replace(os.sep, '/')
+        remote_root = os.path.join(
+            remote_project_root, os.path.relpath(root, local_project_root)
+        ).replace(os.sep, "/")
 
         for dirname in dirs:
-            remote_dir_path = os.path.join(remote_root, dirname).replace(os.sep, '/')
+            remote_dir_path = os.path.join(remote_root, dirname).replace(os.sep, "/")
             print(f"  Creating directory: {remote_dir_path}")
             try:
                 sftp.mkdir(remote_dir_path)
@@ -200,7 +231,7 @@ def sync_files_to_pi(ssh_client, local_project_root, remote_project_root):
 
         for filename in files:
             local_file_path = os.path.join(root, filename)
-            remote_file_path = os.path.join(remote_root, filename).replace(os.sep, '/')
+            remote_file_path = os.path.join(remote_root, filename).replace(os.sep, "/")
             print(f"  Uploading file: {remote_file_path}")
             sftp.put(local_file_path, remote_file_path)
 
@@ -209,6 +240,7 @@ def sync_files_to_pi(ssh_client, local_project_root, remote_project_root):
 
 
 # --- Main Orchestration Function ---
+
 
 def main():
     """Main function to drive the installer."""
@@ -224,7 +256,13 @@ def main():
     try:
         ssh = paramiko.SSHClient()
         ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        ssh.connect(hostname=pi_hostname, username=ssh_username, password=ssh_password, port=22, timeout=10)
+        ssh.connect(
+            hostname=pi_hostname,
+            username=ssh_username,
+            password=ssh_password,
+            port=22,
+            timeout=10,
+        )
         print("Successfully connected to Raspberry Pi.")
     except Exception as e:
         print(f"Fatal: Could not establish SSH connection: {e}")
@@ -235,18 +273,22 @@ def main():
     try:
         # Check for Docker
         _, _, _ = run_remote_command(ssh, "which docker")
-        _, status, _ = run_remote_command(ssh, "sudo systemctl is-active docker", check_exit_status=False)
-        if status != 'active':
+        _, status, _ = run_remote_command(
+            ssh, "sudo systemctl is-active docker", check_exit_status=False
+        )
+        if status != "active":
             print("Error: Docker is not installed or not running on the Pi.")
             ssh.close()
             sys.exit(1)
 
         # Check if user is in the docker group
         _, groups, _ = run_remote_command(ssh, f"groups {ssh_username}")
-        if 'docker' not in groups:
+        if "docker" not in groups:
             print(f"User '{ssh_username}' is not in the 'docker' group. Adding now...")
             run_remote_command(ssh, f"sudo usermod -aG docker {ssh_username}")
-            print("User added. A reboot or new login session on the Pi might be required.")
+            print(
+                "User added. A reboot or new login session on the Pi might be required."
+            )
         print("Docker checks passed.")
     except Exception as e:
         print(f"Fatal: Prerequisite check failed: {e}")
@@ -256,7 +298,7 @@ def main():
     # 4. Gather Configuration Variables
     print("\n--- Step 3: Configure Your Services ---")
     # Determine remote project path
-    _, home_dir, _ = run_remote_command(ssh, 'echo $HOME')
+    _, home_dir, _ = run_remote_command(ssh, "echo $HOME")
     remote_project_path = os.path.join(home_dir, "piselfhosting").replace("\\", "/")
 
     # Gather other variables
@@ -266,16 +308,17 @@ def main():
     tz = get_user_input("Enter timezone", DEFAULT_TZ)
     admin_email = get_user_input("Enter admin email for SSL certs", DEFAULT_ADMIN_EMAIL)
 
-    # <<<< START OF FIX >>>>
     # The Pi's local IP address is crucial for Docker's extra_hosts setting.
-    # We re-use the IP address provided for the SSH connection to avoid confusion and errors from auto-detection in WSL.
+    # We re-use the IP address provided for the SSH connection to avoid confusion
+    # and errors from auto-detection in WSL.
     print(f"- The Pi's local IP address will be set to: {pi_hostname}")
     host_ip = pi_hostname
-    # <<<< END OF FIX >>>>
 
     db_user = get_user_input("Enter database username", DEFAULT_DB_USER)
     db_pass = get_password("Enter database password", stored_value=DEFAULT_DB_PASS)
-    frigate_pass = get_password("Enter Frigate RTSP password", stored_value=DEFAULT_FRIGATE_RTSP_PASSWORD)
+    frigate_pass = get_password(
+        "Enter Frigate RTSP password", stored_value=DEFAULT_FRIGATE_RTSP_PASSWORD
+    )
 
     blowfish = DEFAULT_PHPMYADMIN_BLOWFISH_SECRET or os.urandom(32).hex()
 
@@ -288,19 +331,27 @@ def main():
 
     # Collect all variables for the setup script
     env_vars_for_setup = {
-        "DOMAIN": domain, "PUID": puid, "PGID": pgid, "HOST_IP": host_ip,
-        "DB_USER": db_user, "DB_PASS": db_pass, "TZ": tz, "ADMIN_EMAIL": admin_email,
+        "DOMAIN": domain,
+        "PUID": puid,
+        "PGID": pgid,
+        "HOST_IP": host_ip,
+        "DB_USER": db_user,
+        "DB_PASS": db_pass,
+        "TZ": tz,
+        "ADMIN_EMAIL": admin_email,
         "REMOTE_PROJECT_PATH": remote_project_path,
         "FRIGATE_RTSP_PASSWORD": frigate_pass,
         "PHPMYADMIN_BLOWFISH_SECRET": blowfish,
-        "PMA_HOST": DEFAULT_PMA_HOST
+        "PMA_HOST": DEFAULT_PMA_HOST,
     }
 
     # Create the remote .env file for Docker Compose
-    remote_docker_env_path = os.path.join(remote_project_path, DOCKER_COMPOSE_OUTPUT_DIR, ".env").replace(os.sep, '/')
+    remote_docker_env_path = os.path.join(
+        remote_project_path, DOCKER_COMPOSE_OUTPUT_DIR, ".env"
+    ).replace(os.sep, "/")
     env_file_content = "\\n".join([f"{k}={v}" for k, v in env_vars_for_setup.items()])
     run_remote_command(ssh, f"mkdir -p {os.path.dirname(remote_docker_env_path)}")
-    run_remote_command(ssh, f"echo -e \"{env_file_content}\" > {remote_docker_env_path}")
+    run_remote_command(ssh, f'echo -e "{env_file_content}" > {remote_docker_env_path}')
     print("Remote '.env' file for Docker Compose created successfully.")
 
     # Build the setup tool Docker image
@@ -322,7 +373,7 @@ def main():
     print("\n--- Step 5: Finalizing Configuration ---")
     generated_configs_map = {}
     for line in reversed(setup_stdout.splitlines()):
-        if line.strip().startswith('{') and line.strip().endswith('}'):
+        if line.strip().startswith("{") and line.strip().endswith("}"):
             try:
                 generated_configs_map = json.loads(line.strip())
                 print(f"Parsed config map from setup script: {generated_configs_map}")
@@ -334,7 +385,9 @@ def main():
         for temp_path, final_path in generated_configs_map.items():
             final_dir = os.path.dirname(final_path)
             # temp_path is from container's perspective (/app/...), convert to host path
-            host_temp_path = os.path.join(remote_project_path, temp_path[len('/app/'):]).replace(os.sep, '/')
+            host_temp_path = os.path.join(
+                remote_project_path, temp_path[len("/app/") :]
+            ).replace(os.sep, "/")
 
             run_remote_command(ssh, f"sudo mkdir -p {final_dir}")
             run_remote_command(ssh, f"sudo mv {host_temp_path} {final_path}")
@@ -351,25 +404,29 @@ def main():
         print("  3. Exit")
         choice = input("Enter your choice [1, 2, 3]: ").strip()
 
-        compose_file_path = os.path.join(remote_project_path, DOCKER_COMPOSE_OUTPUT_DIR,
-                                         UNIFIED_DOCKER_COMPOSE_FILENAME).replace(os.sep, '/')
+        compose_file_path = os.path.join(
+            remote_project_path,
+            DOCKER_COMPOSE_OUTPUT_DIR,
+            UNIFIED_DOCKER_COMPOSE_FILENAME,
+        ).replace(os.sep, "/")
 
-        if choice == '1':
+        if choice == "1":
             run_remote_command(ssh, "docker network create piselfhosting_net || true")
             run_remote_command(ssh, f"docker compose -f {compose_file_path} up -d")
             print("All services are starting.")
             break
-        elif choice == '2':
+        elif choice == "2":
             run_remote_command(ssh, f"docker compose -f {compose_file_path} down")
             print("All services have been stopped.")
             break
-        elif choice == '3':
+        elif choice == "3":
+            print("Exiting.")
             break
         else:
             print("Invalid choice. Please try again.")
 
     ssh.close()
-    print("\nConnection closed. Goodbye!")
+    print("\n--- PiSelfhosting Installer Finished ---")
 
 
 if __name__ == "__main__":

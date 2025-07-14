@@ -61,7 +61,7 @@ jobs:
       run: |
         # Create a directory for the artifact
         mkdir -p artifact
-        
+
         # Move the executable into the directory
         if [ "$RUNNER_OS" == "Windows" ]; then
           mv dist/PiSelfhosting-Configurator-windows-latest.exe artifact/PiSelfhosting-Configurator.exe
