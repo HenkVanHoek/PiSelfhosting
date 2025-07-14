@@ -50,6 +50,7 @@ jobs:
           --onefile \
           --windowed \
           --paths src \
+          --add-data "piselfhosting_installer.py${SEP}." \
           --add-data "configurator_app/templates${SEP}templates" \
           --add-data "config${SEP}config" \
           --add-data "templates${SEP}templates" \
