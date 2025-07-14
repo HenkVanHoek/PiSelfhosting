@@ -1,4 +1,5 @@
 import json
+import platform
 import re
 import socket
 import subprocess
@@ -49,14 +50,50 @@ class PiScanner:
     def detect_subnet() -> str:
         """
         Detects the most likely local subnet of the machine running the script.
+        Tries a primary method and falls back to a platform-specific one for robustness.
         """
+        # Method 1: Connect to a public DNS server. This is fast but can be
+        # blocked by firewalls or fail on networks without an internet gateway.
         try:
             with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+                s.settimeout(1.0)
                 s.connect(("8.8.8.8", 80))
                 local_ip = s.getsockname()[0]
-            return ".".join(local_ip.split(".")[:-1]) + ".0/24"
-        except socket.error:
-            return ""
+                if not local_ip.startswith("127."):
+                    return ".".join(local_ip.split(".")[:-1]) + ".0/24"
+        except (socket.error, OSError):
+            pass  # Proceed to the fallback method.
+
+        # Method 2: Platform-specific fallback. More reliable locally.
+        try:
+            system = platform.system()
+            if system == "Windows":
+                # On Windows, parse 'ipconfig' output.
+                output = subprocess.check_output(
+                    "ipconfig", text=True, errors="replace"
+                )
+                # This regex looks for common private IPv4 address ranges.
+                match = re.search(
+                    r"IPv4 Address[.\s]+: "
+                    r"((?:192\.168|172\.(?:1[6-9]|2[0-9]|3[0-1])|10)\.\d+\.\d+)",
+                    output,
+                )
+                if match:
+                    local_ip = match.group(1)
+                    return ".".join(local_ip.split(".")[:-1]) + ".0/24"
+
+            elif system == "Linux":
+                # On Linux, 'hostname -I' is a reliable way to get local IPs.
+                output = subprocess.check_output(["hostname", "-I"], text=True)
+                local_ip = output.strip().split(" ")[0]
+                if local_ip:
+                    return ".".join(local_ip.split(".")[:-1]) + ".0/24"
+        except (subprocess.CalledProcessError, FileNotFoundError, IndexError):
+            # If platform-specific commands fail, we have no more options.
+            pass
+
+        # Return an empty string if all detection methods fail.
+        return ""
 
     @classmethod
     def scan(cls, subnet: str):
@@ -65,15 +102,13 @@ class PiScanner:
         Returns a tuple: (found_pis, nmap_stdout, nmap_stderr)
         """
         if not subnet:
-            print("Error: A valid subnet (e.g., '192.168.1.0/24') must be provided.")
-            return [], "", "No subnet provided."
+            err_msg = "Error: A valid subnet (e.g., '192.168.1.0/24') must be provided."
+            print(err_msg)
+            return [], "", err_msg
 
         print(f"Scanning subnet {subnet} for Raspberry Pi devices...")
-        found_pis = []
-        nmap_stdout = ""
-        nmap_stderr = ""
+
         try:
-            # Use check=False to be able to capture stderr even on failure
             nmap_args = ["nmap", "-sn", subnet]
             result = subprocess.run(
                 nmap_args,
@@ -84,12 +119,16 @@ class PiScanner:
                 encoding="utf-8",
                 errors="replace",
             )
-            nmap_stdout = result.stdout
-            nmap_stderr = result.stderr
 
+            # Log errors if nmap fails or writes to stderr
             if result.returncode != 0:
                 print(f"Nmap exited with code {result.returncode}")
+                if result.stderr:
+                    print(f"Nmap error output: {result.stderr.strip()}")
 
+            # Process stdout for device information
+            nmap_stdout = result.stdout
+            found_pis = []
             pattern = re.compile(
                 r"Nmap scan report for "
                 r"([\d.]+)\s+Host is up.*?\s+MAC Address: ([0-9A-F:]+)",
@@ -102,15 +141,20 @@ class PiScanner:
                 if any(mac_lower.startswith(p) for p in cls.PI_MAC_PREFIXES):
                     found_pis.append({"ip": ip, "mac": mac_lower})
 
+            print(f"Scan complete. Found {len(found_pis)} potential Raspberry Pi(s).")
+            # Return all parts from the result object directly
+            return found_pis, result.stdout, result.stderr
+
         except FileNotFoundError:
-            nmap_stderr = (
+            err_msg = (
                 "Error: 'nmap' command not found. Is nmap installed and in your PATH?"
             )
+            print(err_msg)
+            return [], "", err_msg
         except subprocess.TimeoutExpired:
-            nmap_stderr = "Error: nmap scan timed out after 3 minutes."
-
-        print(f"Scan complete. Found {len(found_pis)} potential Raspberry Pi(s).")
-        return found_pis, nmap_stdout, nmap_stderr
+            err_msg = "Error: nmap scan timed out after 3 minutes."
+            print(err_msg)
+            return [], "", err_msg
 
     @staticmethod
     def get_device_details(
@@ -119,7 +163,6 @@ class PiScanner:
         """
         Connects to a device via SSH and retrieves hardware details.
         """
-        # MODIFICATION: Use the public module-level helper function
         if not is_port_open(ip, 22):
             print(f"SSH port 22 is not open on {ip}. Skipping.")
             return None
