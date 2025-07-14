@@ -70,7 +70,7 @@ class PiScanner:
         print(f"Scanning subnet {subnet} for Raspberry Pi devices...")
         found_pis = []
         try:
-            nmap_args = ["nmap", "-sn", "-PR", subnet]
+            nmap_args = ["nmap", "-sn", subnet]
             result = subprocess.run(
                 nmap_args, capture_output=True, text=True, check=True, timeout=180
             )
