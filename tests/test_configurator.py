@@ -147,7 +147,12 @@ def test_scan_network_endpoint(mock_scan, mock_get_details, client):
     WHEN the '/scan' endpoint is called
     THEN check that the scanner is called and returns a structured response.
     """
-    mock_scan.return_value = [{"ip": "192.168.1.101", "mac": "e4:5f:01:aa:bb:cc"}]
+    # MODIFICATION: Mock now returns the expected tuple format
+    mock_scan.return_value = (
+        [{"ip": "192.168.1.101", "mac": "e4:5f:01:aa:bb:cc"}],
+        "mock nmap stdout",
+        "mock nmap stderr",
+    )
     mock_get_details.return_value = {
         "model": "Raspberry Pi 5",
         "ram": "8GiB",
@@ -159,11 +164,17 @@ def test_scan_network_endpoint(mock_scan, mock_get_details, client):
         "/scan",
         json={"subnet": "192.168.1.0/24", "username": "pi", "password": "raspberry"},
     )
+    json_response = response.json
 
     assert response.status_code == 200
     mock_scan.assert_called_once_with(subnet="192.168.1.0/24")
     mock_get_details.assert_called_once_with("192.168.1.101", "pi", "raspberry")
-    assert "10000000abcdef" in response.json["success"]
+
+    # MODIFICATION: Check for success and debug keys in the JSON response
+    assert "10000000abcdef" in json_response["success"]
+    assert "debug" in json_response
+    assert json_response["debug"]["stdout"] == "mock nmap stdout"
+    assert json_response["debug"]["stderr"] == "mock nmap stderr"
 
 
 @patch("configurator_app.app.PiScanner.get_device_details")

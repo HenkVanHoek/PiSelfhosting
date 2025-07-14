@@ -179,11 +179,15 @@ def create_app(test_config=None):
         if not all([subnet, username]):
             return jsonify({"error": "Subnet and username are required."}), 400
 
-        potential_pis = PiScanner.scan(subnet=subnet)
-        if not potential_pis:
-            return jsonify({"success": {}, "failed": []})
+        # Capture the full output from the scanner
+        potential_pis, nmap_stdout, nmap_stderr = PiScanner.scan(subnet=subnet)
+        debug_info = {"stdout": nmap_stdout, "stderr": nmap_stderr}
 
-        results = {"success": {}, "failed": []}
+        if not potential_pis:
+            # Even if no devices are found, return the debug info
+            return jsonify({"success": {}, "failed": [], "debug": debug_info})
+
+        results = {"success": {}, "failed": [], "debug": debug_info}
 
         for pi in potential_pis:
             ip = pi["ip"]

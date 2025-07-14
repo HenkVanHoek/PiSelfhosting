@@ -47,12 +47,19 @@ class TestPiScanner:
         Tests that the scanner correctly parses nmap output and identifies
         all devices with a valid Raspberry Pi MAC address prefix.
         """
+        # The mock should also cover stderr, even if empty
         mock_run.return_value = MagicMock(
             stdout=mock_nmap_text_output, stderr="", returncode=0
         )
-        found_pis = PiScanner.scan("192.168.1.0/24")
 
+        # MODIFICATION: Unpack the tuple returned by the updated scan method
+        found_pis, stdout, stderr = PiScanner.scan("192.168.1.0/24")
+
+        # MODIFICATION: Assert on all unpacked values
+        assert stdout == mock_nmap_text_output
+        assert stderr == ""
         assert len(found_pis) == 2
+
         found_pis_set = {tuple(p.items()) for p in found_pis}
         expected_pis_set = {
             (("ip", "192.168.1.1"), ("mac", "dc:a6:32:01:02:03")),

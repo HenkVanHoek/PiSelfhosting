@@ -59,28 +59,43 @@ class PiScanner:
             return ""
 
     @classmethod
-    def scan(cls, subnet: str) -> List[Dict[str, str]]:
+    def scan(cls, subnet: str):
         """
         Scans the given subnet for Raspberry Pi devices using nmap.
+        Returns a tuple: (found_pis, nmap_stdout, nmap_stderr)
         """
         if not subnet:
             print("Error: A valid subnet (e.g., '192.168.1.0/24') must be provided.")
-            return []
+            return [], "", "No subnet provided."
 
         print(f"Scanning subnet {subnet} for Raspberry Pi devices...")
         found_pis = []
+        nmap_stdout = ""
+        nmap_stderr = ""
         try:
+            # Use check=False to be able to capture stderr even on failure
             nmap_args = ["nmap", "-sn", subnet]
             result = subprocess.run(
-                nmap_args, capture_output=True, text=True, check=True, timeout=180
+                nmap_args,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=180,
+                encoding="utf-8",
+                errors="replace",
             )
-            nmap_output = result.stdout
+            nmap_stdout = result.stdout
+            nmap_stderr = result.stderr
+
+            if result.returncode != 0:
+                print(f"Nmap exited with code {result.returncode}")
+
             pattern = re.compile(
                 r"Nmap scan report for "
                 r"([\d.]+)\s+Host is up.*?\s+MAC Address: ([0-9A-F:]+)",
                 re.DOTALL | re.IGNORECASE,
             )
-            matches = pattern.findall(nmap_output)
+            matches = pattern.findall(nmap_stdout)
 
             for ip, mac in matches:
                 mac_lower = mac.lower()
@@ -88,16 +103,14 @@ class PiScanner:
                     found_pis.append({"ip": ip, "mac": mac_lower})
 
         except FileNotFoundError:
-            print(
+            nmap_stderr = (
                 "Error: 'nmap' command not found. Is nmap installed and in your PATH?"
             )
-        except subprocess.CalledProcessError as e:
-            print(f"Error during nmap scan: {e}\nOutput: {e.stderr}")
         except subprocess.TimeoutExpired:
-            print("Error: nmap scan timed out after 3 minutes.")
+            nmap_stderr = "Error: nmap scan timed out after 3 minutes."
 
         print(f"Scan complete. Found {len(found_pis)} potential Raspberry Pi(s).")
-        return found_pis
+        return found_pis, nmap_stdout, nmap_stderr
 
     @staticmethod
     def get_device_details(
