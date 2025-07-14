@@ -22,7 +22,6 @@ __pycache__/
 #-----------------------------------------
 build/
 dist/
-PiSelfhostingInstaller.spec
 .pytest_cache/
 
 # Project-specific generated files

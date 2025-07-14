@@ -2,25 +2,22 @@ import json
 
 import pytest
 
-# Correctie: Importeer vanuit de 'src' map
+# Correction: Import from the 'src' directory
 from src.component_manager import ComponentManager
-
-# from pathlib import Path
 
 
 @pytest.fixture
 def mock_project_structure(tmp_path):
     """
-    Creëert een tijdelijke projectstructuur met een componenten metadata bestand.
-    Deze fixture wordt automatisch door pytest aangeroepen voor
-    het initialiseren van een ComponentManager
-    tests die het als argument hebben.
+    Creates a temporary project structure with a component metadata file.
+    This fixture is automatically called by pytest to initialize
+    ComponentManager tests that have it as an argument.
     """
-    # Maak een tijdelijke map voor de configuratie
+    # Create a temporary directory for the configuration
     config_dir = tmp_path / "config"
     config_dir.mkdir()
 
-    # Definieer de standaard metadata voor de tests
+    # Define the default metadata for the tests
     metadata = {
         "_piselfhosting": {"components_order": ["dashy", "portainer", "frigate"]},
         "dashy": {
@@ -40,18 +37,18 @@ def mock_project_structure(tmp_path):
         },
     }
 
-    # Schrijf de metadata naar het JSON-bestand binnen de tijdelijke map
+    # Write the metadata to the JSON file within the temporary directory
     metadata_path = config_dir / "components_metadata.json"
     with open(metadata_path, "w", encoding="utf-8") as f:
         json.dump(metadata, f)
 
-    # De ComponentManager verwacht het pad naar het *bestand*, dus dat geven we terug
+    # The ComponentManager expects the path to the *file*, so we return that
     return metadata_path
 
 
 def test_manager_loads_components_successfully(mock_project_structure):
-    """Test dat de ComponentManager correct initialiseert met geldige metadata."""
-    # De 'mock_project_structure' fixture wordt hier automatisch gebruikt
+    """Test that the ComponentManager initializes correctly with valid metadata."""
+    # The 'mock_project_structure' fixture is automatically used here
     manager = ComponentManager(metadata_path=mock_project_structure)
 
     all_components = manager.get_all_components()
@@ -61,36 +58,36 @@ def test_manager_loads_components_successfully(mock_project_structure):
 
 
 def test_get_component_details(mock_project_structure):
-    """Test het ophalen van details voor een specifieke component."""
+    """Test retrieving details for a specific component."""
     manager = ComponentManager(metadata_path=mock_project_structure)
 
-    # Test het ophalen van een geldige component
+    # Test retrieving a valid component
     details = manager.get_component_details("dashy")
     assert details is not None
     assert details["name"] == "Dashy"
 
-    # Test het ophalen van een niet-bestaande component
+    # Test retrieving a non-existent component
     details_none = manager.get_component_details("non_existent_component")
     assert details_none is None
 
 
 def test_manager_raises_file_not_found_on_init(tmp_path):
-    """Test dat de manager een FileNotFoundError opwerpt als de metadata ontbreekt."""
+    """Test that the manager raises a FileNotFoundError if the metadata is missing."""
     non_existent_path = tmp_path / "non_existent_file.json"
     with pytest.raises(FileNotFoundError):
         ComponentManager(metadata_path=non_existent_path)
 
 
 def test_manager_raises_json_decode_error_on_init(tmp_path):
-    """Test dat de manager een JSONDecodeError opwerpt voor een corrupt bestand."""
+    """Test that the manager raises a JSONDecodeError for a corrupt file."""
     bad_json_path = tmp_path / "bad.json"
-    bad_json_path.write_text("{'key': 'value',}")  # Ongeldige JSON
+    bad_json_path.write_text("{'key': 'value',}")  # Invalid JSON
     with pytest.raises(json.JSONDecodeError):
         ComponentManager(metadata_path=bad_json_path)
 
 
 def test_get_uniqueness_groups(mock_project_structure):
-    """Test of de uniqueness groups correct worden geïdentificeerd."""
+    """Test if the uniqueness groups are identified correctly."""
     metadata_path = mock_project_structure
 
     with open(metadata_path, "r", encoding="utf-8") as f:

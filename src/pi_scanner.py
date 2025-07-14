@@ -70,8 +70,9 @@ class PiScanner:
                     output = subprocess.check_output(
                         "ipconfig", text=True, errors="replace", timeout=5
                     )
+                    # FIX: Make regex more robust for different OS languages
                     ip_pattern = (
-                        r"IPv4 Address[.\s]+: "
+                        r"IPv4.*: "
                         r"((?:192\.168|172\.(?:1[6-9]|2[0-9]|3[0-1])|10)\.\d+\.\d+)"
                     )
                     match = re.search(ip_pattern, output)
@@ -189,9 +190,13 @@ class PiScanner:
 
         try:
             try:
+                # First attempt key-based auth
                 ssh.connect(hostname=ip, username=username, password=None, timeout=10)
             except (paramiko.AuthenticationException, paramiko.SSHException):
-                if password is not None:
+                # FIX: Check if a password was actually provided, not just
+                # an empty string
+                if password:
+                    # If key-based auth fails, try with the provided password
                     ssh.connect(
                         hostname=ip,
                         username=username,
@@ -199,6 +204,7 @@ class PiScanner:
                         timeout=10,
                     )
                 else:
+                    # If no password, then authentication has failed
                     raise paramiko.AuthenticationException(
                         "Key-based authentication failed and no password was "
                         "provided."
