@@ -1,184 +1,134 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Step 1: Find Your Pi</title>
-    <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; margin: 2em; background-color: #f4f7f6; color: #333; }
-        h1, h2, h3, h4 { color: #2c3e50; }
-        .container { max-width: 800px; margin: 0 auto; background: #fff; padding: 2em; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-        .form-group { margin-bottom: 1.5em; }
-        label { display: block; margin-bottom: 0.5em; font-weight: bold; }
-        input[type="text"], input[type="password"] { width: calc(100% - 1.2em); padding: 0.6em; border: 1px solid #ccc; border-radius: 4px; }
-        button { background-color: #3498db; color: white; padding: 0.8em 1.2em; border: none; border-radius: 4px; cursor: pointer; font-size: 1em; }
-        button:hover { background-color: #2980b9; }
-        .pi-list { margin-top: 2em; }
-        {#.pi-item { border: 1px solid #e0e0e0; padding: 1em; margin-bottom: 1em; border-radius: 5px; background-color: #fafafa; }#}
-        .loading { display: none; text-align: center; padding: 1em; font-size: 1.2em; color: #555; }
-        {#.error { color: #e74c3c; font-weight: bold; }#}
-        /* MODIFICATION: Styles for the new debug output container */
-        .debug-container {
-            margin-top: 20px;
-            padding: 15px;
-            border: 1px solid #e0e0e0;
-            background-color: #2c3e50; /* Dark background for code */
-            color: #f8f8f2; /* Light text */
-            font-family: "Courier New", Courier, monospace;
-            border-radius: 5px;
-        }
-        .debug-container h3, .debug-container h4 {
-            color: #e6e6e6;
-            margin-top: 0;
-            border-bottom: 1px solid #445;
-            padding-bottom: 5px;
-        }
-        .debug-container pre {
-            white-space: pre-wrap;
-            word-wrap: break-word;
-            background-color: #272822; /* Monokai-like background */
-            padding: 10px;
-            border: 1px solid #444;
-            max-height: 400px;
-            overflow-y: auto;
-            border-radius: 4px;
-        }
-    </style>
-</head>
-<body>
+{% extends "base.html" %}
 
-    <div class="container">
-        <h1>Step 1: Find Your Raspberry Pi</h1>
-        <p>Enter your network details to scan for Raspberry Pi devices.</p>
+{% block title %}Step 1: Find Your Pi - {{ super() }}{% endblock %}
 
-        <form id="scan-form">
-            <div class="form-group">
-                <label for="subnet">Subnet to Scan (e.g., 192.168.1.0/24):</label>
-                <input type="text" id="subnet" name="subnet" value="{{ subnet or '192.168.1.0/24' }}" required>
-            </div>
-            <div class="form-group">
-                <label for="ssh-user">SSH Username:</label>
-                <input type="text" id="ssh-user" name="username" value="pi" required>
-            </div>
-            <div class="form-group">
-                <label for="ssh-pass">SSH Password (optional, for key-based auth):</label>
-                <input type="password" id="ssh-pass" name="password" placeholder="Leave blank for key-based auth">
-            </div>
-            <button type="submit">Scan for Devices</button>
-        </form>
+{% block content %}
+<div class="container">
+    <h1>Step 1: Find Your Raspberry Pi</h1>
+    <p>Enter your network details to scan for Raspberry Pi devices.</p>
 
-        <div id="loading" class="loading">
-            <p>🔎 Scanning... This may take up to 3 minutes.</p>
+    <form id="scan-form">
+        <div class="form-group">
+            <label for="subnet">Subnet to Scan (e.g., 192.168.1.0/24):</label>
+            <input type="text" id="subnet" name="subnet" value="{{ detected_subnet or '192.168.1.0/24' }}" required>
         </div>
-
-        <div id="results" class="pi-list"></div>
-
-        <!-- MODIFICATION: Added a container for the Nmap debug output -->
-        <div id="debug-output" class="debug-container" style="display: none;">
-            <h3>Nmap Debug Information</h3>
-            <h4>Standard Output:</h4>
-            <pre id="nmap-stdout"></pre>
-            <h4>Error Output:</h4>
-            <pre id="nmap-stderr"></pre>
+        <div class="form-group">
+            <label for="ssh-user">SSH Username:</label>
+            <input type="text" id="ssh-user" name="username" value="pi" required>
         </div>
+        <div class="form-group">
+            <label for="ssh-pass">SSH Password (optional, for key-based auth):</label>
+            <input type="password" id="ssh-pass" name="password" placeholder="Leave blank for key-based auth">
+        </div>
+        <button type="submit">Scan for Devices</button>
+    </form>
+
+    <div id="loading" class="loading">
+        <p>🔎 Scanning... This may take up to 3 minutes.</p>
     </div>
 
-    <script>
-        const scanForm = document.getElementById('scan-form');
-        const loadingDiv = document.getElementById('loading');
-        const resultsDiv = document.getElementById('results');
+    <div id="results" class="pi-list"></div>
 
-        // MODIFICATION: Get handles for the new debug elements
-        const debugOutputDiv = document.getElementById('debug-output');
-        const nmapStdoutPre = document.getElementById('nmap-stdout');
-        const nmapStderrPre = document.getElementById('nmap-stderr');
+    <div id="debug-output" class="debug-container" style="display: none;">
+        <h3>Nmap Debug Information</h3>
+        <h4>Standard Output:</h4>
+        <pre id="nmap-stdout"></pre>
+        <h4>Error Output:</h4>
+        <pre id="nmap-stderr"></pre>
+    </div>
+</div>
 
-        scanForm.addEventListener('submit', async (event) => {
-            event.preventDefault();
+<script>
+    const scanForm = document.getElementById('scan-form');
+    const loadingDiv = document.getElementById('loading');
+    const resultsDiv = document.getElementById('results');
+    const debugOutputDiv = document.getElementById('debug-output');
+    const nmapStdoutPre = document.getElementById('nmap-stdout');
+    const nmapStderrPre = document.getElementById('nmap-stderr');
 
-            loadingDiv.style.display = 'block';
-            resultsDiv.innerHTML = '';
-            // MODIFICATION: Hide the debug output on each new scan
-            debugOutputDiv.style.display = 'none';
-            nmapStdoutPre.textContent = '';
-            nmapStderrPre.textContent = '';
+    scanForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
 
+        loadingDiv.style.display = 'block';
+        resultsDiv.innerHTML = '';
+        debugOutputDiv.style.display = 'none';
+        nmapStdoutPre.textContent = '';
+        nmapStderrPre.textContent = '';
 
-            const formData = new FormData(scanForm);
-            const data = Object.fromEntries(formData.entries());
+        const formData = new FormData(scanForm);
+        const data = Object.fromEntries(formData.entries());
 
-            try {
-                const response = await fetch('/scan', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
-                });
+        try {
+            const response = await fetch('/scan', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
 
-                if (!response.ok) {
-                    throw new Error(`HTTP error! Status: ${response.status}`);
-                }
-
-                const resultData = await response.json();
-                displayResults(resultData);
-
-                // MODIFICATION: Display debug info if it exists in the response
-                if (resultData.debug) {
-                    const stdout = resultData.debug.stdout;
-                    const stderr = resultData.debug.stderr;
-
-                    if (stdout || stderr) {
-                         nmapStdoutPre.textContent = stdout || '(No standard output captured)';
-                         nmapStderrPre.textContent = stderr || '(No standard error captured)';
-                         debugOutputDiv.style.display = 'block';
-                    }
-                }
-
-            } catch (error) {
-                resultsDiv.innerHTML = `<p class="error">An unexpected error occurred: ${error.message}</p>`;
-            } finally {
-                loadingDiv.style.display = 'none';
-            }
-        });
-
-        function displayResults(data) {
-            let html = '<h2>Scan Results</h2>';
-
-            const hasSuccess = data.success && Object.keys(data.success).length > 0;
-            const hasFailed = data.failed && data.failed.length > 0;
-
-            if (!hasSuccess && !hasFailed) {
-                 html += '<p>No devices found on the specified subnet. Check the debug output below for details.</p>';
+            if (!response.ok) {
+                throw new Error(`HTTP error! Status: ${response.status}`);
             }
 
-            if (hasSuccess) {
-                html += '<h3>✔️ Devices Ready to Configure</h3>';
-                for (const serial in data.success) {
-                    const device = data.success[serial];
-                    html += `<div class="pi-item">
-                               <p><strong>Model:</strong> ${device.model}</p>
-                               <p><strong>IP Address:</strong> ${device.connections[0].ip}</p>
-                               <p><strong>MAC Address:</strong> ${device.connections[0].mac}</p>
-                               <p><strong>Serial:</strong> ${device.serial}</p>
-                               <form action="/select-pi" method="post" style="margin-top: 1em;">
-                                   <input type="hidden" name="pi_ip" value="${device.connections[0].ip}">
-                                   <button type="submit">Select this Pi</button>
-                               </form>
-                           </div>`;
+            const resultData = await response.json();
+            displayResults(resultData);
+
+            if (resultData.debug) {
+                const stdout = resultData.debug.stdout;
+                const stderr = resultData.debug.stderr;
+
+                if (stdout || stderr) {
+                     nmapStdoutPre.textContent = stdout || '(No standard output captured)';
+                     nmapStderrPre.textContent = stderr || '(No standard error captured)';
+                     debugOutputDiv.style.display = 'block';
                 }
             }
 
-            if (hasFailed) {
-                html += '<h3>⚠️ Devices Found (Authentication Failed)</h3>';
-                 data.failed.forEach(device => {
-                     html += `<div class="pi-item">
-                                <p><strong>IP Address:</strong> ${device.ip}</p>
-                                <p><strong>MAC Address:</strong> ${device.mac}</p>
-                                <p class="error">Could not connect via SSH. Please check username/password and network connectivity.</p>
-                            </div>`;
-                 });
-            }
-
-            resultsDiv.innerHTML = html;
+        } catch (error) {
+            resultsDiv.innerHTML = `<p class="error">An unexpected error occurred: ${error.message}</p>`;
+        } finally {
+            loadingDiv.style.display = 'none';
         }
-    </script>
-</body>
-</html>
+    });
+
+    function displayResults(data) {
+        let html = '<h2>Scan Results</h2>';
+
+        const hasSuccess = data.success && Object.keys(data.success).length > 0;
+        const hasFailed = data.failed && data.failed.length > 0;
+
+        if (!hasSuccess && !hasFailed) {
+             html += '<p>No devices found on the specified subnet. Check the debug output below for details.</p>';
+        }
+
+        if (hasSuccess) {
+            html += '<h3>✔️ Devices Ready to Configure</h3>';
+            for (const serial in data.success) {
+                const device = data.success[serial];
+                html += `<div class="pi-item">
+                           <p><strong>Model:</strong> ${device.model}</p>
+                           <p><strong>IP Address:</strong> ${device.connections[0].ip}</p>
+                           <p><strong>MAC Address:</strong> ${device.connections[0].mac}</p>
+                           <p><strong>Serial:</strong> ${device.serial}</p>
+                           <form action="/select-pi" method="post" style="margin-top: 1em;">
+                               <input type="hidden" name="pi_ip" value="${device.connections[0].ip}">
+                               <button type="submit">Select this Pi</button>
+                           </form>
+                       </div>`;
+            }
+        }
+
+        if (hasFailed) {
+            html += '<h3>⚠️ Devices Found (Authentication Failed)</h3>';
+             data.failed.forEach(device => {
+                 html += `<div class="pi-item">
+                            <p><strong>IP Address:</strong> ${device.ip}</p>
+                            <p><strong>MAC Address:</strong> ${device.mac}</p>
+                            <p class="error">Could not connect via SSH. Please check username/password and network connectivity.</p>
+                        </div>`;
+             });
+        }
+
+        resultsDiv.innerHTML = html;
+    }
+</script>
+{% endblock %}

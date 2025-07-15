@@ -1,7 +1,6 @@
 import json
 import logging
 import os
-import subprocess
 import sys
 import webbrowser
 from collections import defaultdict
@@ -23,16 +22,14 @@ from flask import (
 
 # --- Path and Module Setup ---
 # This ensures the app can find your other source files
-# (This block must come before the src imports)
 def get_project_root():
     """
     Returns the correct root path whether running from source or as a
     PyInstaller bundle. In a bundle, this points to the temporary directory
-    where all assets (like the 'config' folder) are unpacked.
+    where all assets are unpacked.
     """
     if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
         # Running in a PyInstaller bundle (frozen).
-        # This is the correct, documented way to get the path.
         # noinspection PyProtectedMember
         return sys._MEIPASS
     else:
@@ -45,6 +42,10 @@ src_path = os.path.join(project_root, "src")
 if src_path not in sys.path:
     sys.path.insert(0, src_path)
 
+# This ensures the PyInstaller bundle can find the script
+if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+    sys.path.insert(0, project_root)
+
 from component_manager import ComponentManager  # noqa: E402
 from pi_scanner import PiScanner  # noqa: E402
 
@@ -54,14 +55,13 @@ log_formatter = logging.Formatter(
 )
 log_handler = RotatingFileHandler(
     "configurator.log",
-    maxBytes=1024 * 1024,  # 1 Megabyte
-    backupCount=3,  # Keep up to 3 old log files
+    maxBytes=1024 * 1024,  # 1 MB
+    backupCount=3,
     encoding="utf-8",
 )
 log_handler.setFormatter(log_formatter)
 log_handler.setLevel(logging.DEBUG)
 
-# Get the root logger and add our handler.
 root_logger = logging.getLogger()
 root_logger.setLevel(logging.DEBUG)
 if not root_logger.handlers:
@@ -72,7 +72,6 @@ if not root_logger.handlers:
 def create_app(test_config=None):
     """Application Factory Function"""
     app = Flask(__name__)
-    # A secret key is required for session management
     app.secret_key = os.urandom(24)
 
     app.logger.info("Flask application starting up...")
@@ -99,54 +98,37 @@ def create_app(test_config=None):
     @app.route("/")
     def index():
         try:
-            """
-            Main page: shows the Pi discovery/selection page if no Pi is selected,
-            otherwise shows the component selection page.
-            """
             if "target_pi_ip" in session:
                 all_components = manager.get_all_components()
                 uniqueness_groups = manager.get_uniqueness_groups()
-
-                # --- Grouping Logic ---
-                # Use a defaultdict to easily group components by their section.
                 grouped_components = defaultdict(list)
                 order = all_components.get("_piselfhosting", {}).get(
                     "components_order", []
                 )
 
-                # Iterate through the defined order to maintain consistency
                 for component_id in order:
                     component_data = all_components.get(component_id)
                     if component_data:
-                        # Use 'Uncategorized' as a fallback group
                         section_name = component_data.get(
                             "dashy_section", "Uncategorized"
                         )
-                        # Append the full component info, including its ID
                         grouped_components[section_name].append(
                             {"id": component_id, "data": component_data}
                         )
-                # --- End of Grouping Logic ---
 
-                # --- Load Default Selections ---
                 default_components = []
                 try:
                     with open(app.config["DEFAULT_COMPONENTS_FILE"], "r") as f:
-                        # Read the file, strip whitespace, and split by spaces/newlines
                         default_components = f.read().strip().split()
                 except FileNotFoundError:
                     app.logger.warning(
-                        (
-                            f"Default components file not found at "
-                            f"{app.config['DEFAULT_COMPONENTS_FILE']}. "
-                            f"No components will be pre-selected."
-                        )
+                        f"Default components file not found at "
+                        f"{app.config['DEFAULT_COMPONENTS_FILE']}. "
+                        f"No components will be pre-selected."
                     )
-                # --- End of Default Selections ---
 
                 return render_template(
                     "select_components.html",
-                    # Pass the new grouped data structure to the template
                     grouped_components=grouped_components,
                     pi_ip=session["target_pi_ip"],
                     uniqueness_groups=json.dumps(uniqueness_groups),
@@ -158,33 +140,25 @@ def create_app(test_config=None):
                     "select_pi.html", detected_subnet=detected_subnet
                 )
         except Exception:
-            # Log the full error if something goes wrong
             app.logger.error(
                 "An unhandled exception occurred in the index route!", exc_info=True
             )
-            # You can still let Flask show the generic 500 error page to the user
             raise
 
     @app.route("/scan", methods=["POST"])
     def scan_network():
-        """
-        API endpoint to run PiScanner and return both successfully identified
-        devices and devices that failed authentication.
-        """
         data = request.json
         subnet = data.get("subnet")
         username = data.get("username")
-        password = data.get("password")  # Can be None for key-based auth
+        password = data.get("password")
 
         if not all([subnet, username]):
             return jsonify({"error": "Subnet and username are required."}), 400
 
-        # Capture the full output from the scanner
         potential_pis, nmap_stdout, nmap_stderr = PiScanner.scan(subnet=subnet)
         debug_info = {"stdout": nmap_stdout, "stderr": nmap_stderr}
 
         if not potential_pis:
-            # Even if no devices are found, return the debug info
             return jsonify({"success": {}, "failed": [], "debug": debug_info})
 
         results = {"success": {}, "failed": [], "debug": debug_info}
@@ -207,29 +181,23 @@ def create_app(test_config=None):
                         {"ip": ip, "mac": pi["mac"]}
                     )
             else:
-                # If details could not be fetched, add to the failed list
                 results["failed"].append(pi)
 
         return jsonify(results)
 
     @app.route("/get-details", methods=["POST"])
     def get_device_details_for_ip():
-        """
-        API endpoint to get details for a single IP address with specific credentials.
-        Used for the "retry" functionality.
-        """
         data = request.json
         ip = data.get("ip")
         mac = data.get("mac")
         username = data.get("username")
-        password = data.get("password")  # Can be None
+        password = data.get("password")
 
         if not all([ip, mac, username]):
             return jsonify({"error": "IP, MAC, and username are required."}), 400
 
         details = PiScanner.get_device_details(ip, username, password)
         if details and details.get("serial"):
-            # If successful, return the device details in the same format as the scan
             serial = details["serial"]
             device_data = {
                 serial: {
@@ -251,13 +219,11 @@ def create_app(test_config=None):
 
     @app.route("/select-pi", methods=["POST"])
     def select_pi():
-        """Saves the selected Pi's IP address to the user's session."""
         session["target_pi_ip"] = request.form.get("pi_ip")
         return redirect(url_for("index"))
 
     @app.route("/save-and-install", methods=["POST"])
     def save_and_install():
-        """Saves component selection and user credentials, then shows success page."""
         selected_ids = request.form.getlist("components")
         with open(app.config["SELECTED_COMPONENTS_OUTPUT_FILE"], "w") as f:
             f.write(" ".join(selected_ids))
@@ -277,44 +243,23 @@ def create_app(test_config=None):
     @app.route("/install-stream")
     def install_stream():
         """
-        Runs the installer script as a subprocess and streams its
-        stdout and stderr to the client using Server-Sent Events.
+        Runs the installer logic by calling the imported run_installation
+        function and streams its output to the client using Server-Sent Events.
         """
+        import piselfhosting_installer
 
         def generate_log():
-            # Path to the installer script, relative to the project root
-            installer_script_path = os.path.join(
-                project_root, "piselfhosting_installer.py"
-            )
-
-            if not os.path.exists(installer_script_path):
-                yield (
-                    f"data: FATAL ERROR: Installer script not found at "
-                    f"{installer_script_path}\n\n"
-                )
+            try:
+                # Call the generator function directly from the installer script
+                for line in piselfhosting_installer.run_installation():
+                    # Format the line for SSE and yield it to the client
+                    yield f"data: {line.strip()}\n\n"
+            except Exception as e:
+                # Log the exception from the web app's perspective
+                app.logger.error("Error during installation stream", exc_info=True)
+                # Also send the error to the client
+                yield f"data: FATAL ERROR in web app: {e}\n\n"
                 yield "data: --- SCRIPT FINISHED ---\n\n"
-                return
-
-            # Use Popen to run the script as a non-blocking subprocess
-            # We merge stdout and stderr to capture all output in one stream
-            process = subprocess.Popen(
-                [sys.executable, installer_script_path],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                bufsize=1,  # Line-buffered
-            )
-
-            # Read output line by line as it's generated
-            for line in iter(process.stdout.readline, ""):
-                # Format the line for SSE and yield it to the client
-                yield f"data: {line.strip()}\n\n"
-
-            process.stdout.close()
-            return_code = process.wait()
-            yield f"data: \n--- SCRIPT FINISHED (Exit Code: {return_code}) ---\n\n"
 
         # Return a streaming response
         return Response(generate_log(), mimetype="text/event-stream")

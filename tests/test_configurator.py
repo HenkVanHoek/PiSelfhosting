@@ -1,5 +1,5 @@
 import json
-from unittest.mock import MagicMock, patch
+from unittest.mock import call, patch
 
 import pytest
 
@@ -45,17 +45,30 @@ def app(mock_paths):
         },
     }
     mock_paths["metadata_file"].write_text(json.dumps(mock_components))
-
     mock_paths["default_components_file"].write_text("dashy")
 
-    # Create dummy template files
+    base_template = """
+    <!DOCTYPE html>
+    <html>
+    <body>
+        <header><h1>Mock Header</h1></header>
+        <main>{% block content %}{% endblock %}</main>
+    </body>
+    </html>
+    """
+    (mock_paths["template_dir"] / "base.html").write_text(base_template)
+
     (mock_paths["template_dir"] / "select_pi.html").write_text(
+        '{% extends "base.html" %}{% block content %}'
         "<h1>Step 1: Find Your Raspberry Pi</h1>"
+        "{% endblock %}"
     )
 
-    # MODIFICATION: The <input> tag is now on a single line to produce predictable HTML
     select_components_template = """
-    <h1>Step 2: Select Components for {{ pi_ip }}</h1>
+    {% extends "base.html" %}
+    {% block content %}
+    <h1>Step 2: Select Components</h1>
+    <p>For Pi at <strong>{{ pi_ip }}</strong></p>
     {% for group_name, component_list in grouped_components.items() %}
         <h2>{{ group_name }}</h2>
         {% for component in component_list %}
@@ -67,19 +80,27 @@ def app(mock_paths):
             </label>
         {% endfor %}
     {% endfor %}
+    {% endblock %}
     """
     (mock_paths["template_dir"] / "select_components.html").write_text(
         select_components_template
     )
 
     (mock_paths["template_dir"] / "install_success.html").write_text(
-        '<h1>Ready to Install</h1><a href="/live-log">Start Installation</a>'
-    )
-    (mock_paths["template_dir"] / "live_log.html").write_text(
-        '<h1>Live Log</h1><pre id="log-output"></pre>'
+        '{% extends "base.html" %}{% block content %}'
+        "<h1>✔️ Configuration Saved!</h1>"
+        '<a href="/live-log">Start Installation</a>'
+        "{% endblock %}"
     )
 
-    app = create_app(
+    (mock_paths["template_dir"] / "live_log.html").write_text(
+        '{% extends "base.html" %}{% block content %}'
+        '<h1>Live Log</h1><pre id="log-output"></pre>'
+        "{% endblock %}"
+    )
+
+    # --- FIX: Removed unused import 'piselfhosting_installer' ---
+    app_instance = create_app(
         {
             "TESTING": True,
             "SECRET_KEY": "test-secret-key",
@@ -90,8 +111,8 @@ def app(mock_paths):
         }
     )
 
-    app.template_folder = str(mock_paths["template_dir"])
-    yield app
+    app_instance.template_folder = str(mock_paths["template_dir"])
+    yield app_instance
 
 
 @pytest.fixture
@@ -122,11 +143,11 @@ def test_index_shows_components_and_checks_defaults_when_pi_in_session(client):
 
     response = client.get("/")
     assert response.status_code == 200
-    assert b"<h1>Step 2: Select Components for 192.168.1.100</h1>" in response.data
+    assert b"<h1>Step 2: Select Components</h1>" in response.data
+    assert b"For Pi at <strong>192.168.1.100</strong>" in response.data
     assert b"Dashy" in response.data
     assert b"Portainer" in response.data
 
-    # Normalize whitespace to make the test more robust
     normalized_data = b" ".join(response.data.split())
 
     assert (
@@ -147,7 +168,6 @@ def test_scan_network_endpoint(mock_scan, mock_get_details, client):
     WHEN the '/scan' endpoint is called
     THEN check that the scanner is called and returns a structured response.
     """
-    # MODIFICATION: Mock now returns the expected tuple format
     mock_scan.return_value = (
         [{"ip": "192.168.1.101", "mac": "e4:5f:01:aa:bb:cc"}],
         "mock nmap stdout",
@@ -170,7 +190,6 @@ def test_scan_network_endpoint(mock_scan, mock_get_details, client):
     mock_scan.assert_called_once_with(subnet="192.168.1.0/24")
     mock_get_details.assert_called_once_with("192.168.1.101", "pi", "raspberry")
 
-    # MODIFICATION: Check for success and debug keys in the JSON response
     assert "10000000abcdef" in json_response["success"]
     assert "debug" in json_response
     assert json_response["debug"]["stdout"] == "mock nmap stdout"
@@ -240,7 +259,7 @@ def test_save_and_install_shows_success_page(mock_set_key, client, mock_paths):
     response = client.post("/save-and-install", data=form_data)
 
     assert response.status_code == 200
-    assert b"<h1>Ready to Install</h1>" in response.data
+    assert "<h1>✔️ Configuration Saved!</h1>".encode("utf-8") in response.data
     assert b'<a href="/live-log">' in response.data
 
     output_file = mock_paths["output_file"]
@@ -248,25 +267,32 @@ def test_save_and_install_shows_success_page(mock_set_key, client, mock_paths):
     assert "dashy portainer" in output_file.read_text()
 
     env_path = str(mock_paths["env_file"])
-    mock_set_key.assert_any_call(env_path, "PI_IP", "192.168.1.103")
+    mock_set_key.assert_has_calls(
+        [
+            call(env_path, "PI_IP", "192.168.1.103"),
+            call(env_path, "SSH_USER", "pi"),
+            call(env_path, "SSH_PASSWORD", "raspberry"),
+        ],
+        any_order=True,
+    )
 
 
-@patch("configurator_app.app.os.path.exists", return_value=True)
-@patch("configurator_app.app.subprocess.Popen")
-def test_install_stream_success(mock_popen, _mock_exists, client):
+# --- FIX: Test completely rewritten to mock the installer module directly ---
+
+
+@patch("configurator_app.app.piselfhosting_installer")
+def test_install_stream_success(mock_installer, client):
     """
-    GIVEN a mocked subprocess.Popen that simulates a successful script run
+    GIVEN a mocked piselfhosting_installer that yields log lines
     WHEN the '/install-stream' endpoint is called
-    THEN check that it streams the subprocess output correctly in SSE format.
+    THEN check that it streams the mocked output correctly in SSE format.
     """
-    mock_process = MagicMock()
-    mock_process.stdout.readline.side_effect = [
-        "Starting installation...\n",
-        "Step 1: Doing something...\n",
-        "",
+    # Configure the mock to behave like the run_installation generator
+    mock_installer.run_installation.return_value = [
+        "Starting installation...",
+        "Step 1: Doing something...",
+        "Installation complete.",
     ]
-    mock_process.wait.return_value = 0
-    mock_popen.return_value = mock_process
 
     response = client.get("/install-stream")
 
@@ -277,6 +303,31 @@ def test_install_stream_success(mock_popen, _mock_exists, client):
     expected_content = (
         "data: Starting installation...\n\n"
         "data: Step 1: Doing something...\n\n"
-        "data: \n--- SCRIPT FINISHED (Exit Code: 0) ---\n\n"
+        "data: Installation complete.\n\n"
     )
     assert streamed_data == expected_content
+    mock_installer.run_installation.assert_called_once()
+
+
+@patch("configurator_app.app.piselfhosting_installer")
+def test_install_stream_failure(mock_installer, client, caplog):
+    """
+    GIVEN a mocked piselfhosting_installer that raises an exception
+    WHEN the '/install-stream' endpoint is called
+    THEN check that it streams a FATAL ERROR message and logs the exception.
+    """
+    # Configure the mock to raise an exception when called
+    mock_installer.run_installation.side_effect = Exception("Kaboom!")
+
+    response = client.get("/install-stream")
+
+    assert response.status_code == 200
+    streamed_data = response.data.decode("utf-8")
+
+    # Check that the error was sent to the client via SSE
+    assert "data: FATAL ERROR in web app: Kaboom!" in streamed_data
+    assert "data: --- SCRIPT FINISHED ---" in streamed_data
+
+    # Check that the error was logged by the Flask app
+    assert "Error during installation stream" in caplog.text
+    assert "Kaboom!" in caplog.text

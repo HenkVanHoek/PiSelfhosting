@@ -37,40 +37,54 @@ We are always open to new ideas! However, before submitting a feature request:
 
 To run the application from source for development or testing, follow these steps.
 
-### Prerequisites
+## Prerequisites
 
 Ensure you have the following software installed on your workstation:
 
-* `Git`
-* `Python 3.10+`
-* `pip` (Python's package installer)
-* `Nmap`: A network scanning tool used by the `PiScanner`.
-    * **On Windows:** Download the latest stable release installer (`nmap-*-setup.exe`) from the Nmap website. Run the installer and **ensure you do not change the default installation path**. The application logic expects `nmap.exe` to be in its standard location.
-    * **On macOS:** `brew install nmap`
-    * **On Debian/Ubuntu:** `sudo apt-get update && sudo apt-get install nmap`
+*   `Git`
+*   `Python 3.10+`
+*   `pip` (Python's package installer)
+*   `Ansible`: The automation engine that performs the installation on the Raspberry Pi. The `ansible-runner` library requires a full Ansible installation.
+    *   **On macOS:** `brew install ansible`
+    *   **On Debian/Ubuntu:** `sudo apt-get update && sudo apt-get install ansible`
+    *   **On Windows (via WSL or pip):** It's recommended to use WSL (Windows Subsystem for Linux). Alternatively, you can install it via pip: `pip install ansible`
+*   `Nmap`: A network scanning tool used by the `PiScanner`.
+    *   **On Windows:** Download the latest stable release installer (`nmap-*-setup.exe`) from the Nmap website. Run the installer and **ensure you do not change the default installation path**. The application logic expects `nmap.exe` to be in its standard location.
+    *   **On macOS:** `brew install nmap`
+    *   **On Debian/Ubuntu:** `sudo apt-get update && sudo apt-get install nmap`
+
 
 ### Setting Up Your Development Environment
 
 1.  Clone your fork of the repository locally.
 
+    ```bash
     git clone https://github.com/YOUR-USERNAME/PiSelfhosting.git
+    ```
 
 2.  Navigate to the project directory.
 
+    ```bash
     cd PiSelfhosting
+    ```
 
 3.  It is recommended to create a virtual environment.
 
+    ```bash
     python -m venv .venv
     source .venv/bin/activate  # On Windows use .venv\Scripts\activate
+    ```
 
-4.  Install the required dependencies. The project uses separate files for workstation and development packages. To set up your development environment, you only need to install the development file, which includes all other requirements:
+4.  Install the required dependencies.
 
-    pip install -r requirements-dev.txt
-5.
+    ```bash
+    pip install -r requirements.txt
+    ```
 5.  Run the application:
 
-    python configurator_app/app.py
+    ```bash
+    python src/app.py
+    ```
 
 ## ✍️ Development Philosophy
 
