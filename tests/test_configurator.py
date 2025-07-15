@@ -6,8 +6,6 @@ import pytest
 from configurator_app.app import create_app
 from src.component_manager import ComponentManager
 
-# from flask import session
-
 
 @pytest.fixture
 def mock_component_manager():
@@ -30,13 +28,16 @@ def mock_component_manager():
 
 
 @pytest.fixture
-def mock_pi_scanner(mocker):
+def mock_pi_scanner(monkeypatch):
     """
-    Fixture to patch the PiScanner class.
+    Fixture to patch the PiScanner class using pytest's built-in monkeypatch.
     This prevents tests from performing real network scans.
     """
-    # We patch the PiScanner where it's imported and used in the app
-    return mocker.patch("configurator_app.app.PiScanner")
+    # Create a MagicMock instance that will replace the entire PiScanner class
+    mock = MagicMock()
+    # Use monkeypatch to replace the PiScanner class in the app module
+    monkeypatch.setattr("configurator_app.app.PiScanner", mock)
+    return mock
 
 
 @pytest.fixture
@@ -88,7 +89,7 @@ def test_index_shows_components_when_ip_is_in_session(client):
     GIVEN a Flask client with a target IP in the session
     WHEN the '/' page is requested
     THEN check that the 'select_components.html' template is
-    rendered with component data.
+     rendered with component data.
     """
     # Use the client's session transaction to set the target IP
     with client.session_transaction() as sess:
