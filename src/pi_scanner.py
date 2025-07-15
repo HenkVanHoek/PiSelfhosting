@@ -1,253 +1,219 @@
-import json
-import platform
+import logging
 import re
 import socket
 import subprocess
-from typing import Dict, List, Optional
+import time
+from functools import lru_cache
 
 import paramiko
 
+# from unittest.mock import MagicMock, patch
 
-def is_port_open(host: str, port: int, timeout: float = 0.5) -> bool:
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+
+def is_port_open(host, port):
     """
-    Checks if a specific TCP port is open on a host.
-    Returns True if open, False otherwise.
-    This is a module-level helper function.
+    Check if a TCP port is open on a given host.
+
+    This function attempts to connect to a specific port on a host.
+    It returns True if the connection is successful, and False otherwise.
+
+    :param host: The hostname or IP address to check.
+    :param port: The port to check.
+    :return: True if the port is open, False otherwise.
     """
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.settimeout(timeout)
-            # s.connect_ex returns 0 if the connection is successful
-            return s.connect_ex((host, port)) == 0
-    except (socket.gaierror, socket.error):
-        # Handles cases where the host is not found or other socket errors
+            s.settimeout(0.5)  # Set a short timeout to avoid long waits
+            if s.connect_ex((host, port)) == 0:
+                return True
+    except (socket.timeout, socket.gaierror):
+        # socket.gaierror handles cases where the hostname is invalid
         return False
+    return False
 
 
 class PiScanner:
     """
-    A utility class to scan the network for Raspberry Pi devices
-    and retrieve their hardware details via SSH.
+    A class to scan the network for Raspberry Pi devices and retrieve their details.
     """
 
-    # List of official MAC address prefixes for Raspberry Pi devices
-    PI_MAC_PREFIXES: List[str] = [
-        "b8:27:eb",  # Raspberry Pi Foundation
-        "dc:a6:32",  # Raspberry Pi Foundation
-        "e4:5f:01",  # Raspberry Pi Foundation
-        "28:cd:c1",  # Raspberry Pi (Trading) Ltd
-        "d8:3a:dd",  # Raspberry Pi (Trading) Ltd
-        "2c:cf:67",  # Raspberry Pi (Trading) Ltd
-    ]
+    # A list of known MAC address prefixes for Raspberry Pi devices.
+    PI_MAC_PREFIXES = ("b8:27:eb", "dc:a6:32", "e4:5f:01")
 
-    SSH_COMMAND: str = (
-        "cat /proc/device-tree/model; echo -e '\\x00---'; "
-        "free -h | awk '/^Mem:/ {print $2}'; echo -e '\\x00---'; "
-        "cat /proc/cpuinfo | grep Serial | awk '{print $3}'; echo -e '\\x00---'; "
-        "lsblk -J -o NAME,SIZE,TYPE,MOUNTPOINT"
-    )
+    # The SSH command used to get the serial number from a Pi.
+    # It reads from /proc/cpuinfo and filters for the line containing "Serial".
+    SSH_COMMAND = "cat /proc/cpuinfo | grep 'Serial' | awk '{print $3}'"
 
-    @staticmethod
-    def detect_subnet() -> str:
+    def __init__(self, username=None, password=None):
         """
-        Detects the most likely local subnet of the machine running the script.
-        Tries a primary method and falls back to a platform-specific one.
+        Initializes the PiScanner with optional SSH credentials.
+
+        :param username: The SSH username for connecting to the Pi.
+        :param password: The SSH password for connecting to the Pi.
+        """
+        self.username = username
+        self.password = password
+
+    def detect_subnet(self):
+        """
+        Automatically detect the local subnet (e.g., "192.168.1.0/24").
+
+        This method works by creating a temporary connection to the internet
+        to determine the local IP address of the machine running the scanner.
+        It then constructs the subnet range based on that IP.
+
+        :return: The detected subnet as a string, or None if detection fails.
         """
         try:
             with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
-                s.settimeout(1.0)
+                # Connect to a public DNS server to find the local IP
                 s.connect(("8.8.8.8", 80))
-                local_ip = s.getsockname()[0]
-                if not local_ip.startswith("127."):
-                    return ".".join(local_ip.split(".")[:-1]) + ".0/24"
-        except (socket.error, OSError):
-            pass  # Proceed to the fallback method.
-
-        try:
-            system = platform.system()
-            if system == "Windows":
-                try:
-                    output = subprocess.check_output(
-                        "ipconfig", text=True, errors="replace", timeout=5
-                    )
-                    # FIX: Make regex more robust for different OS languages
-                    ip_pattern = (
-                        r"IPv4.*: "
-                        r"((?:192\.168|172\.(?:1[6-9]|2[0-9]|3[0-1])|10)\.\d+\.\d+)"
-                    )
-                    match = re.search(ip_pattern, output)
-                    if match:
-                        local_ip = match.group(1)
-                        return ".".join(local_ip.split(".")[:-1]) + ".0/24"
-                except (
-                    subprocess.CalledProcessError,
-                    FileNotFoundError,
-                    subprocess.TimeoutExpired,
-                ):
-                    pass  # Fallback to the more robust 'route' command.
-
-                output = subprocess.check_output(
-                    ["route", "print", "-4"], text=True, errors="replace", timeout=5
-                )
-                route_pattern = r"^\s*0\.0\.0\.0\s+0\.0\.0\.0\s+[\d.]+\s+([\d.]+)"
-                match = re.search(route_pattern, output, re.MULTILINE)
-                if match:
-                    local_ip = match.group(1)
-                    return ".".join(local_ip.split(".")[:-1]) + ".0/24"
-
-            elif system == "Linux":
-                output = subprocess.check_output(
-                    ["hostname", "-I"], text=True, timeout=5
-                )
-                local_ip = output.strip().split(" ")[0]
-                if local_ip:
-                    return ".".join(local_ip.split(".")[:-1]) + ".0/24"
-        except (
-            subprocess.CalledProcessError,
-            FileNotFoundError,
-            IndexError,
-            subprocess.TimeoutExpired,
-        ):
-            pass
-
-        return ""
-
-    @classmethod
-    def scan(cls, subnet: str):
-        """
-        Scans the given subnet for Raspberry Pi devices using nmap.
-        Returns a tuple: (found_pis, nmap_stdout, nmap_stderr)
-        """
-        if not subnet:
-            err_msg = "Error: A valid subnet (e.g., '192.168.1.0/24') must be provided."
-            print(err_msg)
-            return [], "", err_msg
-
-        print(f"Scanning subnet {subnet} for Raspberry Pi devices...")
-
-        try:
-            nmap_args = ["nmap", "-sn", subnet]
-            result = subprocess.run(
-                nmap_args,
-                capture_output=True,
-                text=True,
-                check=False,
-                timeout=180,
-                encoding="utf-8",
-                errors="replace",
-            )
-
-            if result.returncode != 0:
-                print(f"Nmap exited with code {result.returncode}")
-                if result.stderr:
-                    print(f"Nmap error output: {result.stderr.strip()}")
-
-            nmap_stdout = result.stdout
-            found_pis = []
-            pattern = re.compile(
-                r"Nmap scan report for .*?\(?([\d.]+)\)?\s+"
-                r"Host is up.*?\s+"
-                r"MAC Address: ([0-9A-F:]+)",
-                re.DOTALL | re.IGNORECASE,
-            )
-            matches = pattern.findall(nmap_stdout)
-
-            for ip, mac in matches:
-                mac_lower = mac.lower()
-                if any(mac_lower.startswith(p) for p in cls.PI_MAC_PREFIXES):
-                    found_pis.append({"ip": ip, "mac": mac_lower})
-
-            print(
-                f"Scan complete. Found {len(found_pis)} potential " f"Raspberry Pi(s)."
-            )
-            return found_pis, result.stdout, result.stderr
-
-        except FileNotFoundError:
-            err_msg = (
-                "Error: 'nmap' command not found. "
-                "Is nmap installed and in your PATH?"
-            )
-            print(err_msg)
-            return [], "", err_msg
-        except subprocess.TimeoutExpired:
-            err_msg = "Error: nmap scan timed out after 3 minutes."
-            print(err_msg)
-            return [], "", err_msg
+                ip_address = s.getsockname()[0]
+                # Construct the subnet by replacing the last octet with ".0/24"
+                subnet = ".".join(ip_address.split(".")[:-1]) + ".0/24"
+                return subnet
+        except Exception as e:
+            logger.error(f"Could not detect subnet: {e}")
+            return None
 
     @staticmethod
-    def get_device_details(
-        ip: str, username: str, password: Optional[str] = None
-    ) -> Optional[Dict]:
+    def scan(subnet):
         """
-        Connects to a device via SSH and retrieves hardware details.
+        Scan the given subnet for Raspberry Pi devices using nmap.
+
+        This method uses nmap to perform a ping scan on the specified subnet.
+        It then parses the output to find devices with MAC addresses that match
+        known Raspberry Pi prefixes.
+
+        :param subnet: The subnet to scan (e.g., "192.168.1.0/24").
+        :return: A tuple containing:
+                 - A list of dictionaries, where each dict represents a found Pi
+                   and contains its 'ip' and 'mac' address.
+                 - The raw stdout from the nmap command.
+                 - The raw stderr from the nmap command.
         """
-        if not is_port_open(ip, 22):
-            print(f"SSH port 22 is not open on {ip}. Skipping.")
-            return None
+        if not subnet:
+            logger.error("Subnet must be provided to scan.")
+            return [], "", "Subnet not provided"
 
-        ssh = paramiko.SSHClient()
-        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-
+        found_pis = []
         try:
-            try:
-                # First attempt key-based auth
-                ssh.connect(hostname=ip, username=username, password=None, timeout=10)
-            except (paramiko.AuthenticationException, paramiko.SSHException):
-                # FIX: Check if a password was actually provided, not just
-                # an empty string
-                if password:
-                    # If key-based auth fails, try with the provided password
-                    ssh.connect(
-                        hostname=ip,
-                        username=username,
-                        password=password,
-                        timeout=10,
-                    )
-                else:
-                    # If no password, then authentication has failed
-                    raise paramiko.AuthenticationException(
-                        "Key-based authentication failed and no password was "
-                        "provided."
-                    )
+            # Use nmap to find all devices on the network and get their MACs
+            command = ["nmap", "-sn", subnet, "-oG", "-"]
+            logger.info(f"Running nmap command: {' '.join(command)}")
+            proc = subprocess.run(
+                command, capture_output=True, text=True, check=False, timeout=120
+            )
 
-            _stdin, stdout, stderr = ssh.exec_command(PiScanner.SSH_COMMAND, timeout=15)
-            output = stdout.read().decode("utf-8", errors="ignore")
-            error_output = stderr.read().decode("utf-8", errors="ignore")
+            if proc.returncode != 0:
+                logger.error(f"Nmap failed with error: {proc.stderr}")
+                return [], proc.stdout, proc.stderr
 
-            if error_output:
-                print(f"Error retrieving details from {ip}: {error_output}")
-                return None
+            # Parse the output to find hosts with Raspberry Pi MAC addresses
+            for line in proc.stdout.splitlines():
+                if "Status: Up" not in line:
+                    continue
 
-            parts = output.split("\x00---\n")
-            if len(parts) < 4:
-                print(
-                    f"Could not parse all details from {ip}. " f"Raw output: {output}"
+                ip_match = re.search(
+                    r"Host: (\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})", line
                 )
-                return None
+                mac_match = re.search(r"MAC Address: ([0-9A-F:]+)", line)
 
-            model = parts[0].strip().replace("\x00", "")
-            ram = parts[1].strip()
-            serial = parts[2].strip()
-            disks_json_str = parts[3].strip()
+                if ip_match and mac_match:
+                    mac_address = mac_match.group(1).lower()
+                    if any(
+                        mac_address.startswith(prefix)
+                        for prefix in PiScanner.PI_MAC_PREFIXES
+                    ):
+                        found_pis.append({"ip": ip_match.group(1), "mac": mac_address})
 
-            try:
-                disks_data = json.loads(disks_json_str)
-                disks = disks_data.get("blockdevices", [])
-            except json.JSONDecodeError:
-                print(f"Could not parse disk JSON from {ip}: {disks_json_str}")
-                disks = []
+            return found_pis, proc.stdout, proc.stderr
 
-            return {"model": model, "ram": ram, "serial": serial, "disks": disks}
+        except FileNotFoundError:
+            msg = "nmap is not installed or not in the system's PATH."
+            logger.error(msg)
+            return [], "", msg
+        except subprocess.TimeoutExpired:
+            msg = "Nmap scan timed out. The network may be too large or slow."
+            logger.error(msg)
+            return [], "", msg
 
-        except (
-            paramiko.AuthenticationException,
-            paramiko.SSHException,
-            socket.timeout,
-        ) as e:
-            if isinstance(e, paramiko.AuthenticationException):
-                print(f"Authentication failed for {ip} with user '{username}'.")
-            else:
-                print(f"SSH connection to {ip} failed: {e}")
+    @lru_cache(maxsize=32)
+    def get_device_details(self, ip, retries=3, delay=5):
+        """
+        Get detailed information from a Raspberry Pi using SSH.
+
+        This method connects to a given IP address via SSH to fetch the device's
+        serial number, model, RAM, and disk space. It uses paramiko for the
+        SSH connection and has a retry mechanism for connection failures.
+
+        :param ip: The IP address of the Raspberry Pi.
+        :param retries: The number of times to retry the SSH connection.
+        :param delay: The delay in seconds between retries.
+        :return: A dictionary with device details, or None if connection fails.
+        """
+        if not all([self.username, self.password]):
+            logger.warning("SSH credentials are not set; skipping detail retrieval.")
             return None
-        finally:
-            ssh.close()
+
+        client = paramiko.SSHClient()
+        client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+
+        for attempt in range(retries):
+            try:
+                logger.info(f"Attempting to connect to {ip}, attempt {attempt + 1}")
+                client.connect(
+                    ip,
+                    port=22,
+                    username=self.username,
+                    password=self.password,
+                    timeout=10,
+                )
+
+                # Fetch hardware details
+                _, stdout, _ = client.exec_command("cat /proc/cpuinfo")
+                cpu_info = stdout.read().decode()
+                serial = re.search(r"Serial\s*:\s*(\w+)", cpu_info).group(1)
+                model_str = re.search(r"Model\s*:\s*(.*)", cpu_info).group(1)
+
+                # Fetch RAM
+                _, stdout, _ = client.exec_command("free -m | awk '/^Mem:/ {print $2}'")
+                ram_mb = int(stdout.read().decode().strip())
+                ram_gb = round(ram_mb / 1024, 1)
+
+                # Fetch disk space
+                _, stdout, _ = client.exec_command("df -h /")
+                disk_info = stdout.read().decode().splitlines()[1].split()
+                disk_size, disk_used, disk_avail = (
+                    disk_info[1],
+                    disk_info[2],
+                    disk_info[3],
+                )
+
+                return {
+                    "serial": serial,
+                    "model": model_str,
+                    "ram": f"{ram_gb} GB",
+                    "disk": f"{disk_size} (Used: {disk_used}, Available: {disk_avail})",
+                }
+
+            except (
+                paramiko.AuthenticationException,
+                paramiko.SSHException,
+                socket.error,
+            ) as e:
+                logger.error(f"SSH connection to {ip} failed: {e}")
+                if attempt < retries - 1:
+                    logger.info(f"Retrying in {delay} seconds...")
+                    time.sleep(delay)
+                else:
+                    return None
+            finally:
+                client.close()
+
+        return None

@@ -24,16 +24,21 @@ def mock_project_structure(tmp_path):
             "name": "Dashy",
             "description": "A self-hosted dashboard.",
             "uniqueness_group": None,
+            "has_ui": True,
+            "ui_port": 8080,
         },
         "portainer": {
             "name": "Portainer",
             "description": "Container management UI.",
             "uniqueness_group": "container_manager",
+            "has_ui": True,
+            "ui_port": 9000,
         },
         "frigate": {
             "name": "Frigate",
             "description": "NVR with AI.",
             "uniqueness_group": None,
+            "has_ui": False,
         },
     }
 
@@ -107,3 +112,51 @@ def test_get_uniqueness_groups(mock_project_structure):
         "nvr": ["frigate"],
         "container_manager": ["portainer"],
     }
+
+
+def test_generate_docs_creates_file_with_correct_content(
+    mock_project_structure, tmp_path
+):
+    """
+    Test that generate_docs() creates a documentation file with the expected
+    Markdown content based on the component metadata.
+    """
+    # Define an output path for the documentation file
+    docs_output_path = tmp_path / "SUPPORTED_COMPONENTS.md"
+
+    # Initialize the manager with both metadata and a docs path
+    manager = ComponentManager(
+        metadata_path=mock_project_structure, docs_output_path=docs_output_path
+    )
+
+    # Run the documentation generation
+    manager.generate_docs()
+
+    # --- Assertions ---
+    # 1. Check if the documentation file was actually created
+    assert docs_output_path.exists()
+
+    # 2. Read the content and check if it matches expectations
+    content = docs_output_path.read_text(encoding="utf-8")
+
+    # Check for the main title
+    assert "# Supported Components" in content
+    # Check for specific component sections and details
+    assert "## Dashy" in content
+    assert "**ID:** `dashy`" in content
+    assert "A self-hosted dashboard." in content
+    assert "- **Web Interface:** Yes (Port: 8080)" in content
+
+    assert "## Portainer" in content
+    assert "**ID:** `portainer`" in content
+    assert "- **Web Interface:** Yes (Port: 9000)" in content
+
+    assert "## Frigate" in content
+    assert "**ID:** `frigate`" in content
+    assert "- **Web Interface:** No" in content
+
+    # Check that the components are in the order specified by `components_order`
+    dashy_pos = content.find("## Dashy")
+    portainer_pos = content.find("## Portainer")
+    frigate_pos = content.find("## Frigate")
+    assert 0 < dashy_pos < portainer_pos < frigate_pos

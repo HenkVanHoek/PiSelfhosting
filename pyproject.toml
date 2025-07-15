@@ -7,3 +7,18 @@ line_length = 88
 
 [tool.pytest.ini_options]
 norecursedirs = ["scripts"]
+
+[project]
+name = "PiSelfhosting"
+description = "A project to self-host services on a Raspberry Pi."
+requires-python = ">=3.11"
+dynamic = ["version"]
+
+[tool.setuptools.dynamic]
+version = {file = "VERSION"}
+
+[project.optional-dependencies]
+test = [
+    "pytest",
+    "pytest-mock"
+]
