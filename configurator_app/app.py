@@ -1,10 +1,20 @@
-import json
-import logging
 import os
-from collections import defaultdict
+import sys
 
-from dotenv import set_key
-from flask import (
+# --- Path Correction ---
+# This block must run before any imports that depend on the project's root path.
+# We modify sys.path to ensure that the 'src' module can be found, especially
+# when the app is bundled as an executable.
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
+import json  # noqa: E402
+import logging  # noqa: E402
+from collections import defaultdict  # noqa: E402
+
+from dotenv import set_key  # noqa: E402
+from flask import (  # noqa: E402
     Flask,
     flash,
     jsonify,
@@ -15,11 +25,8 @@ from flask import (
     url_for,
 )
 
-from src.component_manager import ComponentManager
-from src.pi_scanner import PiScanner
-
-# Define the project root directory
-project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+from src.component_manager import ComponentManager  # noqa: E402
+from src.pi_scanner import PiScanner  # noqa: E402
 
 
 def create_app(test_config=None, component_manager=None):
