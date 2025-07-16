@@ -11,7 +11,6 @@ bump2version
 
 # For running the test suite
 pytest~=8.4.1
-pytest-mock
 
 # For code style and quality checking (linter)
 flake8

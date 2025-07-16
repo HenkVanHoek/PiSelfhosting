@@ -10,8 +10,8 @@ a = Analysis(
     pathex=['src'],
     binaries=[],
     datas=[
-        # Add all non-code files needed by your application here.
-        # Format: ('source_path_on_disk', 'destination_path_in_bundle')
+        # The source path now correctly points inside the 'src' directory,
+        # reflecting the new project structure.
         ('src/configurator_app/templates', 'configurator_app/templates'),
         ('src/configurator_app/static', 'configurator_app/static')
     ],
@@ -49,5 +49,4 @@ exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
     # The icon path will be set via the command line during the build.
-    # PyInstaller will automatically update this spec file if an icon is provided.
 )

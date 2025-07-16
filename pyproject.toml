@@ -23,5 +23,4 @@ version = {file = "VERSION"}
 [project.optional-dependencies]
 test = [
     "pytest",
-    "pytest-mock"
 ]

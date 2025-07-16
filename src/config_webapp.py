@@ -1,6 +1,7 @@
 # src/config_webapp.py
 import logging
 import os
+import sys
 from collections import defaultdict
 from logging.handlers import RotatingFileHandler
 
@@ -23,22 +24,30 @@ from setup_manager import SetupManager
 from utils.resource_utils import resource_path  # Import the new helper
 from utils.ssh_utils import set_key
 
-# The 'project_root' global variable is no longer needed.
-# The resource_path function handles finding the correct paths.
-
 
 def create_app(component_manager=None, scanner=None, setup_manager=None, testing=False):
     """
     Factory function to create the Flask application.
     This allows for different configurations, especially for testing.
     """
+    # Determine the correct paths for templates and static files based on
+    # whether the application is running from source or as a frozen bundle.
+    if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+        # Running as a PyInstaller bundle. Paths are relative to the bundle root.
+        # The resource_path helper handles this.
+        template_dir = resource_path(os.path.join("configurator_app", "templates"))
+        static_dir = resource_path(os.path.join("configurator_app", "static"))
+    else:
+        # Running from source (development or testing).
+        # Paths are relative to this file's location inside the 'src' directory.
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        template_dir = os.path.join(base_dir, "configurator_app", "templates")
+        static_dir = os.path.join(base_dir, "configurator_app", "static")
+
     app = Flask(
         __name__,
-        # Use resource_path to ensure paths work in both development and
-        # the bundled app.
-        # It correctly finds the 'templates' and 'static' folders inside the bundle.
-        template_folder=resource_path(os.path.join("configurator_app", "templates")),
-        static_folder=resource_path(os.path.join("configurator_app", "static")),
+        template_folder=template_dir,
+        static_folder=static_dir,
     )
 
     # Configure the app for testing if the 'testing' flag is True
