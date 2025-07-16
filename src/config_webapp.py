@@ -17,13 +17,14 @@ from flask import (
 from jinja2 import TemplateNotFound
 from werkzeug.utils import secure_filename
 
-from src.component_manager import ComponentManager
-from src.pi_scanner import PiScanner
-from src.setup_manager import SetupManager
-from src.utils.ssh_utils import set_key
+from component_manager import ComponentManager
+from pi_scanner import PiScanner
+from setup_manager import SetupManager
+from utils.resource_utils import resource_path  # Import the new helper
+from utils.ssh_utils import set_key
 
-# Determine the absolute path to the project root
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+# The 'project_root' global variable is no longer needed.
+# The resource_path function handles finding the correct paths.
 
 
 def create_app(component_manager=None, scanner=None, setup_manager=None, testing=False):
@@ -33,8 +34,11 @@ def create_app(component_manager=None, scanner=None, setup_manager=None, testing
     """
     app = Flask(
         __name__,
-        template_folder=os.path.join(project_root, "configurator_app", "templates"),
-        static_folder=os.path.join(project_root, "configurator_app", "static"),
+        # Use resource_path to ensure paths work in both development and
+        # the bundled app.
+        # It correctly finds the 'templates' and 'static' folders inside the bundle.
+        template_folder=resource_path(os.path.join("configurator_app", "templates")),
+        static_folder=resource_path(os.path.join("configurator_app", "static")),
     )
 
     # Configure the app for testing if the 'testing' flag is True
@@ -44,14 +48,15 @@ def create_app(component_manager=None, scanner=None, setup_manager=None, testing
     app.config["SECRET_KEY"] = os.environ.get(
         "FLASK_SECRET_KEY", "a-default-secret-key-for-development"
     )
-    app.config["UPLOAD_FOLDER"] = os.path.join(project_root, "uploads")
-    app.config["ENV_PATH"] = os.path.join(project_root, ".env")
+    # Use resource_path for all other file system paths
+    app.config["UPLOAD_FOLDER"] = resource_path("uploads")
+    app.config["ENV_PATH"] = resource_path(".env")
     os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
 
     # --- Logging Configuration ---
     # Only configure logging handlers if not in testing mode to avoid clutter
     if not testing:
-        log_dir = os.path.join(project_root, "logs")
+        log_dir = resource_path("logs")
         os.makedirs(log_dir, exist_ok=True)
         log_file = os.path.join(log_dir, "app.log")
 
@@ -70,7 +75,8 @@ def create_app(component_manager=None, scanner=None, setup_manager=None, testing
     # --- Dependency Injection ---
     # Use provided instances or create new ones. This is key for testing.
     if component_manager is None:
-        metadata_path = os.path.join(project_root, "src", "components_metadata.json")
+        # Use resource_path to locate the metadata file at the root of the bundle
+        metadata_path = resource_path("components_metadata.json")
         component_manager = ComponentManager(metadata_path)
 
     if scanner is None:

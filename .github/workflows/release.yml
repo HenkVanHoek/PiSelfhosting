@@ -46,6 +46,9 @@ jobs:
         fi
 
         # Build the executable with all necessary paths and data files
+        # Best practice: ensure the build environment is completely clean
+        rm -rf build dist
+
         pyinstaller --name "PiSelfhosting-Configurator-${{ matrix.os }}" \
           --onefile \
           --windowed \
