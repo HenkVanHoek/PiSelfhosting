@@ -1,18 +1,27 @@
 # PiSelfhostingInstaller.spec
 # -*- mode: python ; coding: utf-8 -*-
 
-# This spec file is updated to support the src/ layout
-# and to correctly bundle the Flask templates and static files.
+# This spec file is updated to support the src/ layout by pointing to the correct
+# entry-point script and bundling the data files from their correct locations.
 
 a = Analysis(
-    ['piselfhosting_installer.py'],
-    pathex=['.'],  # FIX: Tell PyInstaller to look for modules in the project root
+    # 1. USE THE CORRECT SCRIPT AS THE ENTRY POINT
+    # This should be the modern webapp script inside the 'src' package.
+    ['src/config_webapp.py'],
+
+    # 2. ENSURE THE PROJECT ROOT IS IN THE SEARCH PATH
+    # This allows PyInstaller to find the 'src' package.
+    pathex=['.'],
+
     binaries=[],
+
+    # 3. REFER TO THE CORRECT LOCATION OF TEMPLATES, STATIC FILES, AND OTHER DATA
+    # These paths are relative to the project root, where you run PyInstaller from.
     datas=[
-        ('config', 'config'),          # Bundle the config directory
-        # Correctly point to the templates and static folders inside 'configurator_app'
-        ('configurator_app/templates', 'templates'),
-        ('configurator_app/static', 'static')
+        ('configurator_app/templates', 'configurator_app/templates'),
+        ('configurator_app/static', 'configurator_app/static'),
+        ('config', 'config'),
+        ('components_metadata.json', '.')
     ],
     hiddenimports=[],
     hookspath=[],
