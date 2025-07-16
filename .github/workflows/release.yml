@@ -1,6 +1,11 @@
 # .github/workflows/release.yml
+
+# Name of the workflow, displayed on the GitHub Actions tab.
 name: Release Pipeline
 
+# This workflow is triggered on two events:
+# 1. When a new tag starting with 'v' (e.g., v1.0, v1.2.3) is pushed.
+# 2. Manually, via the 'Run workflow' button on the Actions tab (workflow_dispatch).
 on:
   push:
     tags:
@@ -8,6 +13,9 @@ on:
   workflow_dispatch:
 
 jobs:
+  # This job is responsible for building the executable file.
+  # It runs in a matrix strategy, meaning it will start a separate job
+  # for each operating system listed.
   build-executables:
     name: Build for ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
@@ -16,9 +24,12 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
 
     steps:
+    # Checks out the repository's code so the workflow can access it.
     - name: Checkout repository
       uses: actions/checkout@v4
 
+    # Sets up the specified Python version and configures caching
+    # for pip packages to speed up subsequent runs.
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
@@ -26,92 +37,86 @@ jobs:
         cache: 'pip'
         cache-dependency-path: 'requirements-dev.txt'
 
+    # Installs all necessary Python libraries.
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements-dev.txt
         pip install pyinstaller
 
+    # Builds the executable using the .spec file.
+    # The complex command line flags are now managed inside the .spec file.
     - name: Build the executable with PyInstaller
       shell: bash
       run: |
-        # Set OS-specific variables for the build command
+        # Set the application icon based on the OS.
+        # This is the only OS-specific build logic left.
         if [ "$RUNNER_OS" == "Windows" ]; then
-          SEP=";"
           ICON_ARG="--icon=images/favicon.ico"
+        elif [ "$RUNNER_OS" == "macOS" ]; then
+          # Note: macOS requires a .icns file for icons.
+          # ICON_ARG="--icon=images/icon.icns"
+          ICON_ARG="" # Deactivated for now
         else
-          SEP=":"
-          # You can add --icon for macOS (.icns) or Linux (.png) here later
           ICON_ARG=""
         fi
 
-        # Build the executable with all necessary paths and data files
-        # Best practice: ensure the build environment is completely clean
+        # Clean previous builds and run PyInstaller with the spec file.
         rm -rf build dist
+        pyinstaller PiSelfhostingInstaller.spec $ICON_ARG
 
-        pyinstaller --name "PiSelfhosting-Configurator-${{ matrix.os }}" \
-          --onefile \
-          --windowed \
-          --paths src \
-          --add-data "piselfhosting_installer.py${SEP}." \
-          --add-data "configurator_app/templates${SEP}templates" \
-          --add-data "config${SEP}config" \
-          --add-data "templates${SEP}templates" \
-          $ICON_ARG \
-          configurator_app/app.py
-
+    # Prepares the built executable for uploading as an artifact.
+    # It renames the executable to have a unique, platform-specific name.
     - name: Package the executable
       shell: bash
       run: |
-        # Create a directory for the artifact
         mkdir -p artifact
-
-        # Move the executable into the directory
         if [ "$RUNNER_OS" == "Windows" ]; then
-          mv dist/PiSelfhosting-Configurator-windows-latest.exe artifact/PiSelfhosting-Configurator.exe
+          mv dist/PiSelfhostingInstaller.exe "artifact/PiSelfhostingInstaller-Windows.exe"
         elif [ "$RUNNER_OS" == "macOS" ]; then
-          mv dist/PiSelfhosting-Configurator-macos-latest artifact/PiSelfhosting-Configurator
+          mv dist/PiSelfhostingInstaller "artifact/PiSelfhostingInstaller-macOS"
         else
-          mv dist/PiSelfhosting-Configurator-ubuntu-latest artifact/PiSelfhosting-Configurator
+          mv dist/PiSelfhostingInstaller "artifact/PiSelfhostingInstaller-Linux"
         fi
 
+    # Uploads the packaged executable as a build artifact.
+    # Each OS will produce a separate artifact.
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
         name: installer-${{ matrix.os }}
         path: artifact/
 
+  # This job creates the final GitHub Release after all builds are successful.
   release:
     name: Create GitHub Release
-    # This job will only run after all build jobs have successfully completed
-    needs: build-executables
+    needs: build-executables # Ensures this job only runs after all 'build-executables' jobs are done.
     runs-on: ubuntu-latest
     permissions:
-      contents: write # Required to create/update a release
+      contents: write # Grants permission to create a release.
 
     steps:
+      # Downloads all artifacts from the build jobs into a single directory.
       - name: Download all build artifacts
         uses: actions/download-artifact@v4
         with:
           path: installers
-          # The pattern matches the artifact names from the build job
           pattern: installer-*
           merge-multiple: true
 
+      # Creates a separate .zip archive for each platform's installer.
       - name: Zip installers for release
         run: |
-          # Create zip files for each platform's installer
-          zip -j PiSelfhosting-Installer-Windows.zip installers/PiSelfhosting-Configurator.exe
-          zip -j PiSelfhosting-Installer-macOS.zip installers/PiSelfhosting-Configurator
-          zip -j PiSelfhosting-Installer-Linux.zip installers/PiSelfhosting-Configurator
+          zip -j PiSelfhosting-Installer-Windows.zip installers/PiSelfhostingInstaller-Windows.exe
+          zip -j PiSelfhosting-Installer-macOS.zip installers/PiSelfhostingInstaller-macOS
+          zip -j PiSelfhosting-Installer-Linux.zip installers/PiSelfhostingInstaller-Linux
 
+      # Creates or updates a GitHub Release and attaches the .zip files as assets.
       - name: Upload assets to release
         uses: svenstaro/upload-release-action@v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          # Attach to the release corresponding to the git tag
-          tag: ${{ github.ref_name }}
-          # Upload all zip files created in the previous step
+          tag: ${{ github.ref_name }} # Uses the Git tag that triggered the workflow.
           file: "PiSelfhosting-Installer-*"
           file_glob: true
           overwrite: true

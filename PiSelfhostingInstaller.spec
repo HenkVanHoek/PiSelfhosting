@@ -1,44 +1,37 @@
 # PiSelfhostingInstaller.spec
-# -*- mode: python ; coding: utf-8 -*-
 
-# This spec file is updated to support the src/ layout by pointing to the correct
-# entry-point script and bundling the data files from their correct locations.
+# This file is a "blueprint" for PyInstaller, configured for a one-file,
+# windowed application, consistent across all operating systems.
 
 a = Analysis(
-    # 1. USE THE CORRECT SCRIPT AS THE ENTRY POINT
-    # This should be the modern webapp script inside the 'src' package.
-    ['src/config_webapp.py'],
-
-    # 2. ENSURE THE PROJECT ROOT IS IN THE SEARCH PATH
-    # This allows PyInstaller to find the 'src' package.
-    pathex=['.'],
-
+    ['src/configurator_app/app.py'],
+    pathex=[],
     binaries=[],
-
-    # 3. REFER TO THE CORRECT LOCATION OF TEMPLATES, STATIC FILES, AND OTHER DATA
-    # These paths are relative to the project root, where you run PyInstaller from.
     datas=[
-        ('configurator_app/templates', 'configurator_app/templates'),
-        ('configurator_app/static', 'configurator_app/static'),
-        ('config', 'config'),
-        ('components_metadata.json', '.')
+        # Add all non-code files needed by your application here.
+        # Format: ('source_path_on_disk', 'destination_path_in_bundle')
+        ('src/configurator_app/templates', 'configurator_app/templates'),
+        ('src/configurator_app/static', 'configurator_app/static')
     ],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
     excludes=[],
+    win_no_prefer_redirects=False,
+    win_private_assemblies=False,
+    cipher=None,
     noarchive=False,
-    optimize=0,
 )
-pyz = PYZ(a.pure)
+
+pyz = PYZ(a.pure, a.zipped_data, cipher=None)
 
 exe = EXE(
     pyz,
     a.scripts,
     a.binaries,
+    a.zipfiles,
     a.datas,
-    [],
     name='PiSelfhostingInstaller',
     debug=False,
     bootloader_ignore_signals=False,
@@ -46,10 +39,13 @@ exe = EXE(
     upx=True,
     upx_exclude=[],
     runtime_tmpdir=None,
-    console=True,
+    # Set console to False for a windowed (GUI) application.
+    console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    # The icon path will be set via the command line during the build.
+    # PyInstaller will automatically update this spec file if an icon is provided.
 )
