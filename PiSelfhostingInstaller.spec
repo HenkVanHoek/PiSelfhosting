@@ -6,7 +6,7 @@
 
 a = Analysis(
     ['piselfhosting_installer.py'],
-    pathex=[],  # Correct: Use project root, NOT 'src'
+    pathex=['.'],  # FIX: Tell PyInstaller to look for modules in the project root
     binaries=[],
     datas=[
         ('config', 'config'),          # Bundle the config directory
