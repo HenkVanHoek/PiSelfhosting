@@ -26,3 +26,8 @@ isort
 
 # For ONVIF camera discovery tool
 onvif-zeep
+
+python-nmap
+
+# Dependency for the Flask-based configurator webapp
+Werkzeug

@@ -3,8 +3,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from configurator_app.app import create_app
-from src.component_manager import ComponentManager
+from component_manager import ComponentManager
+from config_webapp import create_app
 
 
 @pytest.fixture
@@ -20,6 +20,10 @@ def mock_component_manager():
     manager.get_all_components.return_value = {
         "comp1": {"name": "Component 1", "description": "First component."},
         "comp2": {"name": "Component 2", "description": "Second component."},
+        "_piselfhosting": {
+            "components_order": ["comp1", "comp2"],
+            "dashy_section": "Tools",
+        },
     }
     manager.get_uniqueness_groups.return_value = {}
     manager.get_component_details.return_value = {}
@@ -36,7 +40,8 @@ def mock_pi_scanner(monkeypatch):
     # Create a MagicMock instance that will replace the entire PiScanner class
     mock = MagicMock()
     # Use monkeypatch to replace the PiScanner class in the app module
-    monkeypatch.setattr("configurator_app.app.PiScanner", mock)
+    # FIX 2: Corrected patch path
+    monkeypatch.setattr("config_webapp.PiScanner", mock)
     return mock
 
 
@@ -217,7 +222,7 @@ def test_set_ip_address_no_ip(client):
     assert b"IP address is required" in response.data
 
 
-@patch("configurator_app.app.set_key")
+@patch("config_webapp.set_key")  # FIX 3: Corrected patch path
 def test_save_and_install_success(mock_set_key, client, app):
     """
     GIVEN a client with a target IP in the session
@@ -226,27 +231,6 @@ def test_save_and_install_success(mock_set_key, client, app):
     """
     with client.session_transaction() as sess:
         sess["target_pi_ip"] = "192.168.1.105"
-
-    # Add a dummy route for 'live_log' to prevent BuildError during template rendering
-    if not any(rule.endpoint == "live_log" for rule in app.url_map.iter_rules()):
-
-        @app.route("/live-log-dummy")
-        def live_log():
-            return "Dummy log page"
-
-        # Point url_for to the dummy to avoid interfering with other tests
-        with app.app_context():
-            with app.test_request_context():
-                import flask
-
-                original_url_for = flask.url_for
-
-                def patched_url_for(endpoint, **values):
-                    if endpoint == "live_log":
-                        return original_url_for("live_log", **values)
-                    return original_url_for(endpoint, **values)
-
-                flask.url_for = patched_url_for
 
     response = client.post(
         "/save-and-install",

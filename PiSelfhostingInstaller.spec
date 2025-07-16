@@ -1,15 +1,19 @@
+# PiSelfhostingInstaller.spec
 # -*- mode: python ; coding: utf-8 -*-
 
+# This spec file is updated to support the src/ layout
+# and to correctly bundle the Flask templates and static files.
 
 a = Analysis(
     ['piselfhosting_installer.py'],
-    pathex=[],
+    pathex=['src'],  # Look for modules in the 'src' directory
     binaries=[],
     datas=[
-        ('piselfhosting_installer.py', '.'),
-        ('config', 'config')
+        ('config', 'config'),          # Bundle the config directory
+        # Correctly point to the templates and static folders inside 'configurator_app'
+        ('configurator_app/templates', 'templates'),
+        ('configurator_app/static', 'static')
     ],
-    datas=[],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},

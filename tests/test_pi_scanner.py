@@ -1,212 +1,147 @@
-import json
-import logging
-import re
+# file: tests/test_pi_scanner.py
 import socket
-import subprocess
+from unittest.mock import MagicMock, patch
 
-import paramiko
+import nmap
 
-# Set up logging for the module
-logger = logging.getLogger(__name__)
-
-
-def is_port_open(ip, port, timeout=1):
-    """
-    Checks if a specific TCP port is open on a given IP address.
-
-    Args:
-        ip (str): The IP address to check.
-        port (int): The port number to check.
-        timeout (int, optional): Connection timeout in seconds. Defaults to 1.
-
-    Returns:
-        bool: True if the port is open, False otherwise.
-    """
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.settimeout(timeout)
-    try:
-        # connect_ex returns 0 if the connection is successful
-        result = sock.connect_ex((ip, port))
-        return result == 0
-    except (socket.gaierror, socket.error):
-        # Handle cases where the hostname is invalid or other socket errors occur
-        return False
-    finally:
-        sock.close()
+from src.pi_scanner import PiScanner
 
 
-class PiScanner:
-    """
-    A class to scan the network for Raspberry Pi devices and retrieve their details.
+class TestPiScanner:
+    """Test suite for the PiScanner class."""
 
-    This scanner uses nmap to find devices with Raspberry Pi MAC addresses and then
-    uses SSH to fetch hardware details from the devices.
-    """
-
-    # Class-level constants for MAC prefixes and SSH command
-    PI_MAC_PREFIXES = {
-        "b8:27:eb",  # Raspberry Pi Foundation
-        "dc:a6:32",  # Raspberry Pi Foundation
-        "e4:5f:01",  # Raspberry Pi Trading Ltd
-    }
-
-    SSH_COMMAND = """
-    cat /proc/device-tree/model; echo '---';
-    grep MemTotal /proc/meminfo | awk '{print $2, $3}'; echo '---';
-    grep Serial /proc/cpuinfo | awk '{print $3}'; echo '---';
-    lsblk -J -b -o NAME,SIZE,TYPE,MOUNTPOINT;
-    """
-
-    def __init__(self, username, password):
+    def test_detect_subnet_success(self, monkeypatch):
         """
-        Initializes the scanner with credentials for SSH access.
-
-        Args:
-            username (str): The SSH username.
-            password (str): The SSH password.
+        Tests that the subnet is correctly detected based on the local IP.
         """
-        self.username = username
-        self.password = password
+        # Mock socket functions to avoid actual network calls
+        monkeypatch.setattr(socket, "gethostname", lambda: "raspberrypi")
+        monkeypatch.setattr(socket, "gethostbyname", lambda hn: "192.168.1.123")
+        assert PiScanner.detect_subnet() == "192.168.1.0/24"
 
-    @staticmethod
-    def detect_subnet():
+    def test_detect_subnet_failure(self, monkeypatch):
         """
-        Detects the most likely local subnet (e.g., '192.168.1.0/24').
-
-        This method attempts to find the local IP address of the machine it's
-        running on and assumes a /24 subnet, which is common for home networks.
-
-        Returns:
-            str: The detected subnet in CIDR notation, or a default value.
+        Tests that a default subnet is returned if IP detection fails.
         """
-        # noinspection PyBroadException
-        try:
-            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
-                # Doesn't have to be reachable; used to get the local IP
-                s.connect(("8.8.8.8", 80))
-                ip_address = s.getsockname()[0]
-                # Assume a /24 subnet, which is a common default
-                subnet = ".".join(ip_address.split(".")[:-1]) + ".0/24"
-                return subnet
-        except Exception:
-            logger.exception("Could not auto-detect subnet.")
-            return "192.168.1.0/24"  # Fallback to a common default
+        # Simulate a scenario where the hostname cannot be resolved
+        monkeypatch.setattr(
+            socket, "gethostbyname", lambda hn: (_ for _ in ()).throw(socket.gaierror)
+        )
+        assert PiScanner.detect_subnet() == "192.168.1.0/24"
 
-    @staticmethod
-    def scan(subnet):
+    @patch("src.pi_scanner.nmap.PortScanner")
+    def test_scan_finds_pi(self, mock_nmap_scanner_class):
         """
-        Scans the given subnet for devices that appear to be Raspberry Pis.
-
-        Args:
-            subnet (str): The subnet to scan in CIDR notation (e.g., '192.168.1.0/24').
-
-        Returns:
-            tuple: A tuple containing:
-                - list: A list of dictionaries, each representing a found Pi.
-                - str: The stdout from the nmap command.
-                - str: The stderr from the nmap command.
+        Tests that the scan method correctly and
+        identifies a Raspberry Pi by its MAC address.
         """
-        if not subnet:
-            return [], "", "Subnet must be provided."
+        # Mock the nmap PortScanner's result
+        mock_nm = MagicMock()
+        mock_nm.all_hosts.return_value = ["192.168.1.101"]
+        # FIX: Ensure the mocked item is a dictionary with a 'state' and 'ipv4' key
+        mock_nm.__getitem__.return_value = {
+            "addresses": {"mac": "b8:27:eb:aa:bb:cc", "ipv4": "192.168.1.101"},
+            "state": "up",
+        }
+        mock_nmap_scanner_class.return_value = mock_nm
 
-        # -sn: Ping scan (no ports)
-        # -PR: ARP request to discover hosts
-        command = ["nmap", "-sn", "-PR", subnet]
-        try:
-            result = subprocess.run(
-                command, capture_output=True, text=True, check=True, timeout=120
-            )
-            stdout = result.stdout
-            stderr = result.stderr
-            logger.info("nmap scan successful.")
+        # Run the scan and check results
+        hosts, msg, err = PiScanner.scan("192.168.1.0/24")
+        assert len(hosts) == 1
+        assert hosts[0]["ip"] == "192.168.1.101"
+        assert hosts[0]["mac"] == "b8:27:eb:aa:bb:cc"
+        assert hosts[0]["status"] == "up"
 
-            found_pis = []
-            # Regex to find MAC addresses and their preceding IP
-            ip_mac_pattern = re.compile(
-                r"Nmap scan report for (.*?)\n.*?MAC Address: ([\w:]+)"
-            )
-
-            for match in ip_mac_pattern.finditer(stdout):
-                ip = match.group(1)
-                mac = match.group(2).lower()
-                # Check if the MAC address belongs to a Raspberry Pi
-                if any(mac.startswith(prefix) for prefix in PiScanner.PI_MAC_PREFIXES):
-                    found_pis.append({"ip": ip, "mac": mac})
-
-            return found_pis, stdout, stderr
-
-        except FileNotFoundError:
-            logger.error(
-                "nmap command not found. Is nmap installed and in the system's PATH?"
-            )
-            return [], "", "nmap is not installed."
-        except subprocess.CalledProcessError as e:
-            logger.error(
-                f"nmap scan failed with return code {e.returncode}: {e.stderr}"
-            )
-            return [], e.stdout, e.stderr
-        except subprocess.TimeoutExpired:
-            logger.error("nmap scan timed out.")
-            return [], "", "Scan timed out."
-
-    def get_device_details(self, ip):
+    @patch("src.pi_scanner.nmap.PortScanner")
+    def test_scan_ignores_other_devices(self, mock_nmap_scanner_class):
         """
-        Connects to a device via SSH and retrieves hardware details.
-
-        Args:
-            ip (str): The IP address of the target device.
-
-        Returns:
-            dict or None: A dictionary with device details or None on failure.
+        Tests that devices with non-Pi MAC addresses are ignored.
         """
-        if not is_port_open(ip, 22):
-            logger.warning(f"SSH port 22 not open on {ip}. Skipping detail retrieval.")
-            return None
+        mock_nm = MagicMock()
+        mock_nm.all_hosts.return_value = ["192.168.1.102"]
+        mock_nm.__getitem__.return_value = {
+            "addresses": {"mac": "00:11:22:33:44:55", "ipv4": "192.168.1.102"},
+            "state": "up",
+        }
+        mock_nmap_scanner_class.return_value = mock_nm
 
-        client = paramiko.SSHClient()
-        client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        hosts, msg, err = PiScanner.scan("192.168.1.0/24")
+        assert len(hosts) == 0
 
-        try:
-            # First, try connecting with key-based authentication
-            logger.info(f"Attempting key-based SSH connection to {ip}...")
-            client.connect(
-                hostname=ip, username=self.username, password=None, timeout=10
-            )
-        except (paramiko.AuthenticationException, paramiko.SSHException):
-            logger.info(f"Key-based auth failed. Trying password for {ip}...")
-            try:
-                # If key auth fails, fall back to password authentication
-                client.connect(
-                    hostname=ip,
-                    username=self.username,
-                    password=self.password,
-                    timeout=10,
-                )
-            except (paramiko.AuthenticationException, paramiko.SSHException) as e:
-                logger.error(f"SSH authentication failed for {ip}: {e}")
-                return None
+    @patch("src.pi_scanner.nmap.PortScanner")
+    def test_scan_nmap_error(self, mock_nmap_scanner_class):
+        """
+        Tests that the scan method handles nmap errors gracefully.
+        """
+        # Configure the mock's scan method to raise a PortScannerError
+        mock_nm = MagicMock()
+        mock_nm.scan.side_effect = nmap.nmap.PortScannerError("Nmap failed")
+        mock_nmap_scanner_class.return_value = mock_nm
 
-        try:
-            stdin, stdout, stderr = client.exec_command(self.SSH_COMMAND)
-            output = stdout.read().decode("utf-8").strip()
-            err = stderr.read().decode("utf-8").strip()
-            if err:
-                logger.error(f"Error executing command on {ip}: {err}")
+        hosts, msg, err = PiScanner.scan("192.168.1.0/24")
+        assert len(hosts) == 0
+        assert msg == ""
+        # FIX: Check for the actual error message content, which may include quotes
+        assert "Nmap failed" in err
 
-            parts = output.split("---\n")
-            if len(parts) != 4:
-                print(f"Could not parse all details from output: {output}")
-                return None
+    @patch("src.pi_scanner.is_port_open", return_value=True)
+    @patch("src.pi_scanner.subprocess.run")
+    def test_get_device_details_success(self, mock_run, mock_is_port_open):
+        """
+        Tests that device details are retrieved successfully via SSH.
+        """
+        # Mock the subprocess result
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = "PRETTY_NAME=Raspbian GNU/Linux 10 (buster)"
+        mock_run.return_value = mock_result
 
-            model, ram, serial, disk_json = parts
-            return {
-                "model": model.strip().replace("\x00", ""),
-                "ram": ram.strip(),
-                "serial": serial.strip(),
-                "disks": json.loads(disk_json).get("blockdevices", []),
-            }
-        except Exception as my_err:
-            logger.error(f"Failed to process SSH command output from {ip}: {my_err}")
-            return None
-        finally:
-            client.close()
+        # Run get_device_details
+        scanner = PiScanner("test_user", "test_pass")
+        details, err = scanner.get_device_details("192.168.1.101")
+        assert err is None
+        assert details["os_version"] == "Raspbian GNU/Linux 10 (buster)"
+
+    @patch("src.pi_scanner.is_port_open", return_value=False)
+    def test_get_device_details_ssh_port_closed(self, mock_is_port_open):
+        """
+        Tests the behavior when the SSH port is closed.
+        """
+        scanner = PiScanner("user", "pass")
+        details, err = scanner.get_device_details("192.168.1.101")
+        assert details is None
+        assert "SSH port 22 is not open" in err
+
+    @patch("src.pi_scanner.is_port_open", return_value=True)
+    @patch("src.pi_scanner.subprocess.run")
+    def test_get_device_details_ssh_failure(self, mock_run, mock_is_port_open):
+        """
+        Tests the handling of an SSH command failure.
+        """
+        # Mock a failed subprocess execution
+        mock_result = MagicMock()
+        mock_result.returncode = 1
+        mock_result.stderr = "Permission denied"
+        mock_run.return_value = mock_result
+
+        scanner = PiScanner("user", "pass")
+        details, err = scanner.get_device_details("192.168.1.101")
+        assert details is None
+        assert "Permission denied" in err
+
+    @patch("src.pi_scanner.is_port_open", return_value=True)
+    @patch("src.pi_scanner.subprocess.run")
+    def test_get_device_details_incomplete_output(self, mock_run, mock_is_port_open):
+        """
+        Tests the handling of incomplete SSH command output.
+        """
+        # Mock subprocess result with missing info
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = "SOME_OTHER_INFO=some_value"
+        mock_run.return_value = mock_result
+
+        scanner = PiScanner("user", "pass")
+        details, err = scanner.get_device_details("192.168.1.101")
+        assert details is None
+        assert "Could not determine OS version" in err
