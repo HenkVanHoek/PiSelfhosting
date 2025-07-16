@@ -4,8 +4,10 @@
 # windowed application, consistent across all operating systems.
 
 a = Analysis(
-    ['src/configurator_app/app.py'],
-    pathex=[],
+    # Point to the correct main application script.
+    ['src/config_webapp.py'],
+    # Add 'src' to the path to help PyInstaller resolve local module imports.
+    pathex=['src'],
     binaries=[],
     datas=[
         # Add all non-code files needed by your application here.
