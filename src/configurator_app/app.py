@@ -12,13 +12,13 @@ from flask import (
     session,
     url_for,
 )
-from network.scanner import PiScanner
 
 from managers.component_manager import ComponentManager
 from managers.setup_manager import SetupManager
+from pi_scanner import PiScanner
 
 # --- Global instances of managers ---
-component_manager = ComponentManager()
+component_manager = ComponentManager(metadata_file="config/components_metadata.json")
 setup_manager = SetupManager(component_manager)
 
 
