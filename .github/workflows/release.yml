@@ -62,11 +62,11 @@ jobs:
       run: |
         mkdir -p artifact
         if [ "$RUNNER_OS" == "Windows" ]; then
-          mv dist/PiSelfhostingInstaller.exe "artifact/PiSelfhostingInstaller-Windows.exe"
+          mv dist/PiSelfhostingInstaller.exe "artifact/PiSelfhosting-Windows.exe"
         elif [ "$RUNNER_OS" == "macOS" ]; then
-          mv dist/PiSelfhostingInstaller "artifact/PiSelfhostingInstaller-macOS"
+          mv dist/PiSelfhostingInstaller "artifact/PiSelfhosting-macOS"
         else
-          mv dist/PiSelfhostingInstaller "artifact/PiSelfhostingInstaller-Linux"
+          mv dist/PiSelfhostingInstaller "artifact/PiSelfhosting-Linux"
         fi
 
     # Uploads the packaged executable as a build artifact.
@@ -97,9 +97,9 @@ jobs:
       # Creates a separate .zip archive for each platform's installer.
       - name: Zip installers for release
         run: |
-          zip -j PiSelfhosting-Installer-Windows.zip installers/PiSelfhostingInstaller-Windows.exe
-          zip -j PiSelfhosting-Installer-macOS.zip installers/PiSelfhostingInstaller-macOS
-          zip -j PiSelfhosting-Installer-Linux.zip installers/PiSelfhostingInstaller-Linux
+          zip -j PiSelfhosting-Windows.zip installers/PiSelfhosting-Windows.exe
+          zip -j PiSelfhosting-macOS.zip installers/PiSelfhosting-macOS
+          zip -j PiSelfhosting-Linux.zip installers/PiSelfhosting-Linux
 
       # Creates or updates a GitHub Release and attaches the .zip files as assets.
       - name: Upload assets to release
@@ -107,6 +107,6 @@ jobs:
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           tag: ${{ github.ref_name }} # Uses the Git tag that triggered the workflow.
-          file: "PiSelfhosting-Installer-*"
+          file: "PiSelfhosting-*"
           file_glob: true
           overwrite: true
