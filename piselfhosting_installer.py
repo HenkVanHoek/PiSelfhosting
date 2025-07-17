@@ -36,7 +36,6 @@ def run_installation():
     # dependencies and to ensure they are found after the path is set up.
     # noinspection PyUnresolvedReferences
     import ansible_runner
-
     from component_manager import ComponentManager  # noqa: E402
 
     # --- Environment and Configuration ---

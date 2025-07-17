@@ -39,7 +39,8 @@
     "has_ui": true,
     "ui_port": 9443,
     "icon": "fas fa-anchor",
-    "protocol": "https"
+    "protocol": "https",
+    "default": true
   },
   "dashy": {
     "name": "Dashy",
@@ -50,7 +51,8 @@
     "has_ui": true,
     "ui_port": 8080,
     "icon": "fas fa-tachometer-alt",
-    "protocol": "http"
+    "protocol": "http",
+    "default": true
   },
   "heimdall": {
     "name": "Heimdall",
@@ -117,7 +119,19 @@
     "has_ui": true,
     "ui_port": 8088,
     "icon": "fas fa-shield-alt",
-    "protocol": "http"
+    "protocol": "http",
+    "environment": [
+      {
+        "name": "TZ",
+        "description": "Set the timezone for logs and scheduling (e.g., Europe/Amsterdam)",
+        "default_value": "Europe/Amsterdam"
+      },
+      {
+        "name": "WEBPASSWORD",
+        "description": "Admin password for the web interface. SET THIS TO SOMETHING SECURE!",
+        "default_value": "changeme"
+      }
+    ]
   },
   "adguard-home": {
     "name": "AdGuard Home",
@@ -193,7 +207,14 @@
     "has_ui": true,
     "ui_port": 4430,
     "icon": "fas fa-cloud",
-    "protocol": "http"
+    "protocol": "http",
+    "environment": [
+      {
+        "name": "TZ",
+        "description": "Set the timezone for the server (e.g., Europe/Berlin)",
+        "default_value": "Europe/Berlin"
+      }
+    ]
   },
   "jellyfin": {
     "name": "Jellyfin",
@@ -215,7 +236,24 @@
     "has_ui": true,
     "ui_port": 8989,
     "icon": "fas fa-download",
-    "protocol": "http"
+    "protocol": "http",
+    "environment": [
+      {
+        "name": "PUID",
+        "description": "User ID for file permissions",
+        "default_value": "1000"
+      },
+      {
+        "name": "PGID",
+        "description": "Group ID for file permissions",
+        "default_value": "1000"
+      },
+      {
+        "name": "TZ",
+        "description": "Set the timezone (e.g., America/New_York)",
+        "default_value": "America/New_York"
+      }
+    ]
   },
   "radarr": {
     "name": "Radarr",
@@ -342,6 +380,7 @@
     "has_ui": true,
     "ui_port": 9901,
     "icon": "fas fa-save",
-    "protocol": "http"
+    "protocol": "http",
+    "default": true
   }
 }

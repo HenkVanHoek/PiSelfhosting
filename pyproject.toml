@@ -17,6 +17,14 @@ description = "A project to self-host services on a Raspberry Pi."
 requires-python = ">=3.11"
 dynamic = ["version"]
 
+[tool.setuptools]
+package_dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+# Automatically find all packages (folders with __init__.py) in src
+where = ["src"]
+exclude = ["*egg-info*"]
+
 [tool.setuptools.dynamic]
 version = {file = "VERSION"}
 
