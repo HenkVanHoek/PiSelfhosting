@@ -48,7 +48,7 @@ exe = EXE(
     a.datas,
     name='PiSelfhostingInstaller',
     # --- CHANGE 1: Enable debug output from PyInstaller's bootloader ---
-    debug=True,
+    debug=False,
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
