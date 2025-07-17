@@ -5,7 +5,7 @@
 
 a = Analysis(
     # Point to the correct main application script.
-    ['src/config_webapp.py'],
+    ['src/configurator_app/app.py'],
     # Add 'src' to the path to help PyInstaller resolve local module imports.
     pathex=['src'],
     binaries=[],
