@@ -49,21 +49,11 @@ jobs:
     - name: Build the executable with PyInstaller
       shell: bash
       run: |
-        # Set the application icon based on the OS.
-        # This is the only OS-specific build logic left.
-        if [ "$RUNNER_OS" == "Windows" ]; then
-          ICON_ARG="--icon=images/favicon.ico"
-        elif [ "$RUNNER_OS" == "macOS" ]; then
-          # Note: macOS requires a .icns file for icons.
-          # ICON_ARG="--icon=images/icon.icns"
-          ICON_ARG="" # Deactivated for now
-        else
-          ICON_ARG=""
-        fi
-
         # Clean previous builds and run PyInstaller with the spec file.
+        # All OS-specific logic, like setting the icon, is now handled
+        # directly within the .spec file.
         rm -rf build dist
-        pyinstaller PiSelfhostingInstaller.spec $ICON_ARG
+        pyinstaller PiSelfhostingInstaller.spec
 
     # Prepares the built executable for uploading as an artifact.
     # It renames the executable to have a unique, platform-specific name.

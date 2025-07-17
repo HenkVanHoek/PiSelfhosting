@@ -48,5 +48,6 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    icon=icon_file
     # The icon path will be set via the command line during the build.
 )
