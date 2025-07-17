@@ -8,6 +8,7 @@ This document provides guidelines for setting up your development environment an
 * [Submitting an Issue](#-submitting-an-issue)
 * [Feature Requests](#-feature-requests)
 * [Development Quick Start](#-development-quick-start)
+* [Package and Dependency Management](#-package-and-dependency-management)
 * [Development Philosophy](#️-development-philosophy)
 * [Testing](#-testing)
 * [Pull Request Process](#-pull-request-process)
@@ -86,10 +87,27 @@ Ensure you have the following software installed on your workstation:
     python src/app.py
     ```
 
+## 📦 Package and Dependency Management
+
+This project uses `pip` and `requirements.txt` files to manage dependencies.
+
+*   `requirements.txt`: Contains the core packages required for the application to run.
+*   `requirements-dev.txt`: Contains all packages needed for development, including testing (`pytest`), building (`pyinstaller`), and any other development tools. This file also includes everything from `requirements.txt`.
+
+### Adding or Updating a Package
+
+1.  **Determine the correct file.** If the package is essential for the application to run, add it to `requirements.txt`. If it's only for development or testing, add it to `requirements-dev.txt`.
+2.  **Pin the version.** Always specify an exact version number using `==` (e.g., `requests==2.31.0`). This ensures that everyone uses the same package version, leading to consistent and reproducible builds.
+3.  **Update your environment.** After modifying a requirements file, run the following command to install the new packages into your virtual environment:
+    ```bash
+    pip install -r requirements-dev.txt
+    ```
+
 ## ✍️ Development Philosophy
 
 *   **User-Centric**: The primary goal is to create a simple, intuitive, and reliable experience for the end-user.
 *   **Clean Code**: Write clear, readable, and maintainable code. Follow PEP 8 guidelines.
+*   **Language Consistency**: To keep the project accessible and maintainable for an international audience, all code, comments, documentation, and commit messages must be written in **English**.
 *   **Robustness**: Add error handling and logging to make the application resilient and easy to debug.
 *   **Security**: Handle user credentials and sensitive data with care. Avoid storing secrets in version control.
 

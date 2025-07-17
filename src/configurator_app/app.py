@@ -1,5 +1,6 @@
 import logging
 import os
+import sys
 
 from flask import (
     Flask,
@@ -120,6 +121,10 @@ def create_app(
     return flask_app
 
 
+def is_frozen():
+    return getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS")
+
+
 # Create the Flask app instance using the factory.
 # This is the single 'app' instance that will be run or imported by a WSGI server.
 app = create_app()
@@ -128,4 +133,6 @@ app = create_app()
 if __name__ == "__main__":
     # Run the app directly for development.
     # For production, a WSGI server like Gunicorn would import the 'app' object.
+    debug_mode = not is_frozen()
+
     app.run(debug=True, host="0.0.0.0")
