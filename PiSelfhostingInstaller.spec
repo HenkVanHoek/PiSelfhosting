@@ -1,7 +1,17 @@
 # PiSelfhostingInstaller.spec
+import platform
 
 # This file is a "blueprint" for PyInstaller, configured for a one-file,
 # windowed application, consistent across all operating systems.
+
+# --- Define the icon based on the OS ---
+icon_file = None
+if platform.system() == "Windows":
+    icon_file = "images/favicon.ico"
+elif platform.system() == "Darwin":  # Darwin is the system name for macOS
+    # Activate the icon for macOS using the file you provided.
+    icon_file = "images/piselfhosting-appl.icns"
+# For other systems (like Linux), icon_file remains None.
 
 a = Analysis(
     # Point to the correct main application script.
@@ -48,6 +58,6 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    # This now uses the correct icon file for each OS.
     icon=icon_file
-    # The icon path will be set via the command line during the build.
 )
