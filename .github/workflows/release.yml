@@ -101,7 +101,7 @@ jobs:
           zip -j PiSelfhosting-macOS.zip installers/PiSelfhosting-macOS
           zip -j PiSelfhosting-Linux.zip installers/PiSelfhosting-Linux
 
-      # Creates or updates a GitHub Release and attaches the .zip files as assets.
+      # Creates or updates a GitHub Release and attaches the .zip files as assets
       - name: Upload assets to release
         uses: svenstaro/upload-release-action@v2
         with:
