@@ -1,6 +1,5 @@
 import logging
 import os
-import sys
 
 from flask import (
     Flask,
@@ -16,15 +15,23 @@ from flask import (
 from managers.component_manager import ComponentManager
 from managers.setup_manager import SetupManager
 from pi_scanner import PiScanner
+from utils.resource_utils import resource_path
 
-# --- Global instances of managers ---
-component_manager = ComponentManager(metadata_file="config/components_metadata.json")
+# import sys
+
+
+# --- Basic Flask App Setup ---
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
+
+# --- App Dependencies Initialization ---
+# Use the robust resource_path function to locate the metadata file.
+metadata_path = resource_path(os.path.join("config", "components_metadata.json"))
+
+# Initialize managers that will be used by the app.
+component_manager = ComponentManager(metadata_file=metadata_path)
 setup_manager = SetupManager(component_manager)
-
-
-def is_frozen():
-    """Checks if the application is running in a PyInstaller bundle."""
-    return getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS")
 
 
 def create_app(
@@ -35,19 +42,13 @@ def create_app(
     Factory function to create the Flask application.
     This allows for dependency injection, which is great for testing.
     """
+    # Use a different name internally to avoid shadowing the module-level 'app'
     flask_app = Flask(__name__)
-
-    # --- THIS IS THE FIX ---
-    # Configure debug mode directly within the app's configuration.
-    # This logic is now inside the factory, so it is guaranteed to run
-    # whether the app is in development or "frozen" by PyInstaller.
-    flask_app.config["DEBUG"] = not is_frozen()
-
     flask_app.secret_key = os.environ.get(
         "FLASK_SECRET_KEY", "a-default-secret-key-for-development"
     )
 
-    # --- Routes (omitted for brevity, no changes needed here) ---
+    # --- Routes ---
     @flask_app.route("/", methods=["GET", "POST"])
     def index():
         if request.method == "POST":
