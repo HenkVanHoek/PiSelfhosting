@@ -23,7 +23,8 @@ a = Analysis(
         # The source path now correctly points inside the 'src' directory,
         # reflecting the new project structure.
         ('src/configurator_app/templates', 'configurator_app/templates'),
-        ('src/configurator_app/static', 'configurator_app/static')
+        ('src/configurator_app/static', 'configurator_app/static'),
+        ('config', 'config')
     ],
     hiddenimports=[],
     hookspath=[],
