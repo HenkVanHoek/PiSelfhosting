@@ -24,6 +24,7 @@ a = Analysis(
         # reflecting the new project structure.
         ('src/configurator_app/templates', 'configurator_app/templates'),
         ('src/configurator_app/static', 'configurator_app/static'),
+        # This line now correctly points to the 'config' directory in the project root.
         ('config', 'config')
     ],
     hiddenimports=[],
@@ -46,14 +47,15 @@ exe = EXE(
     a.zipfiles,
     a.datas,
     name='PiSelfhostingInstaller',
-    debug=False,
+    # --- CHANGE 1: Enable debug output from PyInstaller's bootloader ---
+    debug=True,
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
     upx_exclude=[],
     runtime_tmpdir=None,
-    # Set console to False for a windowed (GUI) application.
-    console=False,
+    # --- CHANGE 2: Enable the console to see tracebacks ---
+    console=True,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
