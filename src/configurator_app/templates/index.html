@@ -14,6 +14,13 @@
             font-size: 1.1rem;
             font-weight: bold;
         }
+        .section-title {
+            margin-top: 1.5rem;
+            margin-bottom: 1rem;
+            color: #2c3e50;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 0.5rem;
+        }
     </style>
 </head>
 <body>
@@ -32,32 +39,44 @@
         {% endwith %}
 
         <form action="/" method="post">
-            <div class="row">
-                {% for comp_id, comp in components.items() %}
-                <div class="col-md-4 mb-3">
-                    <div class="card h-100">
-                        <div class="card-body">
-                            <div class="form-check">
-                                <input class="form-check-input"
-                                       type="checkbox"
-                                       name="selected_components"
-                                       value="{{ comp_id }}"
-                                       id="check-{{ comp_id }}"
-                                       {% if comp_id in default_components %}checked{% endif %}
-                                       data-uniqueness-group="{{ comp.uniqueness_group }}">
-                                <label class="form-check-label" for="check-{{ comp_id }}">
-                                    <h5 class="card-title">
-                                        {% if comp.icon %}<i class="{{ comp.icon }}"></i> {% endif %}{{ comp.name }}
-                                    </h5>
-                                </label>
+            {% set sections = {} %}
+            {% for comp_id, comp in components.items() %}
+                {% set section = comp.get('dashy_section', 'Other') %}
+                {% if section not in sections %}
+                    {% set _ = sections.update({section: []}) %}
+                {% endif %}
+                {% set _ = sections[section].append((comp_id, comp)) %}
+            {% endfor %}
+
+            {% for section, section_components in sections.items()|sort %}
+                <h3 class="section-title">{{ section }}</h3>
+                <div class="row">
+                    {% for comp_id, comp in section_components %}
+                    <div class="col-md-4 mb-3">
+                        <div class="card h-100">
+                            <div class="card-body">
+                                <div class="form-check">
+                                    <input class="form-check-input"
+                                           type="checkbox"
+                                           name="selected_components"
+                                           value="{{ comp_id }}"
+                                           id="check-{{ comp_id }}"
+                                           {% if comp_id in default_components %}checked{% endif %}
+                                           data-uniqueness-group="{{ comp.uniqueness_group }}">
+                                    <label class="form-check-label" for="check-{{ comp_id }}">
+                                        <h5 class="card-title">
+                                            {% if comp.icon %}<i class="{{ comp.icon }}"></i> {% endif %}{{ comp.name }}
+                                        </h5>
+                                    </label>
+                                </div>
+                                <p class="card-text">{{ comp.description }}</p>
+                                <a href="{{ comp.project_url }}" target="_blank" class="card-link">Project Link</a>
                             </div>
-                            <p class="card-text">{{ comp.description }}</p>
-                            <a href="{{ comp.project_url }}" target="_blank" class="card-link">Project Link</a>
                         </div>
                     </div>
+                    {% endfor %}
                 </div>
-                {% endfor %}
-            </div>
+            {% endfor %}
 
             <button type="submit" class="btn btn-primary mt-3">Generate Configuration</button>
         </form>

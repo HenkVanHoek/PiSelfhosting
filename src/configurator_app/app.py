@@ -44,6 +44,15 @@ def create_app(
     """
     # Use a different name internally to avoid shadowing the module-level 'app'
     flask_app = Flask(__name__)
+
+    import os
+
+    logging.info(f"Current working directory: {os.getcwd()}")
+    logging.info(f"Application root path: {flask_app.root_path}")
+    logging.info(
+        f"Template folder path: {os.path.join(flask_app.root_path, 'templates')}"
+    )
+
     flask_app.secret_key = os.environ.get(
         "FLASK_SECRET_KEY", "a-default-secret-key-for-development"
     )

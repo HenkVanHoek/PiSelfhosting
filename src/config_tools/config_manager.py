@@ -1,22 +1,96 @@
-# src/config_tools/config_manager.py
 import configparser
 import logging
+import os
+import sys
 
 logger = logging.getLogger(__name__)
 
 
 class ConfigManager:
-    """Manages reading and writing of configuration settings."""
+    """Manages configuration settings and paths."""
 
-    def __init__(self, env_file=".env"):
+    def __init__(self):
         """
-        Initializes the ConfigManager.
+        Initializes the ConfigManager with fixed paths used in the application.
+        """
+        self.project_root = self._get_project_root()
+        self.base_templates_path = "component_templates"
+
+        # Log initialization details
+        logger.info("ConfigManager initialized:")
+
+        run_mode = (
+            "PyInstaller bundle" if getattr(sys, "frozen", False) else "Development"
+        )
+        logger.info(f"Running mode: {run_mode}")
+        logger.info(f"Project root: {self.project_root}")
+        logger.info(f"Base templates path: {self.base_templates_path}")
+
+        templates_full_path = os.path.join(self.project_root, self.base_templates_path)
+        logger.info(f"Full base templates path: {templates_full_path}")
+
+        # Verify templates directory exists
+        if os.path.exists(templates_full_path):
+            logger.info(f"Templates directory exists at: {templates_full_path}")
+            # List first level of template directories
+            try:
+                templates = os.listdir(templates_full_path)
+                logger.info("Available component templates: %s", ", ".join(templates))
+            except Exception as e:
+                logger.warning(f"Could not list templates directory: {e}")
+        else:
+            logger.warning(f"Templates directory not found at: {templates_full_path}")
+
+    @staticmethod
+    def _get_project_root():
+        """
+        Returns the correct root path whether running from source or as a
+        PyInstaller bundle.
+
+        Returns:
+            str: Absolute path to the project root
+        """
+        if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+            # Running in a PyInstaller bundle
+            # noinspection PyProtectedMember
+            root_path = sys._MEIPASS
+            logger.info(f"Running from PyInstaller bundle. MEIPASS path: {root_path}")
+        else:
+            # Running in development
+            root_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            logger.info(f"Running in development mode. Project root: {root_path}")
+        return root_path
+
+    def get_component_template_path(self, component_id: str) -> str:
+        """
+        Returns the absolute template path for a specific component.
+        Ensures cross-platform compatibility and correct resolution whether
+        running from source or in a PyInstaller bundle.
 
         Args:
-            env_file (str, optional): The path to the .env file.
-                                      Defaults to ".env" in the project root.
+            component_id: The ID of the component to get the template path for.
+
+        Returns:
+            str: Absolute path to the component's template directory
         """
-        self.env_file = env_file
+        template_path = os.path.join(
+            self.project_root, self.base_templates_path, component_id
+        )
+        logger.info(f"Resolving template path for component '{component_id}':")
+        logger.info(f"  - Absolute path: {template_path}")
+
+        # Verify the specific component template directory exists
+        if os.path.exists(template_path):
+            logger.info("  - Template directory exists")
+            try:
+                template_contents = os.listdir(template_path)
+                logger.info("  - Available templates: %s", ", ".join(template_contents))
+            except Exception as e:
+                logger.warning(f"  - Could not list template directory contents: {e}")
+        else:
+            logger.warning(f"  - Template directory not found at: {template_path}")
+
+        return template_path
 
     @staticmethod
     def load_settings_from_ini(ini_filepath):

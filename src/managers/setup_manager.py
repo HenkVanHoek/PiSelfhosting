@@ -25,7 +25,8 @@ class SetupManager:
             selected_components (list): A list of component IDs to include.
             env_vars (dict): A dictionary of environment variables for Jinja2 rendering.
         """
-        logger.info(f"Starting file generation for: {', '.join(selected_components)}")
+        logger.info(f"Starting file generation for: {', '.join(selected_components)} ")
+        logger.info(f"Starting file generation for: {', '.join(env_vars)} ")
 
         full_component_list = self._resolve_dependencies(selected_components)
         logger.info(

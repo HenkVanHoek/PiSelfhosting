@@ -20,12 +20,13 @@ a = Analysis(
     pathex=['src'],
     binaries=[],
     datas=[
-        # The source path now correctly points inside the 'src' directory,
-        # reflecting the new project structure.
-        ('src/configurator_app/templates', 'configurator_app/templates'),
-        ('src/configurator_app/static', 'configurator_app/static'),
-        # This line now correctly points to the 'config' directory in the project root.
-        ('config', 'config')
+        # Flask app templates and static files
+        ('src/configurator_app/templates', 'templates'),
+        ('src/configurator_app/static', 'static'),
+        # Config files
+        ('config', 'config'),
+        # Component templates - essential for generating configurations
+        ('component_templates', 'component_templates'),  # Add this line
     ],
     hiddenimports=[],
     hookspath=[],
