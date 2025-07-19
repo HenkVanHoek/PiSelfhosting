@@ -57,7 +57,9 @@ class ConfigManager:
             logger.info(f"Running from PyInstaller bundle. MEIPASS path: {root_path}")
         else:
             # Running in development
-            root_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            # Go up three levels: config_tools -> src -> project_root
+            current_file = os.path.abspath(__file__)
+            root_path = os.path.dirname(os.path.dirname(os.path.dirname(current_file)))
             logger.info(f"Running in development mode. Project root: {root_path}")
         return root_path
 

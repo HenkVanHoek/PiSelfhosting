@@ -14,14 +14,56 @@
             font-size: 1.1rem;
             font-weight: bold;
         }
-        .section-title {
-            margin-top: 1.5rem;
-            margin-bottom: 1rem;
+        .nav-tabs .nav-link {
             color: #2c3e50;
-            border-bottom: 2px solid #3498db;
-            padding-bottom: 0.5rem;
+        }
+        .nav-tabs .nav-link.active {
+            color: #3498db;
+            font-weight: bold;
+        }
+        .tab-content {
+            padding-top: 20px;
+        }
+        .info-box {
+            background-color: #f8f9fa;
+            border-left: 4px solid #3498db;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        .info-box h5 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+        .badge-ui {
+            background-color: #28a745;
+            color: white;
+            font-size: 0.75rem;
+            padding: 0.25em 0.6em;
+            border-radius: 0.25rem;
+            margin-left: 0.5rem;
+        }
+        .badge-no-ui {
+            background-color: #6c757d;
+            color: white;
+            font-size: 0.75rem;
+            padding: 0.25em 0.6em;
+            border-radius: 0.25rem;
+            margin-left: 0.5rem;
         }
     </style>
+<style>
+    /* Add to your existing styles */
+    .text-muted {
+        font-size: 1.2rem;
+        color: #6c757d;
+        margin-bottom: 0.5rem;
+    }
+    hr {
+        margin-top: 0.5rem;
+        margin-bottom: 1.5rem;
+        border-color: #dee2e6;
+    }
+</style>
 </head>
 <body>
     <div class="container">
@@ -38,7 +80,17 @@
             {% endif %}
         {% endwith %}
 
-        <form action="/" method="post">
+        <div class="info-box">
+            <h5><i class="fas fa-info-circle"></i> Important Information</h5>
+            <p><strong>Uniqueness Groups:</strong> Some components belong to the same group (e.g., "dashboard" or "dns_blocker") and are mutually exclusive. Only one component from each group can be selected.</p>
+            <p><strong>User Interface:</strong> Components marked with <span class="badge badge-ui">UI</span> provide a web interface, while those with <span class="badge badge-no-ui">No UI</span> run in the background.</p>
+        </div>
+
+        <form action="/" method="post" id="componentsForm">
+            <button type="submit" class="btn btn-primary btn-lg w-100 mb-4" id="generateBtn" disabled>
+                Generate Configuration
+            </button>
+
             {% set sections = {} %}
             {% for comp_id, comp in components.items() %}
                 {% set section = comp.get('dashy_section', 'Other') %}
@@ -48,24 +100,56 @@
                 {% set _ = sections[section].append((comp_id, comp)) %}
             {% endfor %}
 
-            {% for section, section_components in sections.items()|sort %}
-                <h3 class="section-title">{{ section }}</h3>
-                <div class="row">
-                    {% for comp_id, comp in section_components %}
+            <!-- Navigation tabs section -->
+<ul class="nav nav-tabs mb-3" id="componentTabs" role="tablist">
+    {% for section, section_components in sections.items()|sort %}
+    <li class="nav-item" role="presentation">
+        <button class="nav-link {% if loop.first %}active{% endif %}"
+                id="tab-{{ section|lower|replace(' ', '-')|replace('&', 'and') }}"
+                data-bs-toggle="tab"
+                data-bs-target="#content-{{ section|lower|replace(' ', '-')|replace('&', 'and') }}"
+                type="button"
+                role="tab"
+                aria-controls="content-{{ section|lower|replace(' ', '-')|replace('&', 'and') }}"
+                aria-selected="{% if loop.first %}true{% else %}false{% endif %}">
+            {{ section }}
+        </button>
+    </li>
+    {% endfor %}
+</ul>
+
+<!-- Tab content section -->
+<div class="tab-content" id="componentTabsContent">
+    {% for section, section_components in sections.items()|sort %}
+    <div class="tab-pane fade {% if loop.first %}show active{% endif %}"
+         id="content-{{ section|lower|replace(' ', '-')|replace('&', 'and') }}"
+         role="tabpanel"
+         aria-labelledby="tab-{{ section|lower|replace(' ', '-')|replace('&', 'and') }}">
+
+        {# First, display components with no uniqueness group #}
+        <div class="row">
+            {% for comp_id, comp in section_components %}
+                {% if not comp.uniqueness_group %}
                     <div class="col-md-4 mb-3">
                         <div class="card h-100">
                             <div class="card-body">
                                 <div class="form-check">
-                                    <input class="form-check-input"
+                                    <input class="form-check-input component-checkbox"
                                            type="checkbox"
                                            name="selected_components"
                                            value="{{ comp_id }}"
                                            id="check-{{ comp_id }}"
                                            {% if comp_id in default_components %}checked{% endif %}
-                                           data-uniqueness-group="{{ comp.uniqueness_group }}">
+                                           data-uniqueness-group="null">
                                     <label class="form-check-label" for="check-{{ comp_id }}">
                                         <h5 class="card-title">
-                                            {% if comp.icon %}<i class="{{ comp.icon }}"></i> {% endif %}{{ comp.name }}
+                                            {% if comp.icon %}<i class="{{ comp.icon }}"></i> {% endif %}
+                                            {{ comp.name }}
+                                            {% if comp.has_ui %}
+                                                <span class="badge badge-ui">UI</span>
+                                            {% else %}
+                                                <span class="badge badge-no-ui">No UI</span>
+                                            {% endif %}
                                         </h5>
                                     </label>
                                 </div>
@@ -74,37 +158,98 @@
                             </div>
                         </div>
                     </div>
+                {% endif %}
+            {% endfor %}
+        </div>
+
+        {# Then, group and display components by uniqueness group #}
+        {% set grouped_components = {} %}
+        {% for comp_id, comp in section_components %}
+            {% if comp.uniqueness_group %}
+                {% if comp.uniqueness_group not in grouped_components %}
+                    {% set _ = grouped_components.update({comp.uniqueness_group: []}) %}
+                {% endif %}
+                {% set _ = grouped_components[comp.uniqueness_group].append((comp_id, comp)) %}
+            {% endif %}
+        {% endfor %}
+
+        {% for group_name, group_components in grouped_components.items() %}
+            <div class="mt-4 mb-3">
+                <h4 class="text-muted">{{ group_name|replace('_', ' ')|title }}</h4>
+                <hr>
+                <div class="row">
+                    {% for comp_id, comp in group_components %}
+                        <div class="col-md-4 mb-3">
+                            <div class="card h-100">
+                                <div class="card-body">
+                                    <div class="form-check">
+                                        <input class="form-check-input component-checkbox"
+                                               type="checkbox"
+                                               name="selected_components"
+                                               value="{{ comp_id }}"
+                                               id="check-{{ comp_id }}"
+                                               {% if comp_id in default_components %}checked{% endif %}
+                                               data-uniqueness-group="{{ comp.uniqueness_group }}">
+                                        <label class="form-check-label" for="check-{{ comp_id }}">
+                                            <h5 class="card-title">
+                                                {% if comp.icon %}<i class="{{ comp.icon }}"></i> {% endif %}
+                                                {{ comp.name }}
+                                                {% if comp.has_ui %}
+                                                    <span class="badge badge-ui">UI</span>
+                                                {% else %}
+                                                    <span class="badge badge-no-ui">No UI</span>
+                                                {% endif %}
+                                            </h5>
+                                        </label>
+                                    </div>
+                                    <p class="card-text">{{ comp.description }}</p>
+                                    <a href="{{ comp.project_url }}" target="_blank" class="card-link">Project Link</a>
+                                </div>
+                            </div>
+                        </div>
                     {% endfor %}
                 </div>
-            {% endfor %}
-
-            <button type="submit" class="btn btn-primary mt-3">Generate Configuration</button>
+            </div>
+        {% endfor %}
+    </div>
+    {% endfor %}
+</div>
         </form>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
-        // JavaScript to handle uniqueness groups
-        document.addEventListener('DOMContentLoaded', function () {
-            const uniquenessGroups = JSON.parse('{{ uniqueness_groups | tojson | safe }}');
-            const checkboxes = document.querySelectorAll('input[type="checkbox"][data-uniqueness-group]');
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const uniquenessGroups = JSON.parse('{{ uniqueness_groups | tojson | safe }}');
+        const checkboxes = document.querySelectorAll('.component-checkbox');
+        const generateBtn = document.getElementById('generateBtn');
 
-            checkboxes.forEach(checkbox => {
-                checkbox.addEventListener('change', function () {
-                    if (this.checked) {
-                        const group = this.dataset.uniquenessGroup;
-                        if (group && group !== 'null') {
-                            // Uncheck other checkboxes in the same group
-                            checkboxes.forEach(otherCheckbox => {
-                                if (otherCheckbox !== this && otherCheckbox.dataset.uniquenessGroup === group) {
-                                    otherCheckbox.checked = false;
-                                }
-                            });
-                        }
+        function updateGenerateButton() {
+            const anyChecked = Array.from(checkboxes).some(checkbox => checkbox.checked);
+            generateBtn.disabled = !anyChecked;
+        }
+
+        checkboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', function () {
+                if (this.checked) {
+                    const group = this.dataset.uniquenessGroup;
+                    // Only enforce mutual exclusivity if the group is not null
+                    if (group && group !== 'null') {
+                        checkboxes.forEach(otherCheckbox => {
+                            if (otherCheckbox !== this &&
+                                otherCheckbox.dataset.uniquenessGroup === group) {
+                                otherCheckbox.checked = false;
+                            }
+                        });
                     }
-                });
+                }
+                updateGenerateButton();
             });
         });
-    </script>
+
+        // Initial button state
+        updateGenerateButton();
+    });
+</script>
 </body>
 </html>

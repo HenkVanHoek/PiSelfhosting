@@ -19,7 +19,6 @@ from utils.resource_utils import resource_path
 
 # import sys
 
-
 # --- Basic Flask App Setup ---
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
