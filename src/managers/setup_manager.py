@@ -1,4 +1,5 @@
 import logging
+import os
 import re
 from pathlib import Path
 
@@ -186,3 +187,44 @@ class SetupManager:
             logger.error(
                 f"Failed to process " f"docker-compose template for {comp_id}: {e}"
             )
+
+    def _generate_other_files(self, component_id, details, jinja_env, env_vars):
+        """
+        Generates other configuration files for a component.
+
+        Args:
+            component_id: Component ID
+            details: Component details dictionary
+            jinja_env: Jinja2 Environment instance
+            env_vars: Environment variables for template rendering
+        """
+        other_files = details.get("other_files", [])
+
+        for file_config in other_files:
+            template_name = file_config.get("template")
+            output_path = file_config.get("destination")
+
+            if not template_name or not output_path:
+                logger.warning(
+                    f"Incomplete file configuration for {component_id}: {file_config}"
+                )
+                continue
+
+            try:
+                template = jinja_env.get_template(template_name)
+                rendered_content = template.render(env_vars)
+
+                # Ensure output directory exists
+                full_output_path = os.path.join(self.output_dir, output_path)
+                os.makedirs(os.path.dirname(full_output_path), exist_ok=True)
+
+                # Write the rendered content
+                with open(full_output_path, "w") as f:
+                    f.write(rendered_content)
+
+                logger.info(f"Generated {output_path} for component {component_id}")
+
+            except (jinja2.TemplateNotFound, IOError) as e:
+                logger.error(
+                    f"Failed to generate {output_path} for {component_id}: {e}"
+                )
