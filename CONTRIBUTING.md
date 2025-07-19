@@ -1,17 +1,8 @@
 # Contributing to PiSelfhosting
 
-First off, thank you for considering contributing! We welcome contributions from everyone. Whether you're reporting a bug, discussing features, or writing code, your help is valued.
+Thank you for considering contributing to PiSelfhosting! We welcome contributions from everyone, whether you're reporting bugs, suggesting features, or writing code. Your help is greatly appreciated.
 
-This document provides guidelines for setting up your development environment and contributing to the project to ensure a smooth and effective process for everyone.
-
-* [Code of Conduct](#-code-of-conduct)
-* [Submitting an Issue](#-submitting-an-issue)
-* [Feature Requests](#-feature-requests)
-* [Development Quick Start](#-development-quick-start)
-* [Package and Dependency Management](#-package-and-dependency-management)
-* [Development Philosophy](#️-development-philosophy)
-* [Testing](#-testing)
-* [Pull Request Process](#-pull-request-process)
+This document provides guidelines for setting up your development environment and contributing effectively to the project.
 
 ## ✅ Code of Conduct
 
@@ -19,113 +10,105 @@ Help us keep this project open and inclusive. Please read and follow our [Code o
 
 ## 🐛 Submitting an Issue
 
-A great way to contribute is to send a detailed issue when you encounter a problem. We always appreciate a well-written, thorough bug report.
+One of the best ways to contribute is by submitting detailed bug reports when you encounter problems.
 
-* **Do not open a duplicate issue!** Search through existing issues to see if your problem has already been reported. If it has, you can add a "👍" reaction to show your support or comment with any additional information.
-* Review the documentation before opening a new issue.
-* Fully complete the provided issue template with as much detail as possible.
+**Before submitting a new issue:**
+* **Search existing issues** to avoid duplicates. If you find a similar issue, add a "👍" reaction or comment with additional information
+* **Review the documentation** to ensure the issue isn't covered there
+* **Use the issue template** and provide as much detail as possible
 
 ## ✨ Feature Requests
 
-We are always open to new ideas! However, before submitting a feature request:
+We're always open to new ideas! Before submitting a feature request:
 
-* **Check the [Project Roadmap](ROADMAP.md)** to see if your idea is already planned.
-* **Search for existing requests** to avoid duplicates. If you find a similar request, add your thoughts to that conversation.
-* Be precise about the proposed outcome and how it relates to existing features.
-* Fully complete the feature request template to start a productive conversation.
+* **Check the [Project Roadmap](ROADMAP.md)** to see if your idea is already planned
+* **Search existing requests** to avoid duplicates - if you find something similar, join that conversation instead
+* **Be specific** about the proposed outcome and how it relates to existing features
+* **Complete the feature request template** to start a productive discussion
 
 ## 👨‍💻 Development Quick Start
 
-To run the application from source for development or testing, follow these steps.
+### Prerequisites
 
-## Prerequisites
+Ensure you have the following installed on your development workstation:
 
-Ensure you have the following software installed on your workstation:
-
-*   `Git`
-*   `Python 3.10+`
-*   `pip` (Python's package installer)
-*   `Ansible`: The automation engine that performs the installation on the Raspberry Pi. The `ansible-runner` library requires a full Ansible installation.
-    *   **On macOS:** `brew install ansible`
-    *   **On Debian/Ubuntu:** `sudo apt-get update && sudo apt-get install ansible`
-    *   **On Windows (via WSL or pip):** It's recommended to use WSL (Windows Subsystem for Linux). Alternatively, you can install it via pip: `pip install ansible`
-*   `Nmap`: A network scanning tool used by the `PiScanner`.
-    *   **On Windows:** Download the latest stable release installer (`nmap-*-setup.exe`) from the Nmap website. Run the installer and **ensure you do not change the default installation path**. The application logic expects `nmap.exe` to be in its standard location.
-    *   **On macOS:** `brew install nmap`
-    *   **On Debian/Ubuntu:** `sudo apt-get update && sudo apt-get install nmap`
-
+* **Git** - Version control system
+* **Python 3.10+** - Core runtime
+* **pip** - Python package installer (usually included with Python)
+* **Ansible** - Required for the deployment automation. Install the full version (not just ansible-core):
+  * **macOS:** `brew install ansible`
+  * **Ubuntu/Debian:** `sudo apt-get update && sudo apt-get install ansible`
+  * **Windows:** Use WSL (recommended) or install via pip: `pip install ansible`
+* **Nmap** - Network scanning tool used for Pi discovery:
+  * **Windows:** Download from the [official Nmap website](https://nmap.org/download.html). Use the default installation path
+  * **macOS:** `brew install nmap`
+  * **Ubuntu/Debian:** `sudo apt-get update && sudo apt-get install nmap`
 
 ### Setting Up Your Development Environment
 
-1.  Clone your fork of the repository locally.
+1. **Fork and clone** the repository:
+   ```bash
+   git clone https://github.com/YOUR-USERNAME/PiSelfhosting.git
+   cd PiSelfhosting
+   ```
 
-    ```bash
-    git clone https://github.com/YOUR-USERNAME/PiSelfhosting.git
-    ```
+2. **Create a virtual environment** (recommended):
+   ```bash
+   python -m venv .venv
+   source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+   ```
 
-2.  Navigate to the project directory.
+3. **Install dependencies**:
+   ```bash
+   pip install -r requirements-dev.txt
+   ```
 
-    ```bash
-    cd PiSelfhosting
-    ```
+4. **Run the application**:
+   ```bash
+   python main.py
+   ```
+   This will start the configurator web interface in your browser.
 
-3.  It is recommended to create a virtual environment.
+### Development Workflow
 
-    ```bash
-    python -m venv .venv
-    source .venv/bin/activate  # On Windows use .venv\Scripts\activate
-    ```
-
-4.  Install the required dependencies.
-
-    ```bash
-    pip install -r requirements.txt
-    ```
-5.  Run the application:
-
-    ```bash
-    python src/app.py
-    ```
+The application consists of:
+- **Configurator** (Flask web app) - runs on your development machine
+- **Pi Scanner** - discovers Raspberry Pis on your network
+- **Deployment Engine** - uses Ansible to install services remotely on selected Pis
+- **Docker Templates** - service definitions deployed as containers
 
 ## 📦 Package and Dependency Management
 
-This project uses `pip` and `requirements.txt` files to manage dependencies.
+This project uses standard Python package management:
 
-*   `requirements.txt`: Contains the core packages required for the application to run.
-*   `requirements-dev.txt`: Contains all packages needed for development, including testing (`pytest`), building (`pyinstaller`), and any other development tools. This file also includes everything from `requirements.txt`.
+* **`requirements.txt`** - Core packages needed to run the application
+* **`requirements-dev.txt`** - Development tools (testing, building, etc.) plus all core requirements
 
-### Adding or Updating a Package
+### Adding Dependencies
 
-1.  **Determine the correct file.** If the package is essential for the application to run, add it to `requirements.txt`. If it's only for development or testing, add it to `requirements-dev.txt`.
-2.  **Pin the version.** Always specify an exact version number using `==` (e.g., `requests==2.31.0`). This ensures that everyone uses the same package version, leading to consistent and reproducible builds.
-3.  **Update your environment.** After modifying a requirements file, run the following command to install the new packages into your virtual environment:
-    ```bash
-    pip install -r requirements-dev.txt
-    ```
+1. **Choose the right file:**
+   - Core functionality → `requirements.txt`
+   - Development/testing tools → `requirements-dev.txt`
+
+2. **Pin exact versions** using `==` (e.g., `requests==2.31.0`) for reproducible builds
+
+3. **Update your environment:**
+   ```bash
+   pip install -r requirements-dev.txt
+   ```
 
 ## ✍️ Development Philosophy
 
-*   **User-Centric**: The primary goal is to create a simple, intuitive, and reliable experience for the end-user.
-*   **Clean Code**: Write clear, readable, and maintainable code. Follow PEP 8 guidelines.
-*   **Language Consistency**: To keep the project accessible and maintainable for an international audience, all code, comments, documentation, and commit messages must be written in **English**.
-*   **Robustness**: Add error handling and logging to make the application resilient and easy to debug.
-*   **Security**: Handle user credentials and sensitive data with care. Avoid storing secrets in version control.
+* **User-Centric:** Prioritize simple, intuitive, and reliable user experiences
+* **Clean Code:** Follow PEP 8, write clear and maintainable code
+* **English Only:** All code, comments, documentation, and commit messages must be in English for international accessibility
+* **Robust Error Handling:** Include comprehensive logging and error handling
+* **Security-First:** Handle credentials securely, never commit secrets
 
 ## 🧪 Testing
 
-We use `pytest` for testing. A wrapper script is provided to ensure tests are run from the project root with the correct paths.
+We use `pytest` for testing. Run tests from the project root:
 
-To run the test suite, execute the following command from the project's root directory:
-
+```bash
 python src/utils/run_pytest_wrapper.py
-
-Please ensure all existing tests pass and add new tests for any new features or bug fixes you introduce.
-
-## 🚀 Pull Request Process
-
-1.  Ensure your code lints and all tests are passing.
-2.  Update the `README.md` and other relevant documentation with details of changes to the interface. This includes new environment variables, exposed ports, useful file locations, and container parameters.
-3.  Increase the version numbers in any examples and the `.bumpversion.cfg` file to the new version that this Pull Request would represent. The versioning scheme we use is SemVer.
-4.  You may merge the Pull Request in once you have the sign-off of at least one other developer, or if you do not have permission to do that, you may request the second reviewer to merge it for you.
-
-We look forward to your contributions!
+```
