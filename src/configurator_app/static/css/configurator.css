@@ -1,0 +1,149 @@
+/* Main Container */
+.main-container {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+/* Main Step Tabs */
+.main-nav-tabs .nav-link {
+    color: #495057;
+    font-weight: 500;
+    font-size: 1.1rem;
+    padding: 15px 30px;
+    border: none;
+    background: none;
+}
+
+.main-nav-tabs .nav-link.active {
+    color: #007bff;
+    font-weight: 600;
+    border-bottom: 3px solid #007bff;
+    background: none;
+}
+
+.main-nav-tabs .nav-link.disabled {
+    color: #6c757d;
+    opacity: 0.6;
+}
+
+.main-tab-content {
+    background: white;
+    border-radius: 0 0 8px 8px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    padding: 30px;
+    min-height: 600px;
+    margin-top: 0;
+}
+
+/* Component Selection Styles */
+.card-title {
+    font-size: 1.1rem;
+    font-weight: bold;
+}
+
+.component-tabs .nav-link {
+    color: #2c3e50;
+}
+
+.component-tabs .nav-link.active {
+    color: #3498db;
+    font-weight: bold;
+}
+
+.tab-content {
+    padding-top: 20px;
+}
+
+.info-box {
+    background-color: #e8f4f8;
+    border-left: 4px solid #007bff;
+    padding: 15px;
+    margin-bottom: 20px;
+    border-radius: 4px;
+}
+
+.badge-ui {
+    background-color: #28a745;
+    color: white;
+}
+
+.badge-no-ui {
+    background-color: #6c757d;
+    color: white;
+}
+
+/* Pi Selection & Scanner Styles */
+.pi-item {
+    border: 1px solid #e0e0e0;
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+    border-radius: 8px;
+    background-color: #fafafa;
+    transition: all 0.3s ease;
+}
+
+.pi-item:hover {
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.pi-list {
+    margin-top: 2em;
+}
+
+/* Scanner Enhancement Styles */
+.network-detection-info {
+    margin: 1em 0;
+    padding: 1em;
+    background-color: #f8f9fa;
+    border-radius: 5px;
+    border-left: 4px solid #007bff;
+}
+
+.scan-results-info {
+    margin: 1em 0;
+    padding: 1em;
+    background-color: #f8f9fa;
+    border-radius: 5px;
+    border-left: 4px solid #28a745;
+}
+
+.info-section h4 {
+    margin-top: 0;
+    margin-bottom: 0.5em;
+    color: #2c3e50;
+}
+
+.detection-message {
+    margin: 0.25em 0;
+    padding: 0.25em 0;
+}
+
+.detection-summary {
+    margin-top: 0.5em;
+    font-weight: bold;
+    padding: 0.5em;
+    background-color: rgba(255, 255, 255, 0.7);
+    border-radius: 4px;
+}
+
+/* Installation Styles */
+#install-log {
+    background-color: #1e1e1e;
+    color: #d4d4d4;
+    font-family: 'Courier New', monospace;
+    height: 400px;
+    overflow-y: auto;
+    padding: 15px;
+    border-radius: 5px;
+    white-space: pre-wrap;
+}
+
+.progress-container {
+    margin-bottom: 20px;
+}
+
+/* Override base.html container to be full width for this page */
+.container {
+    max-width: none;
+    padding: 0;
+}
