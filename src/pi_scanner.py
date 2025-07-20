@@ -1,4 +1,3 @@
-# file: src/pi_scanner.py
 import logging
 import socket
 import subprocess
@@ -31,8 +30,11 @@ class PiScanner:
     # Official Raspberry Pi MAC address prefixes
     PI_MAC_PREFIXES = {
         "b8:27:eb",  # Raspberry Pi Foundation
-        "dc:a6:32",  # Raspberry Pi (Trading) Ltd
-        "e4:5f:01",  # Raspberry Pi (Trading) Ltd
+        "dc:a6:32",  # Raspberry Pi Trading Ltd
+        "e4:5f:01",  # Raspberry Pi Foundation
+        "28:cd:c1",  # Raspberry Pi Foundation
+        "d8:3a:dd",  # Raspberry Pi Foundation
+        "2c:cf:67",  # Associated with Raspberry Pi
     }
 
     # Command to get OS details, executed via SSH
@@ -50,80 +52,171 @@ class PiScanner:
     @staticmethod
     def detect_subnet():
         """
-        Detects the local subnet based on the host's IP address.
-        Returns the subnet in CIDR notation (e.g., '192.168.1.0/24')
-        or a default value if detection fails.
+        Detects the local subnet with detailed user feedback.
+        Returns tuple: (subnet, detection_info)
         """
+        detection_info = {
+            "success": False,
+            "method_used": None,
+            "detected_ip": None,
+            "subnet": None,
+            "messages": [],
+        }
+
         try:
-            # Get the hostname and then the IP address
-            hostname = socket.gethostname()
-            local_ip = socket.gethostbyname(hostname)
+            # Method 1: Socket connection method
+            detection_info["messages"].append(
+                "🔍 Detecting your network configuration..."
+            )
+
+            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+                s.connect(("8.8.8.8", 80))
+                local_ip = s.getsockname()[0]
+
+            detection_info["detected_ip"] = local_ip
+            detection_info["method_used"] = "socket_connection"
+            detection_info["messages"].append(f"✅ Found your IP address: {local_ip}")
 
             # Construct the subnet
             ip_parts = local_ip.split(".")
             subnet = f"{ip_parts[0]}.{ip_parts[1]}.{ip_parts[2]}.0/24"
-            logger.info(f"Detected local subnet: {subnet}")
-            return subnet
-        except socket.gaierror:
-            logger.warning("Could not detect local IP. Falling back to default subnet.")
-            # Fallback to a common default if detection fails
-            return "192.168.1.0/24"
 
-    @staticmethod
-    def scan(subnet):
+            detection_info["subnet"] = subnet
+            detection_info["success"] = True
+            detection_info["messages"].append(f"🌐 Will scan network: {subnet}")
+
+            logger.info(f"Network detected via socket method: {local_ip} -> {subnet}")
+            return subnet, detection_info
+
+        except Exception as e:
+            detection_info["messages"].append(f"⚠️ Primary detection failed: {str(e)}")
+            logger.warning(f"Socket method failed: {e}")
+
+            try:
+                # Method 2: Hostname fallback
+                detection_info["messages"].append(
+                    "🔄 Trying alternative detection method..."
+                )
+
+                hostname = socket.gethostname()
+                local_ip = socket.gethostbyname(hostname)
+
+                detection_info["detected_ip"] = local_ip
+                detection_info["method_used"] = "hostname_resolution"
+
+                if local_ip.startswith("127."):
+                    detection_info["messages"].append(
+                        f"⚠️ Hostname resolved to localhost ({local_ip})"
+                    )
+                    detection_info["messages"].append(
+                        "🔧 Using default network range: 192.168.1.0/24"
+                    )
+                    detection_info["subnet"] = "192.168.1.0/24"
+                    logger.warning(
+                        "Hostname resolved to localhost, using default "
+                        "192.168.1.0/24 network range."
+                    )
+                    return "192.168.1.0/24", detection_info
+
+                detection_info["messages"].append(
+                    f"✅ Found IP via hostname: {local_ip}"
+                )
+
+                ip_parts = local_ip.split(".")
+                subnet = f"{ip_parts[0]}.{ip_parts[1]}.{ip_parts[2]}.0/24"
+
+                detection_info["subnet"] = subnet
+                detection_info["success"] = True
+                detection_info["messages"].append(f"🌐 Will scan network: {subnet}")
+
+                logger.info(f"Network detected via hostname: {local_ip} -> {subnet}")
+                return subnet, detection_info
+
+            except socket.gaierror as e:
+                detection_info["messages"].append(
+                    f"❌ All detection methods failed: {str(e)}"
+                )
+                detection_info["messages"].append(
+                    "🔧 Using default network: 192.168.1.0/24"
+                )
+                detection_info["subnet"] = "192.168.1.0/24"
+                logger.warning(f"All detection failed: {e}")
+                return "192.168.1.0/24", detection_info
+
+    @classmethod
+    def scan(cls, subnet=None):
         """
-        Scans the given subnet for Raspberry Pi devices using nmap.
-        :param subnet: The subnet to scan (e.g., '192.168.1.0/24').
-        :return: A tuple containing a list of found hosts,
-        :a message, and an error string.
+        Enhanced scan with detection info returned.
+        Returns: (hosts, messages, errors, detection_info)
         """
-        found_hosts = []
+        if subnet is None:
+            subnet, detection_info = cls.detect_subnet()
+        else:
+            detection_info = {
+                "success": True,
+                "method_used": "user_provided",
+                "subnet": subnet,
+                "messages": [f"🎯 Using provided network: {subnet}"],
+            }
+
+        detection_info["messages"].append(
+            f"🔍 Scanning {subnet} for Raspberry Pi devices..."
+        )
+
+        # Rest of scanning logic...
         try:
-            logger.info(f"Starting nmap scan on subnet: {subnet}...")
             nm = nmap.PortScanner()
-            # -sn: Ping Scan - disables port scan
-            # -T4: Aggressive timing template for faster scans
-            nm.scan(hosts=subnet, arguments="-sn -T4")
-            logger.info(f"Scan complete. Hosts found: {', '.join(nm.all_hosts())}")
+            result = nm.scan(subnet, arguments="-sn")  # Ping scan
 
-            for host in nm.all_hosts():
-                if "mac" in nm[host]["addresses"]:
-                    mac_address = nm[host]["addresses"]["mac"].lower()
+            hosts = []
+            scan_messages = []
 
-                    # Check if the MAC address matches any of the Pi prefixes
-                    if any(
-                        mac_address.startswith(prefix)
-                        for prefix in PiScanner.PI_MAC_PREFIXES
-                    ):
-                        logger.info(f"Found Raspberry Pi at {host} ({mac_address})")
-                        found_hosts.append(
-                            {
-                                "ip": nm[host]["addresses"]["ipv4"],
-                                "mac": mac_address,
-                                "status": nm[host]["state"],
-                            }
-                        )
-                else:
-                    logger.debug(
-                        f"Host {host} has no MAC address information. Skipping."
+            scanned_hosts = list(result["scan"].keys())
+            scan_messages.append(f"📡 Found {len(scanned_hosts)} active devices")
+
+            pi_count = 0
+            for host in scanned_hosts:
+                host_info = result["scan"][host]
+
+                if "addresses" in host_info and "mac" in host_info["addresses"]:
+                    mac_address = host_info["addresses"]["mac"].upper()
+                    vendor = host_info["vendor"].get(
+                        host_info["addresses"]["mac"], "Unknown"
                     )
 
-            if not found_hosts:
-                return [], "No Raspberry Pi devices found on the network.", None
+                    if cls.is_raspberry_pi(mac_address):
+                        pi_count += 1
+                        hosts.append(
+                            {
+                                "ip": host,
+                                "mac": mac_address,
+                                "vendor": vendor,
+                                "hostname": host_info.get("hostnames", [{}])[0].get(
+                                    "name", "Unknown"
+                                ),
+                            }
+                        )
+                        scan_messages.append(
+                            f"🍓 Raspberry Pi found: {host} ({vendor})"
+                        )
 
-            return found_hosts, f"Found {len(found_hosts)} Raspberry Pi(s).", None
+            if pi_count == 0:
+                scan_messages.append("⚠️ No Raspberry Pi devices found in this network")
+            else:
+                scan_messages.append(
+                    f"✅ Scan complete: {pi_count} Raspberry Pi(s) discovered"
+                )
 
-        except nmap.nmap.PortScannerError as e:
-            logger.error(f"Nmap scan failed: {e}")
-            return (
-                [],
-                "",
-                f"Nmap scan failed. Ensure nmap is installed and "
-                f"you have sufficient privileges. Error: {e}",
-            )
+            # Combine detection and scan messages
+            all_messages = detection_info["messages"] + scan_messages
+
+            logger.info(f"Scan completed. Found {len(hosts)} Raspberry Pi devices.")
+            return hosts, all_messages, "", detection_info
+
         except Exception as e:
-            logger.error(f"An unexpected error occurred during scan: {e}")
-            return [], "", f"An unexpected error occurred: {e}"
+            error_msg = f"❌ Scan failed: {str(e)}"
+            logger.error(f"Scan failed: {e}")
+            return [], detection_info["messages"], error_msg, detection_info
 
     def get_device_details(self, ip_address):
         """

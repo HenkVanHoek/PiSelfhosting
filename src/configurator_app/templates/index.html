@@ -1,255 +1,563 @@
 <!DOCTYPE html>
+<!--suppress ALL -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PiSelfhosting Configurator</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <style>
         body {
-            padding-top: 20px;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            background-color: #f4f4f4;
+            color: #333;
         }
-        .card-title {
-            font-size: 1.1rem;
-            font-weight: bold;
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
         }
-        .nav-tabs .nav-link {
+        h1 {
             color: #2c3e50;
+            text-align: center;
+            margin-bottom: 30px;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 10px;
         }
-        .nav-tabs .nav-link.active {
-            color: #3498db;
-            font-weight: bold;
+        h2 {
+            color: #34495e;
+            border-bottom: 2px solid #ecf0f1;
+            padding-bottom: 10px;
+            margin-top: 30px;
         }
-        .tab-content {
-            padding-top: 20px;
-        }
-        .info-box {
+        .section {
+            margin-bottom: 30px;
+            padding: 20px;
             background-color: #f8f9fa;
+            border-radius: 8px;
             border-left: 4px solid #3498db;
-            padding: 15px;
-            margin-bottom: 20px;
         }
-        .info-box h5 {
+        .pi-scanner {
+            background-color: #e8f5e8;
+            border-left-color: #27ae60;
+        }
+        .component-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .component-card {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+            transition: all 0.3s ease;
+        }
+        .component-card:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            transform: translateY(-2px);
+        }
+        .component-card.selected {
+            border-color: #3498db;
+            background-color: #ebf3fd;
+        }
+        .component-card.disabled {
+            opacity: 0.6;
+            background-color: #f8f9fa;
+        }
+        .component-card input[type="checkbox"] {
+            margin-right: 10px;
+            transform: scale(1.2);
+        }
+        .component-name {
+            font-weight: bold;
             color: #2c3e50;
+            margin-bottom: 5px;
+        }
+        .component-description {
+            font-size: 0.9em;
+            color: #666;
             margin-bottom: 10px;
         }
-        .badge-ui {
-            background-color: #28a745;
-            color: white;
-            font-size: 0.75rem;
-            padding: 0.25em 0.6em;
-            border-radius: 0.25rem;
-            margin-left: 0.5rem;
+        .component-meta {
+            font-size: 0.8em;
+            color: #888;
         }
-        .badge-no-ui {
-            background-color: #6c757d;
+        .button {
+            background-color: #3498db;
             color: white;
-            font-size: 0.75rem;
-            padding: 0.25em 0.6em;
-            border-radius: 0.25rem;
-            margin-left: 0.5rem;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+            margin: 5px;
+        }
+        .button:hover {
+            background-color: #2980b9;
+        }
+        .button.success {
+            background-color: #27ae60;
+        }
+        .button.success:hover {
+            background-color: #229954;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        .form-group input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+        .form-group input:focus {
+            outline: none;
+            border-color: #3498db;
+            box-shadow: 0 0 5px rgba(52, 152, 219, 0.3);
+        }
+        .pi-list {
+            margin-top: 20px;
+        }
+        .pi-item {
+            background: white;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .pi-item:hover {
+            background-color: #f8f9fa;
+            border-color: #3498db;
+        }
+        .pi-item.selected {
+            background-color: #ebf3fd;
+            border-color: #3498db;
+            border-width: 2px;
+        }
+        .pi-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .pi-details {
+            flex-grow: 1;
+        }
+        .pi-ip {
+            font-weight: bold;
+            color: #2c3e50;
+            font-size: 1.1em;
+        }
+        .pi-meta {
+            color: #666;
+            font-size: 0.9em;
+            margin-top: 2px;
+        }
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background-color: #27ae60;
+            margin-left: 10px;
+        }
+        .flash-messages {
+            margin-bottom: 20px;
+        }
+        .flash-message {
+            padding: 12px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+        }
+        .flash-success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .flash-warning {
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        .flash-danger {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            margin-right: 10px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .network-detection-info {
+            margin: 1em 0;
+            padding: 1em;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            border-left: 4px solid #007bff;
+        }
+        .scan-results-info {
+            margin: 1em 0;
+            padding: 1em;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            border-left: 4px solid #28a745;
+        }
+        .info-section h4 {
+            margin-top: 0;
+            margin-bottom: 0.5em;
+            color: #2c3e50;
+        }
+        .detection-message {
+            margin: 0.25em 0;
+            padding: 0.25em 0;
+        }
+        .detection-summary {
+            margin-top: 0.5em;
+            font-weight: bold;
+            padding: 0.5em;
+            background-color: rgba(255, 255, 255, 0.7);
+            border-radius: 4px;
         }
     </style>
-<style>
-    /* Add to your existing styles */
-    .text-muted {
-        font-size: 1.2rem;
-        color: #6c757d;
-        margin-bottom: 0.5rem;
-    }
-    hr {
-        margin-top: 0.5rem;
-        margin-bottom: 1.5rem;
-        border-color: #dee2e6;
-    }
-</style>
 </head>
 <body>
     <div class="container">
-        <h1 class="mb-4">Select Components</h1>
+        <h1>🏠 PiSelfhosting Configurator</h1>
 
+        <!-- Flash Messages -->
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
-                {% for category, message in messages %}
-                    <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
-                        {{ message }}
-                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                    </div>
-                {% endfor %}
+                <div class="flash-messages">
+                    {% for category, message in messages %}
+                        <div class="flash-message flash-{{ category }}">{{ message }}</div>
+                    {% endfor %}
+                </div>
             {% endif %}
         {% endwith %}
 
-        <div class="info-box">
-            <h5><i class="fas fa-info-circle"></i> Important Information</h5>
-            <p><strong>Uniqueness Groups:</strong> Some components belong to the same group (e.g., "dashboard" or "dns_blocker") and are mutually exclusive. Only one component from each group can be selected.</p>
-            <p><strong>User Interface:</strong> Components marked with <span class="badge badge-ui">UI</span> provide a web interface, while those with <span class="badge badge-no-ui">No UI</span> run in the background.</p>
+        <!-- Pi Scanner Section -->
+        <div class="section pi-scanner">
+            <h2>🔍 Find Your Raspberry Pi</h2>
+            <p>First, let's locate your Raspberry Pi on the network. This will scan your local network for available devices.</p>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                <div class="form-group">
+                    <label for="subnet">Network Subnet (optional):</label>
+                    <input type="text" id="subnet" placeholder="e.g., 192.168.1.0/24 (auto-detected if empty)">
+                </div>
+                <div class="form-group">
+                    <label for="username">Pi Username:</label>
+                    <input type="text" id="username" value="pi" placeholder="Username for SSH">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="password">Pi Password:</label>
+                <input type="password" id="password" placeholder="Password for SSH">
+            </div>
+
+            <button class="button" onclick="scanForPis()">🔍 Scan for Raspberry Pis</button>
+
+            <!-- Network Detection Info Section -->
+            <div id="network-detection-info" class="network-detection-info" style="display: none;">
+                <h4>🌐 Network Detection</h4>
+                <div id="detection-messages"></div>
+                <div id="detection-summary" class="detection-summary"></div>
+            </div>
+
+            <!-- Scan Results Info Section -->
+            <div id="scan-results-info" class="scan-results-info" style="display: none;">
+                <h4>📡 Scan Results</h4>
+                <div id="scan-messages"></div>
+            </div>
+
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <span>Scanning network...</span>
+            </div>
+
+            <div id="pi-list" class="pi-list"></div>
         </div>
 
-        <form action="/" method="post" id="componentsForm">
-            <button type="submit" class="btn btn-primary btn-lg w-100 mb-4" id="generateBtn" disabled>
-                Generate Configuration
-            </button>
-
-            {% set sections = {} %}
-            {% for comp_id, comp in components.items() %}
-                {% set section = comp.get('dashy_section', 'Other') %}
-                {% if section not in sections %}
-                    {% set _ = sections.update({section: []}) %}
-                {% endif %}
-                {% set _ = sections[section].append((comp_id, comp)) %}
-            {% endfor %}
-
-            <!-- Navigation tabs section -->
-<ul class="nav nav-tabs mb-3" id="componentTabs" role="tablist">
-    {% for section, section_components in sections.items()|sort %}
-    <li class="nav-item" role="presentation">
-        <button class="nav-link {% if loop.first %}active{% endif %}"
-                id="tab-{{ section|lower|replace(' ', '-')|replace('&', 'and') }}"
-                data-bs-toggle="tab"
-                data-bs-target="#content-{{ section|lower|replace(' ', '-')|replace('&', 'and') }}"
-                type="button"
-                role="tab"
-                aria-controls="content-{{ section|lower|replace(' ', '-')|replace('&', 'and') }}"
-                aria-selected="{% if loop.first %}true{% else %}false{% endif %}">
-            {{ section }}
-        </button>
-    </li>
-    {% endfor %}
-</ul>
-
-<!-- Tab content section -->
-<div class="tab-content" id="componentTabsContent">
-    {% for section, section_components in sections.items()|sort %}
-    <div class="tab-pane fade {% if loop.first %}show active{% endif %}"
-         id="content-{{ section|lower|replace(' ', '-')|replace('&', 'and') }}"
-         role="tabpanel"
-         aria-labelledby="tab-{{ section|lower|replace(' ', '-')|replace('&', 'and') }}">
-
-        {# First, display components with no uniqueness group #}
-        <div class="row">
-            {% for comp_id, comp in section_components %}
-                {% if not comp.uniqueness_group %}
-                    <div class="col-md-4 mb-3">
-                        <div class="card h-100">
-                            <div class="card-body">
-                                <div class="form-check">
-                                    <input class="form-check-input component-checkbox"
-                                           type="checkbox"
-                                           name="selected_components"
-                                           value="{{ comp_id }}"
-                                           id="check-{{ comp_id }}"
-                                           {% if comp_id in default_components %}checked{% endif %}
-                                           data-uniqueness-group="null">
-                                    <label class="form-check-label" for="check-{{ comp_id }}">
-                                        <h5 class="card-title">
-                                            {% if comp.icon %}<i class="{{ comp.icon }}"></i> {% endif %}
-                                            {{ comp.name }}
-                                            {% if comp.has_ui %}
-                                                <span class="badge badge-ui">UI</span>
-                                            {% else %}
-                                                <span class="badge badge-no-ui">No UI</span>
-                                            {% endif %}
-                                        </h5>
-                                    </label>
-                                </div>
-                                <p class="card-text">{{ comp.description }}</p>
-                                <a href="{{ comp.project_url }}" target="_blank" class="card-link">Project Link</a>
-                            </div>
-                        </div>
+        <!-- Target IP Display -->
+        {% if target_ip %}
+        <div class="section">
+            <h2>🎯 Selected Target</h2>
+            <div class="pi-item selected">
+                <div class="pi-info">
+                    <div class="pi-details">
+                        <div class="pi-ip">{{ target_ip }}</div>
+                        <div class="pi-meta">Selected for installation</div>
                     </div>
-                {% endif %}
-            {% endfor %}
+                    <div class="status-indicator"></div>
+                </div>
+            </div>
         </div>
+        {% endif %}
 
-        {# Then, group and display components by uniqueness group #}
-        {% set grouped_components = {} %}
-        {% for comp_id, comp in section_components %}
-            {% if comp.uniqueness_group %}
-                {% if comp.uniqueness_group not in grouped_components %}
-                    {% set _ = grouped_components.update({comp.uniqueness_group: []}) %}
-                {% endif %}
-                {% set _ = grouped_components[comp.uniqueness_group].append((comp_id, comp)) %}
-            {% endif %}
-        {% endfor %}
+        <!-- Component Selection -->
+        <form method="post">
+            <div class="section">
+                <h2>📦 Select Components to Install</h2>
+                <p>Choose the services you want to install on your Raspberry Pi. Default components are pre-selected.</p>
 
-        {% for group_name, group_components in grouped_components.items() %}
-            <div class="mt-4 mb-3">
-                <h4 class="text-muted">{{ group_name|replace('_', ' ')|title }}</h4>
-                <hr>
-                <div class="row">
-                    {% for comp_id, comp in group_components %}
-                        <div class="col-md-4 mb-3">
-                            <div class="card h-100">
-                                <div class="card-body">
-                                    <div class="form-check">
-                                        <input class="form-check-input component-checkbox"
-                                               type="checkbox"
-                                               name="selected_components"
-                                               value="{{ comp_id }}"
-                                               id="check-{{ comp_id }}"
-                                               {% if comp_id in default_components %}checked{% endif %}
-                                               data-uniqueness-group="{{ comp.uniqueness_group }}">
-                                        <label class="form-check-label" for="check-{{ comp_id }}">
-                                            <h5 class="card-title">
-                                                {% if comp.icon %}<i class="{{ comp.icon }}"></i> {% endif %}
-                                                {{ comp.name }}
-                                                {% if comp.has_ui %}
-                                                    <span class="badge badge-ui">UI</span>
-                                                {% else %}
-                                                    <span class="badge badge-no-ui">No UI</span>
-                                                {% endif %}
-                                            </h5>
-                                        </label>
-                                    </div>
-                                    <p class="card-text">{{ comp.description }}</p>
-                                    <a href="{{ comp.project_url }}" target="_blank" class="card-link">Project Link</a>
-                                </div>
+                <div class="component-grid">
+                    {% for comp_id, comp_data in components.items() %}
+                        {% if not comp_id.startswith('_') %}
+                        <div class="component-card" data-component-id="{{ comp_id }}"
+                             data-uniqueness-group="{{ comp_data.get('uniqueness_group', '') }}">
+                            <label>
+                                <input type="checkbox" name="selected_components" value="{{ comp_id }}"
+                                       {% if comp_id in default_components %}checked{% endif %}
+                                       onchange="handleComponentSelection(this)">
+                                <span class="component-name">
+                                    {% if comp_data.get('icon') %}
+                                        <i class="{{ comp_data.icon }}"></i>
+                                    {% endif %}
+                                    {{ comp_data.name }}
+                                </span>
+                            </label>
+
+                            <div class="component-description">{{ comp_data.description }}</div>
+                            <div class="component-meta">
+                                {% if comp_data.get('has_ui') %}
+                                    🌐 Web UI: {{ comp_data.protocol }}://[pi-ip]:{{ comp_data.ui_port }}
+                                {% else %}
+                                    📡 Background Service
+                                {% endif %}
+                                {% if comp_data.get('uniqueness_group') %}
+                                    <br>⚠️ Only one {{ comp_data.uniqueness_group.replace('_', ' ').title() }} can be selected
+                                {% endif %}
+                                {% if comp_data.get('depends_on') %}
+                                    <br>🔗 Requires: {{ comp_data.depends_on }}
+                                {% endif %}
                             </div>
                         </div>
+                        {% endif %}
                     {% endfor %}
                 </div>
             </div>
-        {% endfor %}
-    </div>
-    {% endfor %}
-</div>
+
+            <div class="section">
+                <h2>🚀 Generate Configuration</h2>
+                <p>Once you've selected your components, click below to generate the configuration files.</p>
+                <button type="submit" class="button success">Generate Configuration Files</button>
+            </div>
         </form>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-<script>
-    document.addEventListener('DOMContentLoaded', function () {
-        const uniquenessGroups = JSON.parse('{{ uniqueness_groups | tojson | safe }}');
-        const checkboxes = document.querySelectorAll('.component-checkbox');
-        const generateBtn = document.getElementById('generateBtn');
+    <script>
+        // Component selection handling
+        function handleComponentSelection(checkbox) {
+            const card = checkbox.closest('.component-card');
+            const componentId = card.dataset.componentId;
+            const uniquenessGroup = card.dataset.uniquenessGroup;
 
-        function updateGenerateButton() {
-            const anyChecked = Array.from(checkboxes).some(checkbox => checkbox.checked);
-            generateBtn.disabled = !anyChecked;
+            if (checkbox.checked) {
+                card.classList.add('selected');
+
+                // Handle uniqueness groups
+                if (uniquenessGroup && uniquenessGroup !== '') {
+                    // Uncheck other components in the same uniqueness group
+                    document.querySelectorAll(`[data-uniqueness-group="${uniquenessGroup}"]`).forEach(otherCard => {
+                        if (otherCard !== card) {
+                            const otherCheckbox = otherCard.querySelector('input[type="checkbox"]');
+                            if (otherCheckbox.checked) {
+                                otherCheckbox.checked = false;
+                                otherCard.classList.remove('selected');
+                            }
+                        }
+                    });
+                }
+            } else {
+                card.classList.remove('selected');
+            }
         }
 
-        checkboxes.forEach(checkbox => {
-            checkbox.addEventListener('change', function () {
-                if (this.checked) {
-                    const group = this.dataset.uniquenessGroup;
-                    // Only enforce mutual exclusivity if the group is not null
-                    if (group && group !== 'null') {
-                        checkboxes.forEach(otherCheckbox => {
-                            if (otherCheckbox !== this &&
-                                otherCheckbox.dataset.uniquenessGroup === group) {
-                                otherCheckbox.checked = false;
-                            }
-                        });
-                    }
-                }
-                updateGenerateButton();
+        // Initialize component cards
+        document.addEventListener('DOMContentLoaded', function() {
+            document.querySelectorAll('input[name="selected_components"]:checked').forEach(checkbox => {
+                checkbox.closest('.component-card').classList.add('selected');
             });
         });
 
-        // Initial button state
-        updateGenerateButton();
-    });
-</script>
+        // Pi scanning functionality
+        function scanForPis() {
+            const subnet = document.getElementById('subnet').value;
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+
+            if (!username || !password) {
+                alert('Please enter both username and password');
+                return;
+            }
+
+            // Show detection info section
+            document.getElementById('network-detection-info').style.display = 'block';
+            document.getElementById('detection-messages').innerHTML = '<p class="detection-message">🔍 Starting network detection...</p>';
+            document.getElementById('detection-summary').innerHTML = '';
+
+            // Clear previous results
+            document.getElementById('scan-results-info').style.display = 'none';
+            document.getElementById('pi-list').innerHTML = '';
+            document.getElementById('loading').style.display = 'block';
+
+            fetch('/scan-pis', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ subnet, username, password })
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('loading').style.display = 'none';
+
+                // Show detection information
+                if (data.detection_info) {
+                    const detectionSummary = document.getElementById('detection-summary');
+                    const successColor = data.detection_info.success ? '#28a745' : '#dc3545';
+                    const successIcon = data.detection_info.success ? '✅' : '❌';
+                    const successText = data.detection_info.success ? 'Successful' : 'Failed';
+
+                    let summaryContent = `<span style="color: ${successColor};">${successIcon} Detection ${successText}</span><br>`;
+                    summaryContent += `<small>Method: ${data.detection_info.method_used || 'Unknown'}</small><br>`;
+                    if (data.detection_info.detected_ip) {
+                        summaryContent += `<small>Your IP: ${data.detection_info.detected_ip}</small><br>`;
+                    }
+                    summaryContent += `<small>Scanning: ${data.detection_info.subnet || 'Unknown'}</small>`;
+
+                    detectionSummary.innerHTML = summaryContent;
+                }
+
+                // Show detection messages
+                if (data.messages && data.messages.length > 0) {
+                    const detectionMessages = data.messages.filter(msg =>
+                        msg.includes('🔍') || msg.includes('✅ Found your IP') || msg.includes('🌐 Will scan')
+                    );
+                    if (detectionMessages.length > 0) {
+                        const detectionHtml = detectionMessages.map(msg =>
+                            `<p class="detection-message">${msg}</p>`
+                        ).join('');
+                        document.getElementById('detection-messages').innerHTML = detectionHtml;
+                    }
+
+                    // Show scan messages
+                    const scanMessages = data.messages.filter(msg =>
+                        msg.includes('📡') || msg.includes('🍓') || msg.includes('⚠️ No Raspberry') || msg.includes('✅ Scan complete')
+                    );
+                    if (scanMessages.length > 0) {
+                        document.getElementById('scan-results-info').style.display = 'block';
+                        const messagesHtml = scanMessages.map(msg =>
+                            `<p class="detection-message">${msg}</p>`
+                        ).join('');
+                        document.getElementById('scan-messages').innerHTML = messagesHtml;
+                    }
+                }
+
+                // Handle errors
+                if (data.error) {
+                    document.getElementById('scan-results-info').style.display = 'block';
+                    document.getElementById('scan-messages').innerHTML += `<p class="detection-message" style="color: red;">${data.error}</p>`;
+                }
+
+                // Display found Pis
+                if (data.hosts && data.hosts.length > 0) {
+                    const piListHtml = data.hosts.map(host => {
+                        const hostItem = document.createElement('div');
+                        hostItem.className = 'pi-item';
+                        hostItem.onclick = () => selectPi(host.ip, hostItem);
+                        hostItem.innerHTML = `
+                            <div class="pi-info">
+                                <div class="pi-details">
+                                    <div class="pi-ip">${host.ip}</div>
+                                    <div class="pi-meta">
+                                        MAC: ${host.mac} |
+                                        Vendor: ${host.manufacturer
+} |
+                                        Hostname: ${host.hostname}
+                                    </div>
+                                </div>
+                                <div class="status-indicator"></div>
+                            </div>
+                        `;
+                        return hostItem.outerHTML;
+                    }).join('');
+                    document.getElementById('pi-list').innerHTML = piListHtml;
+                } else if (!data.error) {
+                    const noResultsDiv = document.createElement('div');
+                    noResultsDiv.style.cssText = 'text-align: center; padding: 20px; color: #666;';
+                    noResultsDiv.innerHTML = `
+                        <p>No Raspberry Pi devices found in the scanned network.</p>
+                        <p>Try adjusting the subnet or check if your Pi is powered on and connected.</p>
+                    `;
+                    document.getElementById('pi-list').appendChild(noResultsDiv);
+                }
+            })
+            .catch(error => {
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('detection-messages').innerHTML = '<p class="detection-message" style="color: red;">❌ Network detection failed</p>';
+                document.getElementById('scan-results-info').style.display = 'block';
+                document.getElementById('scan-messages').innerHTML = `<p class="detection-message" style="color: red;">Error: ${error.message}</p>`;
+            });
+        }
+
+        function selectPi(ip, element) {
+            // Remove selection from other items
+            document.querySelectorAll('.pi-item').forEach(item => {
+                item.classList.remove('selected');
+            });
+
+            // Select this item
+            element.classList.add('selected');
+
+            // Set the IP
+            fetch('/set-ip', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ip: ip })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.message) {
+                    // Optionally show a success message
+                    console.log('IP set successfully:', ip);
+                }
+            })
+            .catch(error => {
+                console.error('Error setting IP:', error);
+                alert('Failed to set IP address');
+            });
+        }
+    </script>
 </body>
 </html>

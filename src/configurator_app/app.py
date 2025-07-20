@@ -93,15 +93,42 @@ def create_app(
         subnet = data.get("subnet")
         username = data.get("username")
         password = data.get("password")
-        if not all([subnet, username, password]):
-            return jsonify({"error": "Missing scan parameters"}), 400
+
+        if not all([username, password]):
+            return jsonify({"error": "Missing username or password"}), 400
+
         try:
             scanner = PiScanner(username=username, password=password)
-            pis = scanner.scan(subnet=subnet)
-            return jsonify(pis)
+
+            if subnet:
+                # User provided subnet
+                hosts, messages, error, detection_info = scanner.scan(subnet=subnet)
+            else:
+                # Auto-detect subnet
+                hosts, messages, error, detection_info = scanner.scan()
+
+            return jsonify(
+                {
+                    "hosts": hosts,
+                    "messages": messages,
+                    "error": error,
+                    "detection_info": {
+                        "success": detection_info["success"],
+                        "method_used": detection_info["method_used"],
+                        "detected_ip": detection_info.get("detected_ip"),
+                        "subnet": detection_info["subnet"],
+                    },
+                }
+            )
+
         except Exception as e:
             logging.error(f"Pi scanning failed: {e}")
-            return jsonify({"error": str(e)}), 500
+            return (
+                jsonify(
+                    {"error": str(e), "messages": [f"❌ Unexpected error: {str(e)}"]}
+                ),
+                500,
+            )
 
     @flask_app.route("/set-ip", methods=["POST"])
     def set_ip_address():
