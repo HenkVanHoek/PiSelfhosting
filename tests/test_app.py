@@ -1,4 +1,3 @@
-# tests/test_app.py
 import re
 from unittest.mock import MagicMock, patch
 
@@ -92,34 +91,67 @@ def test_index_get(client, mock_component_manager):
 
 def test_index_post_success(client, mock_setup_manager):
     """Test successful form submission."""
+    with client.session_transaction() as sess:
+        sess["_flashes"] = []  # Clear any existing flashes
+
     response = client.post(
         "/", data={"selected_components": ["comp1", "comp3"]}, follow_redirects=True
     )
     assert response.status_code == 200  # After redirect
     mock_setup_manager.generate_all_files.assert_called_once()
-    assert b"Configuration files generated successfully!" in response.data
+
+    # Check that success flash was added to session
+    with client.session_transaction() as sess:
+        flashes = sess.get("_flashes", [])
+        success_messages = [msg for category, msg in flashes if category == "success"]
+        assert len(success_messages) > 0
+        assert "Configuration files generated successfully!" in success_messages[0]
 
 
 def test_index_post_no_selection(client, mock_setup_manager):
     """Test form submission with no components selected."""
+    with client.session_transaction() as sess:
+        sess["_flashes"] = []  # Clear any existing flashes
+
     response = client.post("/", data={}, follow_redirects=True)
     assert response.status_code == 200  # After redirect
     mock_setup_manager.generate_all_files.assert_not_called()
-    assert b"Please select at least one component." in response.data
+
+    # Check that warning flash was added to session
+    with client.session_transaction() as sess:
+        flashes = sess.get("_flashes", [])
+        warning_messages = [msg for category, msg in flashes if category == "warning"]
+        assert len(warning_messages) > 0
+        assert "Please select at least one component." in warning_messages[0]
 
 
 @patch("configurator_app.app.PiScanner")
-def test_scan_pis_success(mock_scanner, client):
+def test_scan_pis_success(mock_scanner_class, client):
     """Test the /scan-pis endpoint successfully."""
-    mock_scanner_instance = mock_scanner.return_value
-    mock_scanner_instance.scan.return_value = [{"ip": "192.168.1.10", "mac": "ab:cd"}]
+    mock_scanner_instance = mock_scanner_class.return_value
+    # Updated to return 4 values matching the actual method signature
+    mock_scanner_instance.scan.return_value = (
+        [
+            {
+                "ip": "192.168.1.10",
+                "mac": "ab:cd",
+                "hostname": "raspberrypi",
+                "vendor": "Raspberry Pi Foundation",
+            }
+        ],
+        ["🔍 Scanning network..."],
+        "",
+        {"success": True, "method_used": "user_provided", "subnet": "192.168.1.0/24"},
+    )
 
     response = client.post(
         "/scan-pis",
         json={"subnet": "192.168.1.0/24", "username": "user", "password": "pass"},
     )
     assert response.status_code == 200
-    assert response.json == [{"ip": "192.168.1.10", "mac": "ab:cd"}]
+    data = response.get_json()
+    assert len(data["hosts"]) == 1
+    assert data["hosts"][0]["ip"] == "192.168.1.10"
 
 
 def test_scan_pis_missing_params(client):

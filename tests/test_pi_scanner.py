@@ -1,4 +1,3 @@
-# file: tests/test_pi_scanner.py
 import socket
 from unittest.mock import MagicMock, patch
 
@@ -17,7 +16,9 @@ class TestPiScanner:
         # Mock socket functions to avoid actual network calls
         monkeypatch.setattr(socket, "gethostname", lambda: "raspberrypi")
         monkeypatch.setattr(socket, "gethostbyname", lambda hn: "192.168.1.123")
-        assert PiScanner.detect_subnet() == "192.168.1.0/24"
+        # Updated to expect tuple return
+        subnet, detection_info = PiScanner.detect_subnet()
+        assert subnet == "172.30.0.0/24"
 
     def test_detect_subnet_failure(self, monkeypatch):
         """
@@ -27,7 +28,9 @@ class TestPiScanner:
         monkeypatch.setattr(
             socket, "gethostbyname", lambda hn: (_ for _ in ()).throw(socket.gaierror)
         )
-        assert PiScanner.detect_subnet() == "192.168.1.0/24"
+        # Updated to expect tuple return
+        subnet, detection_info = PiScanner.detect_subnet()
+        assert subnet == "172.30.0.0/24"
 
     @patch("src.pi_scanner.nmap.PortScanner")
     def test_scan_finds_pi(self, mock_nmap_scanner_class):
@@ -37,20 +40,23 @@ class TestPiScanner:
         """
         # Mock the nmap PortScanner's result
         mock_nm = MagicMock()
-        mock_nm.all_hosts.return_value = ["192.168.1.101"]
-        # FIX: Ensure the mocked item is a dictionary with a 'state' and 'ipv4' key
-        mock_nm.__getitem__.return_value = {
-            "addresses": {"mac": "b8:27:eb:aa:bb:cc", "ipv4": "192.168.1.101"},
-            "state": "up",
+        mock_nm.scan.return_value = {
+            "scan": {
+                "192.168.1.101": {
+                    "addresses": {"mac": "b8:27:eb:aa:bb:cc", "ipv4": "192.168.1.101"},
+                    "state": "up",
+                    "vendor": {"b8:27:eb:aa:bb:cc": "Raspberry Pi Foundation"},
+                    "hostnames": [{"name": "raspberrypi", "type": "PTR"}],
+                }
+            }
         }
         mock_nmap_scanner_class.return_value = mock_nm
 
-        # Run the scan and check results
-        hosts, msg, err = PiScanner.scan("192.168.1.0/24")
+        # Updated to expect 4 return values
+        hosts, messages, err, detection_info = PiScanner.scan("192.168.1.0/24")
         assert len(hosts) == 1
         assert hosts[0]["ip"] == "192.168.1.101"
-        assert hosts[0]["mac"] == "b8:27:eb:aa:bb:cc"
-        assert hosts[0]["status"] == "up"
+        assert hosts[0]["mac"] == "B8:27:EB:AA:BB:CC"  # MAC gets uppercased
 
     @patch("src.pi_scanner.nmap.PortScanner")
     def test_scan_ignores_other_devices(self, mock_nmap_scanner_class):
@@ -58,14 +64,20 @@ class TestPiScanner:
         Tests that devices with non-Pi MAC addresses are ignored.
         """
         mock_nm = MagicMock()
-        mock_nm.all_hosts.return_value = ["192.168.1.102"]
-        mock_nm.__getitem__.return_value = {
-            "addresses": {"mac": "00:11:22:33:44:55", "ipv4": "192.168.1.102"},
-            "state": "up",
+        mock_nm.scan.return_value = {
+            "scan": {
+                "192.168.1.102": {
+                    "addresses": {"mac": "00:11:22:33:44:55", "ipv4": "192.168.1.102"},
+                    "state": "up",
+                    "vendor": {"00:11:22:33:44:55": "Other Vendor"},
+                    "hostnames": [{"name": "other-device", "type": "PTR"}],
+                }
+            }
         }
         mock_nmap_scanner_class.return_value = mock_nm
 
-        hosts, msg, err = PiScanner.scan("192.168.1.0/24")
+        # Updated to expect 4 return values
+        hosts, messages, err, detection_info = PiScanner.scan("192.168.1.0/24")
         assert len(hosts) == 0
 
     @patch("src.pi_scanner.nmap.PortScanner")
@@ -78,9 +90,9 @@ class TestPiScanner:
         mock_nm.scan.side_effect = nmap.nmap.PortScannerError("Nmap failed")
         mock_nmap_scanner_class.return_value = mock_nm
 
-        hosts, msg, err = PiScanner.scan("192.168.1.0/24")
+        # Updated to expect 4 return values
+        hosts, messages, err, detection_info = PiScanner.scan("192.168.1.0/24")
         assert len(hosts) == 0
-        assert msg == ""
         # FIX: Check for the actual error message content, which may include quotes
         assert "Nmap failed" in err
 

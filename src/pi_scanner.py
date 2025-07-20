@@ -306,3 +306,9 @@ class PiScanner:
             detailed_hosts.append(host)
 
         return detailed_hosts, msg, None
+
+    @classmethod
+    def is_raspberry_pi(cls, mac_address):
+        """Check if a MAC address belongs to a Raspberry Pi."""
+        mac_prefix = mac_address[:8].lower()
+        return mac_prefix in cls.PI_MAC_PREFIXES
