@@ -13,24 +13,40 @@ class TestPiScanner:
         """
         Tests that the subnet is correctly detected based on the local IP.
         """
+
         # Mock socket functions to avoid actual network calls
-        monkeypatch.setattr(socket, "gethostname", lambda: "raspberrypi")
-        monkeypatch.setattr(socket, "gethostbyname", lambda hn: "192.168.1.123")
+        def mock_socket_connect(self, address):
+            pass  # Do nothing, just don't fail
+
+        def mock_getsockname(self):
+            return ("192.168.1.123", 12345)
+
+        # Patch the socket methods used in the first detection method
+        monkeypatch.setattr("socket.socket.connect", mock_socket_connect)
+        monkeypatch.setattr("socket.socket.getsockname", mock_getsockname)
+
         # Updated to expect tuple return
         subnet, detection_info = PiScanner.detect_subnet()
-        assert subnet == "172.30.0.0/24"
+        assert subnet == "192.168.1.0/24"
 
     def test_detect_subnet_failure(self, monkeypatch):
         """
         Tests that a default subnet is returned if IP detection fails.
         """
-        # Simulate a scenario where the hostname cannot be resolved
+
+        # Mock socket connection to fail, forcing fallback to hostname method
+        def mock_socket_connect(self, address):
+            raise OSError("Connection failed")
+
+        # Mock hostname resolution to fail as well
+        monkeypatch.setattr("socket.socket.connect", mock_socket_connect)
         monkeypatch.setattr(
             socket, "gethostbyname", lambda hn: (_ for _ in ()).throw(socket.gaierror)
         )
+
         # Updated to expect tuple return
         subnet, detection_info = PiScanner.detect_subnet()
-        assert subnet == "172.30.0.0/24"
+        assert subnet == "192.168.1.0/24"
 
     @patch("src.pi_scanner.nmap.PortScanner")
     def test_scan_finds_pi(self, mock_nmap_scanner_class):
