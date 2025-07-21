@@ -342,16 +342,12 @@ function scanForPis() {
     })
     .then(response => response.json())
     .then(data => {
-        data.hosts = undefined;
-        data.messages = undefined;
-        data.detection_info = undefined;
         document.getElementById('loading').style.display = 'none';
 
         // Show detection information
         if (data.detection_info) {
             const detectionInfo = data.detection_info;
-            detectionInfo.detected_ip = undefined;
-            detectionInfo.method_used = undefined;
+
             const detectionSummary = document.getElementById('detection-summary');
             const successColor = detectionInfo.success ? '#28a745' : '#dc3545';
             const successIcon = detectionInfo.success ? '✅' : '❌';
