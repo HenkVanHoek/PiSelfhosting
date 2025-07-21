@@ -139,6 +139,33 @@ def create_app(
         session["target_ip"] = ip
         return jsonify({"message": "IP address set successfully"}), 200
 
+    @flask_app.route("/get-device-details", methods=["POST"])
+    def get_device_details():
+        """Get details for a specific device with custom credentials."""
+        data = request.get_json()
+        ip_address = data.get("ip")
+        username = data.get("username")
+        password = data.get("password")
+
+        if not all([ip_address, username, password]):
+            return jsonify({"error": "Missing IP address, username, or password"}), 400
+
+        try:
+            scanner = PiScanner(username=username, password=password)
+            details, error = scanner.get_device_details(ip_address)
+
+            if error:
+                return jsonify({"error": error}), 400
+
+            if details:
+                return jsonify({"details": details}), 200
+            else:
+                return jsonify({"error": "No device details retrieved"}), 400
+
+        except Exception as e:
+            logging.error(f"Device detail retrieval failed: {e}")
+            return jsonify({"error": str(e)}), 500
+
     return flask_app
 
 

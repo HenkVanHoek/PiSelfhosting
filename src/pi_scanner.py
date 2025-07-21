@@ -286,26 +286,51 @@ class PiScanner:
             )
             return None, f"An unexpected SSH error occurred: {e}"
 
-    def scan_and_get_details(self, subnet):
+    def scan_and_get_details(self, subnet, per_device_callback=None):
         """
         Scans for Pis and then tries to get details for each one found.
+        :param subnet: Network subnet to scan
+        :param per_device_callback: Optional callback function to
+        get credentials per device
+        :return: Tuple of (detailed_hosts, messages, error)
         """
-        hosts, msg, err = self.scan(subnet)
+        hosts, messages, err, detection_info = self.scan(subnet)
         if err:
-            return [], msg, err
+            return [], messages, err
 
         detailed_hosts = []
         for host in hosts:
             details, detail_err = self.get_device_details(host["ip"])
+
+            if detail_err and per_device_callback:
+                # Try with device-specific credentials
+                custom_creds = per_device_callback(host["ip"], detail_err)
+                if custom_creds:
+                    username, password = custom_creds
+                    temp_scanner = PiScanner(username, password)
+                    details, detail_err = temp_scanner.get_device_details(host["ip"])
+
             if detail_err:
                 logger.warning(f"Could not get details for {host['ip']}: {detail_err}")
                 # Add basic info even if details fail
                 host["os_version"] = f"Error: {detail_err}"
+                host["details_available"] = False
             else:
                 host.update(details)
+                host["details_available"] = True
+
             detailed_hosts.append(host)
 
-        return detailed_hosts, msg, None
+        return detailed_hosts, messages, None
+
+    @staticmethod
+    def get_device_details_with_credentials(ip_address, username, password):
+        """
+        Static method to get device details with specific credentials.
+        Useful for per-device authentication.
+        """
+        scanner = PiScanner(username, password)
+        return scanner.get_device_details(ip_address)
 
     @classmethod
     def is_raspberry_pi(cls, mac_address):

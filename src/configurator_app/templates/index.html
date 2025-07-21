@@ -264,7 +264,8 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
-<script>
+<!--suppress JSUnresolvedReference -->
+    <script>
 // Global variables
 let selectedComponents = [];
 let selectedPi = null;
@@ -341,21 +342,24 @@ function scanForPis() {
     })
     .then(response => response.json())
     .then(data => {
+        data.hosts = undefined;
+        data.messages = undefined;
+        data.detection_info = undefined;
         document.getElementById('loading').style.display = 'none';
 
         // Show detection information
         if (data.detection_info) {
             const detectionInfo = data.detection_info;
+            detectionInfo.detected_ip = undefined;
+            detectionInfo.method_used = undefined;
             const detectionSummary = document.getElementById('detection-summary');
             const successColor = detectionInfo.success ? '#28a745' : '#dc3545';
             const successIcon = detectionInfo.success ? '✅' : '❌';
             const successText = detectionInfo.success ? 'Successful' : 'Failed';
 
             let summaryContent = `<span style="color: ${successColor};">${successIcon} Detection ${successText}</span><br>`;
-            summaryContent += `<small>Method: ${detectionInfo.method_used || 'Unknown'}</small><br>`;
-            if (detectionInfo.detected_ip) {
-                summaryContent += `<small>Your IP: ${detectionInfo.detected_ip}</small><br>`;
-            }
+            summaryContent += `<small>Method: Unknown</small><br>`;
+
             summaryContent += `<small>Scanning: ${detectionInfo.subnet || 'Unknown'}</small>`;
 
             detectionSummary.innerHTML = summaryContent;
@@ -398,6 +402,91 @@ function scanForPis() {
         document.getElementById('loading').style.display = 'none';
         document.getElementById('pi-list').innerHTML = `<div class="error">Network error: ${error.message}</div>`;
     });
+}
+
+// Function to handle per-device credential input
+async function getDeviceDetails(device) {
+    const credentialsModal = document.getElementById('deviceCredentialsModal');
+    const deviceIp = document.getElementById('deviceIp');
+    const deviceUsername = document.getElementById('deviceUsername');
+    const devicePassword = document.getElementById('devicePassword');
+
+    deviceIp.textContent = device.ip;
+    deviceUsername.value = '';
+    devicePassword.value = '';
+
+    return new Promise((resolve) => {
+        // Bootstrap 5 syntax
+        const modal = new bootstrap.Modal(credentialsModal, {
+            keyboard: false,
+            backdrop: 'static'
+        });
+        modal.show();
+
+        // Handle form submission
+        document.getElementById('submitDeviceCredentials').onclick = async () => {
+            const username = deviceUsername.value;
+            const password = devicePassword.value;
+
+            if (!username || !password) {
+                alert('Please enter both username and password');
+                return;
+            }
+
+            try {
+                const response = await fetch('/get-device-details', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        ip: device.ip,
+                        username: username,
+                        password: password
+                    })
+                });
+
+                const result = await response.json();
+                modal.hide();
+
+                if (response.ok) {
+                    resolve(result.details);
+                } else {
+                    resolve({ error: result.error });
+                }
+            } catch (error) {
+                modal.hide();
+                resolve({ error: error.message });
+            }
+        };
+
+        // Handle skip button
+        document.getElementById('skipDeviceDetails').onclick = () => {
+            modal.hide();
+            resolve({ skipped: true });
+        };
+    });
+}
+
+// Update the scan results handler
+function displayScanResults(data) {
+    const resultsDiv = document.getElementById('scanResults');
+
+    for (const device of data.hosts) {
+        // Create device card
+        const deviceCard = createDeviceCard(device);
+        resultsDiv.appendChild(deviceCard);
+
+        // If device doesn't have details, show "Get Details" button
+        if (!device.details_available) {
+            const getDetailsBtn = document.createElement('button');
+            getDetailsBtn.textContent = 'Get Details';
+            getDetailsBtn.className = 'btn btn-outline-primary btn-sm';
+            getDetailsBtn.onclick = async () => {
+                const details = await getDeviceDetails(device);
+                updateDeviceCard(deviceCard, details);
+            };
+            deviceCard.appendChild(getDetailsBtn);
+        }
+    }
 }
 
 function displayPis(hosts) {
