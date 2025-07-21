@@ -354,9 +354,11 @@ function scanForPis() {
             const successText = detectionInfo.success ? 'Successful' : 'Failed';
 
             let summaryContent = `<span style="color: ${successColor};">${successIcon} Detection ${successText}</span><br>`;
-            summaryContent += `<small>Method: Unknown</small><br>`;
+            summaryContent += `<small>Method: ${detectionInfo.method_used || 'Unknown'}</small><br>`;
 
-            summaryContent += `<small>Scanning: ${detectionInfo.subnet || 'Unknown'}</small>`;
+            if (detectionInfo.detected_ip) {
+                summaryContent += `<small>Your IP: ${detectionInfo.detected_ip}</small><br>`;
+            }
 
             detectionSummary.innerHTML = summaryContent;
         }
