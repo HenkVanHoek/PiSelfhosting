@@ -50,7 +50,7 @@ This workflow protects the main project while giving you freedom to experiment. 
 - [Git Handbook](https://guides.github.com/introduction/git-handbook/)
 - [First Contributions Guide](https://github.com/firstcontributions/first-contributions)
 
-Remember: Every expert was once a beginner. Your fresh perspective as a newcomer can actually be very valuable!
+Remember: Every expert was once a beginner. Your fresh perspective as a newcomer can actually be valuable!
 
 ## 🐛 Submitting an Issue
 
@@ -156,3 +156,12 @@ We use `pytest` for testing. Run tests from the project root:
 ```bash
 python src/utils/run_pytest_wrapper.py
 ```
+## Developing environment considerations
+Recommended Development Environment
+
+Operating System: An Ubuntu environment is strongly recommended, as all development and testing are performed on this platform.
+
+Note on WSL: Be aware that the Windows Subsystem for Linux (WSL) is not suitable for all use cases. We have observed that networking tools, such as Nmap, may provide incorrect results when run within WSL.
+
+Virtualization Setup: For users on other operating systems, we recommend running Ubuntu in a virtual machine using VirtualBox. To ensure proper network functionality for tests, please configure the virtual machine's network adapter to Bridged Mode.
+

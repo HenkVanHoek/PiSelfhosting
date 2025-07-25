@@ -3,6 +3,8 @@ import socket
 import subprocess
 
 import nmap
+import psutil
+import ipaddress
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -50,98 +52,67 @@ class PiScanner:
         self.password = password
 
     @staticmethod
+    def get_primary_ip():
+        """
+        Gets the primary outbound IP address of the machine.
+        Uses the socket connect trick, which is fast and dependency-free.
+        """
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.settimeout(0)
+        # noinspection PyBroadException
+        try:
+            # This doesn't send a packet
+            s.connect(('8.8.8.8', 1))
+            ip = s.getsockname()[0]
+        except OSError:
+            return '127.0.0.1'
+        # pylint: disable=broad-exception-caught
+        except Exception:
+            logging.exception("Unexpected error in get_local_ip")
+            return '127.0.0.1'
+        finally:
+            s.close()
+        return ip
+        # pylint: enable=broad-exception-caught
+
+
+    @staticmethod
     def detect_subnet():
         """
-        Detects the local subnet with detailed user feedback.
-        Returns tuple: (subnet, detection_info)
+        Detects the local subnet using psutil, which is robust and maintained.
+        Returns the subnet as a string (e.g., '192.168.178.0/24') or None on failure.
         """
-        detection_info = {
-            "success": False,
-            "method_used": None,
-            "detected_ip": None,
-            "subnet": None,
-            "messages": [],
-        }
+        primary_ip = PiScanner.get_primary_ip()
 
-        try:
-            # Method 1: Socket connection method
-            detection_info["messages"].append(
-                "🔍 Detecting your network configuration..."
-            )
+        if primary_ip == '127.0.0.1':
+            logger.warning("Could not determine a non-loopback IP address.")
+            return None
 
-            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
-                s.connect(("8.8.8.8", 80))
-                local_ip = s.getsockname()[0]
+        logger.info(f"🔍 Primary IP detected: {primary_ip}")
 
-            detection_info["detected_ip"] = local_ip
-            detection_info["method_used"] = "socket_connection"
-            detection_info["messages"].append(f"✅ Found your IP address: {local_ip}")
+        # psutil.net_if_addrs() returns all addresses on the system
+        # The key is the interface name (e.g., 'eth0', 'Wi-Fi')
+        # The value is a list of addresses on that interface
+        all_addrs = psutil.net_if_addrs()
 
-            # Construct the subnet
-            ip_parts = local_ip.split(".")
-            subnet = f"{ip_parts[0]}.{ip_parts[1]}.{ip_parts[2]}.0/24"
+        for interface_name, interface_addresses in all_addrs.items():
+            for addr in interface_addresses:
+                # We are looking for the IPv4 address that matches our primary IP
+                if addr.family == socket.AF_INET and addr.address == primary_ip:
+                    # print(f"✅ Found matching interface '{interface_name}'")
+                    netmask = addr.netmask
+                    logger.info(f"   - IP Address: {addr.address}")
+                    logger.info(f"   - Netmask:    {netmask}")
 
-            detection_info["subnet"] = subnet
-            detection_info["success"] = True
-            detection_info["messages"].append(f"🌐 Will scan network: {subnet}")
+                    # Use the excellent 'ipaddress' library to correctly calculate the network
+                    # strict=False allows creating a network from an IP/netmask pair
+                    network = ipaddress.IPv4Network(f'{addr.address}/{netmask}', strict=False)
 
-            logger.info(f"Network detected via socket method: {local_ip} -> {subnet}")
-            return subnet, detection_info
+                    logger.info(f"🌐 Calculated Subnet: {network.with_prefixlen}")
+                    return str(network.with_prefixlen)
 
-        except Exception as e:
-            detection_info["messages"].append(f"⚠️ Primary detection failed: {str(e)}")
-            logger.warning(f"Socket method failed: {e}")
-
-            try:
-                # Method 2: Hostname fallback
-                detection_info["messages"].append(
-                    "🔄 Trying alternative detection method..."
-                )
-
-                hostname = socket.gethostname()
-                local_ip = socket.gethostbyname(hostname)
-
-                detection_info["detected_ip"] = local_ip
-                detection_info["method_used"] = "hostname_resolution"
-
-                if local_ip.startswith("127."):
-                    detection_info["messages"].append(
-                        f"⚠️ Hostname resolved to localhost ({local_ip})"
-                    )
-                    detection_info["messages"].append(
-                        "🔧 Using default network range: 192.168.1.0/24"
-                    )
-                    detection_info["subnet"] = "192.168.1.0/24"
-                    logger.warning(
-                        "Hostname resolved to localhost, using default "
-                        "192.168.1.0/24 network range."
-                    )
-                    return "192.168.1.0/24", detection_info
-
-                detection_info["messages"].append(
-                    f"✅ Found IP via hostname: {local_ip}"
-                )
-
-                ip_parts = local_ip.split(".")
-                subnet = f"{ip_parts[0]}.{ip_parts[1]}.{ip_parts[2]}.0/24"
-
-                detection_info["subnet"] = subnet
-                detection_info["success"] = True
-                detection_info["messages"].append(f"🌐 Will scan network: {subnet}")
-
-                logger.info(f"Network detected via hostname: {local_ip} -> {subnet}")
-                return subnet, detection_info
-
-            except socket.gaierror as e:
-                detection_info["messages"].append(
-                    f"❌ All detection methods failed: {str(e)}"
-                )
-                detection_info["messages"].append(
-                    "🔧 Using default network: 192.168.1.0/24"
-                )
-                detection_info["subnet"] = "192.168.1.0/24"
-                logger.warning(f"All detection failed: {e}")
-                return "192.168.1.0/24", detection_info
+        logger.warning("❌ Could not find interface details for the primary IP using psutil.")
+        return None
 
     @classmethod
     def scan(cls, subnet=None):
@@ -166,7 +137,7 @@ class PiScanner:
         # Rest of scanning logic...
         try:
             nm = nmap.PortScanner()
-            result = nm.scan(subnet, arguments="-sn")  # Ping scan
+            result = nm.scan(subnet, ports="22", arguments="-sS")  # Ping scan
 
             hosts = []
             scan_messages = []

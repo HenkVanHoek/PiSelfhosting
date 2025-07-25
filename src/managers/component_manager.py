@@ -8,7 +8,7 @@ from collections import OrderedDict
 try:
     from config_tools.config_manager import ConfigManager
 except ImportError:
-    # Fallback to a dummy class if the module cannot be found,
+    # Fallback to a fake class if the module cannot be found,
     # as it is always mocked in practice (during tests).
     class ConfigManager:
         pass

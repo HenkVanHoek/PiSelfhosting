@@ -15,11 +15,11 @@ class TestPiScanner:
         """
 
         # Mock socket functions to avoid actual network calls
-        def mock_socket_connect(self, address):
+        def mock_socket_connect(_self, address):
             pass  # Do nothing, just don't fail
 
-        def mock_getsockname(self):
-            return ("192.168.1.123", 12345)
+        def mock_getsockname(_self):
+            return "192.168.1.123", 12345
 
         # Patch the socket methods used in the first detection method
         monkeypatch.setattr("socket.socket.connect", mock_socket_connect)
