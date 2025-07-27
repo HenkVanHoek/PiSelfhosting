@@ -165,3 +165,37 @@ Note on WSL: Be aware that the Windows Subsystem for Linux (WSL) is not suitable
 
 Virtualization Setup: For users on other operating systems, we recommend running Ubuntu in a virtual machine using VirtualBox. To ensure proper network functionality for tests, please configure the virtual machine's network adapter to Bridged Mode.
 
+## Github procedure I use for updating the Github Repo
+
+### Pre-test the code before Commit and Push..,
+``` bash
+ pre-commit run --all-files
+```
+This step is sometimes needed 2 times. First time, it fixes the code to comply with the standards forced. But I rerun to make sure it won't break something else.
+Next part is shown when everything looks good.
+```
+check yaml...............................................................Passed
+fix end of files.........................................................Passed
+trim trailing whitespace.................................................Passed
+check json...............................................................Passed
+check for merge conflicts................................................Passed
+black....................................................................Passed
+isort (python)...........................................................Passed
+flake8...................................................................Passed
+```
+This step is executed in the terminal session manually.
+
+### Commit and Push to GitHub
+1. Update the comment section
+2. Press the Commit and Push button
+
+### Create a new patch release
+After a Commit and Push to GitHub, most of the time I want to create a new release in GitHub for testing and later on for official releases.
+For a patch, which is in git incrementing the 3'th number, I use
+``` bash
+bump2version patch
+```
+This needs to finish off with the command:
+``` bash
+git push && git push --tags
+```

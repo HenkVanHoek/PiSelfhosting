@@ -1,10 +1,10 @@
+import ipaddress
 import logging
 import socket
 import subprocess
 
 import nmap
 import psutil
-import ipaddress
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -62,19 +62,18 @@ class PiScanner:
         # noinspection PyBroadException
         try:
             # This doesn't send a packet
-            s.connect(('8.8.8.8', 1))
+            s.connect(("8.8.8.8", 1))
             ip = s.getsockname()[0]
         except OSError:
-            return '127.0.0.1'
+            return "127.0.0.1"
         # pylint: disable=broad-exception-caught
         except Exception:
             logging.exception("Unexpected error in get_local_ip")
-            return '127.0.0.1'
+            return "127.0.0.1"
         finally:
             s.close()
         return ip
         # pylint: enable=broad-exception-caught
-
 
     @staticmethod
     def detect_subnet():
@@ -84,7 +83,7 @@ class PiScanner:
         """
         primary_ip = PiScanner.get_primary_ip()
 
-        if primary_ip == '127.0.0.1':
+        if primary_ip == "127.0.0.1":
             logger.warning("Could not determine a non-loopback IP address.")
             return None
 
@@ -104,14 +103,19 @@ class PiScanner:
                     logger.info(f"   - IP Address: {addr.address}")
                     logger.info(f"   - Netmask:    {netmask}")
 
-                    # Use the excellent 'ipaddress' library to correctly calculate the network
+                    # Use the excellent 'ipaddress' library to correctly calculate the
+                    # network
                     # strict=False allows creating a network from an IP/netmask pair
-                    network = ipaddress.IPv4Network(f'{addr.address}/{netmask}', strict=False)
+                    network = ipaddress.IPv4Network(
+                        f"{addr.address}/{netmask}", strict=False
+                    )
 
                     logger.info(f"🌐 Calculated Subnet: {network.with_prefixlen}")
                     return str(network.with_prefixlen)
 
-        logger.warning("❌ Could not find interface details for the primary IP using psutil.")
+        logger.warning(
+            "❌ Could not find interface details for the primary IP using psutil."
+        )
         return None
 
     @classmethod

@@ -382,5 +382,17 @@
     "icon": "fas fa-save",
     "protocol": "http",
     "default": true
-  }
+  },
+  "piselfhosting-service-maintenance": {
+  "name": "Service Maintenance",
+  "project_url": "https://github.com/HenkVanHoek/PiSelfhosting",
+  "description": "Monitor status, updates and vulnerabilities.",
+  "dashy_section": "System Tools",
+  "has_ui": true,
+  "ui_port": 9999,
+  "icon": "fas fa-tools",
+  "protocol": "http",
+  "default": true
+}
+
 }

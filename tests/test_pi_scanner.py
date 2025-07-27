@@ -184,7 +184,9 @@ class TestPiScannerGetDetails:
 
     @patch("subprocess.run")
     @patch("pi_scanner.is_port_open", return_value=True)
-    def test_get_details_ssh_command_fails(self, _mock_port_open, mock_subprocess, scanner):
+    def test_get_details_ssh_command_fails(
+        self, _mock_port_open, mock_subprocess, scanner
+    ):
         """Test handling of a failed SSH command execution."""
         mock_result = MagicMock()
         mock_result.returncode = 1
@@ -207,7 +209,9 @@ class TestPiScannerGetDetails:
 
     @patch("subprocess.run")
     @patch("pi_scanner.is_port_open", return_value=True)
-    def test_get_details_sshpass_not_found(self, _mock_port_open, mock_subprocess, scanner):
+    def test_get_details_sshpass_not_found(
+        self, _mock_port_open, mock_subprocess, scanner
+    ):
         """Test handling of FileNotFoundError for sshpass."""
         mock_subprocess.side_effect = FileNotFoundError
 
