@@ -15,6 +15,41 @@ from utils.resource_utils import resource_path
 logger = logging.getLogger(__name__)
 
 
+# Load MAC prefixes once at module level
+def _load_pi_mac_prefixes():
+    """Load Raspberry Pi machine address prefixes from the config file."""
+    try:
+        config_path = resource_path(os.path.join("config", "raspberry_pi_oui.json"))
+        with open(config_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return set(data.get("prefixes", []))
+    except (FileNotFoundError, json.JSONDecodeError):
+        logger.error("Could not load Raspberry Pi MAC prefixes")
+        return set()
+
+
+# Module-level constant
+PI_MAC_PREFIXES = _load_pi_mac_prefixes()
+
+
+def is_raspberry_pi(mac_address):
+    """
+    This function checks if a given MAC address is associated with a
+    Raspberry Pi.
+
+    Parameters:
+        mac_address (str): The MAC address to check.
+
+    Returns:
+        bool: True if the MAC address is a Raspberry Pi MAC address,
+        False otherwise.
+    """
+    if not mac_address:
+        return False
+    mac_prefix = mac_address[:8].lower()
+    return mac_prefix in PI_MAC_PREFIXES
+
+
 def is_port_open(host, port):
     """
     Check if a specific port is open on a given host.
@@ -31,7 +66,8 @@ def is_port_open(host, port):
 
 class PiScanner:
     """
-    A class to scan the network for Raspberry Pi devices and retrieve their details.
+    A class to scan the network for Raspberry Pi
+    devices and retrieve their details.
     """
 
     SSH_COMMAND = (
@@ -56,46 +92,6 @@ class PiScanner:
         """
         self.username = username
         self.password = password
-        self.pi_mac_prefixes = self._load_mac_prefixes()
-
-    @staticmethod
-    def _load_mac_prefixes():
-        """
-        Loads the list of Raspberry Pi OUI prefixes from the JSON config file.
-        This is a private helper method for the constructor.
-        """
-        try:
-            config_path = resource_path(os.path.join("config", "raspberry_pi_oui.json"))
-            with open(config_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            prefixes = set(data.get("prefixes", []))
-            logger.info(
-                f"Successfully loaded {len(prefixes)} Raspberry Pi MAC prefixes."
-            )
-            return prefixes
-        except FileNotFoundError:
-            logger.error(
-                "CRITICAL: raspberry_pi_oui.json not found! Pi scanning "
-                "will likely fail."
-            )
-            return set()
-        except json.JSONDecodeError:
-            logger.error(
-                "CRITICAL: Failed to parse raspberry_pi_oui.json. "
-                "Check for syntax errors."
-            )
-            return set()
-        except Exception as e:
-            logger.error(f"An unexpected error occurred loading " f"MAC prefixes: {e}")
-            return set()
-
-    def is_raspberry_pi(self, mac_address):
-        """Check if a MAC address belongs to a Raspberry Pi using
-        the loaded prefixes."""
-        if not mac_address:
-            return False
-        mac_prefix = mac_address[:8].lower()
-        return mac_prefix in self.pi_mac_prefixes
 
     @staticmethod
     def get_primary_ip():
@@ -139,11 +135,11 @@ class PiScanner:
                     network = ipaddress.IPv4Network(
                         f"{addr.address}/{netmask}", strict=False
                     )
-                    logger.info(f"🌐 Calculated Subnet: {network.with_prefixlen}")
+                    logger.info(f"🌐 Calculated Subnet: " f"{network.with_prefixlen}")
                     return str(network.with_prefixlen)
 
         logger.warning(
-            "❌ Could not find interface details for the primary IP using psutil."
+            "❌ Could not find interface details for " "the primary IP using psutil."
         )
         return None
 
@@ -168,7 +164,7 @@ class PiScanner:
                 messages.append(f"✅ Subnet auto-detected: {subnet}")
             else:
                 error_msg = (
-                    "❌ Could not auto-detect subnet. Please provide one manually."
+                    "❌ Could not auto-detect subnet. " "Please provide one manually."
                 )
                 messages.append(error_msg)
                 detection_info["success"] = False
@@ -197,7 +193,7 @@ class PiScanner:
                 if "addresses" in host_info and "mac" in host_info["addresses"]:
                     mac_address = host_info["addresses"]["mac"].upper()
                     vendor = host_info["vendor"].get(mac_address, "Unknown")
-                    if self.is_raspberry_pi(mac_address):
+                    if is_raspberry_pi(mac_address):
                         pi_count += 1
                         hosts.append(
                             {
@@ -209,16 +205,20 @@ class PiScanner:
                                 ),
                             }
                         )
-                        all_messages.append(f"🍓 Raspberry Pi found: {host} ({vendor})")
+                        all_messages.append(
+                            f"🍓 Raspberry Pi found: " f"{host} ({vendor})"
+                        )
 
             if pi_count == 0:
-                all_messages.append("⚠️ No Raspberry Pi devices found in this network")
+                all_messages.append(
+                    "⚠️ No Raspberry Pi devices found in" " this network"
+                )
             else:
                 all_messages.append(
                     f"✅ Scan complete: {pi_count} Raspberry Pi(s) discovered"
                 )
 
-            logger.info(f"Scan completed. Found {len(hosts)} Raspberry Pi devices.")
+            logger.info(f"Scan completed. Found {len(hosts)} " f"Raspberry Pi devices.")
             return hosts, all_messages, "", detection_info
         except Exception as e:
             error_msg = f"❌ Scan failed: {str(e)}"
@@ -328,7 +328,9 @@ class PiScanner:
                     details, detail_err = temp_scanner.get_device_details(host["ip"])
 
             if detail_err:
-                logger.warning(f"Could not get details for {host['ip']}: {detail_err}")
+                logger.warning(
+                    f"Could not get details for {host['ip']}: " f"{detail_err}"
+                )
                 host["os_version"] = f"Error: {detail_err}"
                 host["details_available"] = False
             else:

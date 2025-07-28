@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 # Assuming your file is named pi_scanner.py
-from pi_scanner import PiScanner, is_port_open
+from pi_scanner import PiScanner, is_port_open, is_raspberry_pi
 
 
 # Fixture for a reusable PiScanner instance
@@ -52,10 +52,10 @@ class TestPiScannerStaticMethods:
 
     def test_is_raspberry_pi(self):
         """Test the MAC address checker."""
-        assert PiScanner.is_raspberry_pi("B8:27:EB:XX:XX:XX") is True
-        assert PiScanner.is_raspberry_pi("dc:a6:32:yy:yy:yy") is True
-        assert PiScanner.is_raspberry_pi("00:1A:2B:3C:4D:5E") is False
-        assert PiScanner.is_raspberry_pi("invalid-mac") is False
+        assert is_raspberry_pi("B8:27:EB:XX:XX:XX") is True
+        assert is_raspberry_pi("dc:a6:32:yy:yy:yy") is True
+        assert is_raspberry_pi("00:1A:2B:3C:4D:5E") is False
+        assert is_raspberry_pi("invalid-mac") is False
 
     @patch("socket.socket")
     def test_get_primary_ip_success(self, mock_socket):
@@ -119,7 +119,7 @@ class TestPiScannerScan:
             }
         }
 
-        hosts, messages, err, _ = PiScanner.scan(subnet="192.168.1.0/24")
+        hosts, messages, err, _ = scanner.scan(subnet="192.168.1.0/24")
 
         assert not err
         assert len(hosts) == 1
@@ -140,7 +140,7 @@ class TestPiScannerScan:
             }
         }
 
-        hosts, messages, err, _ = PiScanner.scan(subnet="192.168.1.0/24")
+        hosts, messages, err, _ = scanner.scan(subnet="192.168.1.0/24")
 
         assert not err
         assert len(hosts) == 0
@@ -151,7 +151,7 @@ class TestPiScannerScan:
         mock_nmap_instance = mock_nmap.return_value
         mock_nmap_instance.scan.side_effect = Exception("nmap failed")
 
-        hosts, messages, err, _ = PiScanner.scan(subnet="192.168.1.0/24")
+        hosts, messages, err, _ = scanner.scan(subnet="192.168.1.0/24")
 
         assert len(hosts) == 0
         assert "❌ Scan failed: nmap failed" in err
@@ -174,7 +174,18 @@ class TestPiScannerGetDetails:
         """Test successful retrieval of device details."""
         mock_result = MagicMock()
         mock_result.returncode = 0
-        mock_result.stdout = 'PRETTY_NAME="Raspbian GNU/Linux 11 (bullseye)"'
+        mock_result.stdout = (
+            'PRETTY_NAME="Raspbian GNU/Linux 11 (bullseye)"\n'
+            "---\n"
+            "1000000012345678\n"
+            "---\n"
+            "Raspberry Pi 4 Model B Rev 1.4\n"
+            "---\n"
+            "4096 MB\n"
+            "---\n"
+            "Filesystem Size Used Avail Use% Mounted on\n"
+            "/dev/root 30G 5.0G 23G 18% /"
+        )
         mock_subprocess.return_value = mock_result
 
         details, err = scanner.get_device_details("192.168.1.5")
@@ -205,7 +216,7 @@ class TestPiScannerGetDetails:
 
         details, err = scanner.get_device_details("192.168.1.5")
         assert details is None
-        assert "SSH connection timed out" in err
+        assert "SSH command timed out" in err
 
     @patch("subprocess.run")
     @patch("pi_scanner.is_port_open", return_value=True)
