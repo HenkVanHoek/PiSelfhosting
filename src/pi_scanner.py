@@ -19,7 +19,8 @@ logger = logging.getLogger(__name__)
 def _load_pi_mac_prefixes():
     """Load Raspberry Pi machine address prefixes from the config file."""
     try:
-        config_path = resource_path(os.path.join("config", "raspberry_pi_oui.json"))
+        config_path = resource_path(os.path.join("config",
+                                                 "raspberry_pi_oui.json"))
         with open(config_path, "r", encoding="utf-8") as f:
             data = json.load(f)
         return set(data.get("prefixes", []))
@@ -135,11 +136,13 @@ class PiScanner:
                     network = ipaddress.IPv4Network(
                         f"{addr.address}/{netmask}", strict=False
                     )
-                    logger.info(f"🌐 Calculated Subnet: " f"{network.with_prefixlen}")
+                    logger.info(f"🌐 Calculated Subnet: " 
+                                f"{network.with_prefixlen}")
                     return str(network.with_prefixlen)
 
         logger.warning(
-            "❌ Could not find interface details for " "the primary IP using psutil."
+            "❌ Could not find interface details for " 
+            "the primary IP using psutil."
         )
         return None
 
@@ -164,7 +167,8 @@ class PiScanner:
                 messages.append(f"✅ Subnet auto-detected: {subnet}")
             else:
                 error_msg = (
-                    "❌ Could not auto-detect subnet. " "Please provide one manually."
+                    "❌ Could not auto-detect subnet. "
+                    "Please provide one manually."
                 )
                 messages.append(error_msg)
                 detection_info["success"] = False
@@ -182,6 +186,7 @@ class PiScanner:
         try:
             nm = nmap.PortScanner()
             result = nm.scan(hosts=subnet, arguments="-sn")  # Ping scan
+            print (result)
             hosts = []
             all_messages = messages
             scanned_hosts = list(result["scan"].keys())
@@ -200,7 +205,8 @@ class PiScanner:
                                 "ip": host,
                                 "mac": mac_address,
                                 "vendor": vendor,
-                                "hostname": host_info.get("hostnames", [{}])[0].get(
+                                "hostname": host_info.
+                                get("hostnames", [{}])[0].get(
                                     "name", "Unknown"
                                 ),
                             }
@@ -218,7 +224,8 @@ class PiScanner:
                     f"✅ Scan complete: {pi_count} Raspberry Pi(s) discovered"
                 )
 
-            logger.info(f"Scan completed. Found {len(hosts)} " f"Raspberry Pi devices.")
+            logger.info(f"Scan completed. "
+                        f"Found {len(hosts)} " f"Raspberry Pi devices.")
             return hosts, all_messages, "", detection_info
         except Exception as e:
             error_msg = f"❌ Scan failed: {str(e)}"
@@ -247,7 +254,8 @@ class PiScanner:
                 f"{self.username}@{ip_address}",
                 self.SSH_COMMAND,
             ]
-            result = subprocess.run(command, capture_output=True, text=True, timeout=20)
+            result = subprocess.run(command, capture_output=True,
+                                    text=True, timeout=20)
 
             if result.returncode != 0:
                 return None, f"SSH command failed: {result.stderr.strip()}"
@@ -325,7 +333,8 @@ class PiScanner:
                 if custom_creds:
                     username, password = custom_creds
                     temp_scanner = PiScanner(username, password)
-                    details, detail_err = temp_scanner.get_device_details(host["ip"])
+                    details, detail_err = (temp_scanner.
+                                           get_device_details(host["ip"]))
 
             if detail_err:
                 logger.warning(

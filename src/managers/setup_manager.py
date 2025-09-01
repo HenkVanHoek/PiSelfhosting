@@ -24,19 +24,22 @@ class DockerComposeYAMLLoader(yaml.SafeLoader):
 
 
 class DockerComposeYAMLDumper(yaml.SafeDumper):
-    def represent_str(self, data):
+    @staticmethod
+    def represent_str(dumper, data):
         # Match both simple port mappings (8080:80) and
         # those with protocols (8080:80/tcp)
         if isinstance(data, str) and (
             re.match(r"^\d+:\d+$", data)  # Simple port mapping
-            or re.match(r"^\d+:\d+/[a-z]+$", data)  # Port  with protocol
+            or re.match(r"^\d+:\d+/[a-z]+$", data)  # Port with protocol
         ):
             # Force double quotes for port mappings
-            return self.represent_scalar("tag:yaml.org,2002:str", data, style='"')
-        return super().represent_str(data)
+            return dumper.represent_scalar("tag:yaml.org,2002:str",
+                                         data, style='"')
+        return super(DockerComposeYAMLDumper, dumper).represent_str(data)
 
 
-DockerComposeYAMLDumper.add_representer(str, DockerComposeYAMLDumper.represent_str)
+DockerComposeYAMLDumper.add_representer(str,
+                                        DockerComposeYAMLDumper.represent_str)
 
 
 class SetupManager:
@@ -51,7 +54,7 @@ class SetupManager:
 
     def generate_all_files(self, selected_components, env_vars):
         """
-        Generates a docker-compose.yml and other necessary configuration files
+        Generates docker-compose.yml and other necessary configuration files
         from the selected components and their dependencies.
 
         Args:

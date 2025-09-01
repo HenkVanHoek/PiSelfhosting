@@ -1,5 +1,7 @@
 import os
 import sys
+# NEW: Import the standard library for parsing TOML files
+import tomllib
 
 from dotenv import load_dotenv
 
@@ -16,7 +18,23 @@ def get_project_root():
         return sys._MEIPASS
     else:
         # Running in a normal Python environment (from source)
-        return os.path.abspath(os.path.dirname(__file__))
+        # This is complex to get the project root, not the file location in src
+        return os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+
+
+# NEW: A function to read the version from pyproject.toml
+def get_project_version(project_root):
+    """
+    Reads the project version from the pyproject.toml file.
+    """
+    try:
+        pyproject_path = os.path.join(project_root, "pyproject.toml")
+        with open(pyproject_path, "rb") as f:
+            data = tomllib.load(f)
+            return data["project"]["version"]
+    except (FileNotFoundError, KeyError):
+        # Fallback if the file is missing or the version key is not found
+        return "latest"
 
 
 def run_installation():
@@ -25,18 +43,14 @@ def run_installation():
     output line by line.
     """
     # --- Path and Module Setup ---
-    # This setup is duplicated from app.py to ensure the script can run
-    # independently and find all necessary modules and files.
     project_root = get_project_root()
     src_path = os.path.join(project_root, "src")
     if src_path not in sys.path:
         sys.path.insert(0, src_path)
 
-    # These imports are done *inside* the function to avoid circular
-    # dependencies and to ensure they are found after the path is set up.
-    # noinspection PyUnresolvedReferences
     import ansible_runner
-    from component_manager import ComponentManager  # noqa: E402
+    # The correct import path assumes piselfhosting_installer is outside src
+    from managers.component_manager import ComponentManager
 
     # --- Environment and Configuration ---
     env_path = os.path.join(project_root, ".env")
@@ -44,6 +58,10 @@ def run_installation():
 
     yield "--- PiSelfHosting Installer ---"
     yield "Starting the installation process..."
+
+    # NEW: Get the project version
+    project_version = get_project_version(project_root)
+    yield f"Using Project Version: {project_version}"
 
     # --- Load Selected Components ---
     selected_components_file = os.path.join(project_root, "selected_components.txt")
@@ -81,16 +99,14 @@ def run_installation():
     extravars = {
         "selected_components": components_to_install,
         "ansible_user": ssh_user,
+        # NEW: Add the project version so Ansible can use it in templates
+        "project_version": project_version,
     }
-    # Only add the password to extravars if it exists
     if ssh_pass:
         extravars["ansible_password"] = ssh_pass
         extravars["ansible_become_password"] = ssh_pass
 
-    # The inventory defines the host we are targeting.
     inventory = {"hosts": {pi_ip: None}}
-
-    # Define the playbook to be executed
     playbook_path = os.path.join(project_root, "ansible", "playbook.yml")
 
     yield "Preparing to run Ansible..."
@@ -101,31 +117,25 @@ def run_installation():
     # --- Run Ansible and Stream Output ---
     try:
         runner_thread, runner = ansible_runner.run_async(
-            private_data_dir=project_root,  # Use project root for runner files
+            private_data_dir=project_root,
             playbook=playbook_path,
             inventory=inventory,
             extravars=extravars,
-            quiet=True,  # We will print our own output
+            quiet=True,
         )
 
-        # The runner object has an `events` generator that streams the playbook output
         for event in runner.events:
             if event["event"] == "runner_on_ok":
-                # Check for stdout in the event data
                 if "stdout" in event["event_data"]["res"]:
                     for line in event["event_data"]["res"]["stdout_lines"]:
                         yield line
-            # You can add more event handlers here if needed (e.g., for errors)
             elif event["event"] in ["runner_on_failed", "runner_on_unreachable"]:
                 yield f"ERROR on task '{event['event_data']['task']}':"
-                # Pretty-print the error message for better readability
                 if "res" in event["event_data"] and "msg" in event["event_data"]["res"]:
                     yield event["event_data"]["res"]["msg"]
                 else:
-                    # Fallback for other error structures
                     yield str(event)
 
-        # Wait for the runner thread to finish
         runner_thread.join()
         status = runner.status
         rc = runner.rc

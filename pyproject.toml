@@ -1,3 +1,5 @@
+# pyproject.toml (Final Version)
+
 [tool.isort]
 profile = "black"
 line_length = 88
@@ -13,22 +15,40 @@ norecursedirs = ["scripts"]
 
 [project]
 name = "PiSelfhosting"
+version = "0.4.46-Alpha"
 description = "A project to self-host services on a Raspberry Pi."
 requires-python = ">=3.11"
-dynamic = ["version"]
 
 [tool.setuptools]
-package_dir = {"" = "src"}
+# This section is now intentionally empty after removing the obsolete package_dir.
 
 [tool.setuptools.packages.find]
-# Automatically find all packages (folders with __init__.py) in src
+# This section correctly tells setuptools to look for packages in the src directory.
 where = ["src"]
 exclude = ["*egg-info*"]
-
-[tool.setuptools.dynamic]
-version = {file = "VERSION"}
 
 [project.optional-dependencies]
 test = [
     "pytest",
 ]
+dev = [
+    "bump-my-version",
+]
+
+[tool.bump-my-version]
+current_version = "0.4.46-Alpha"
+commit = true
+tag = true
+commit_args = "--no-verify"
+message = "chore(release): bump version to {new_version}"
+tag_name = "v{new_version}"
+
+[[tool.bump-my-version.files]]
+path = "pyproject.toml"
+search = 'version = "{current_version}"'
+replace = 'version = "{new_version}"'
+
+[[tool.bump-my-version.files]]
+path = "README.md"
+search = "label=release-v{current_version}"
+replace = "label=release-v{new_version}"

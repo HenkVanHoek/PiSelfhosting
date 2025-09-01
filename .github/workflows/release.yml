@@ -3,7 +3,7 @@
 # Name of the workflow, displayed on the GitHub Actions tab.
 name: Release Pipeline
 
-# This workflow is triggered on two events:
+# This workflow is triggered by two events:
 # 1. When a new tag starting with 'v' (e.g., v1.0, v1.2.3) is pushed.
 # 2. Manually, via the 'Run workflow' button on the Actions tab (workflow_dispatch).
 on:
@@ -29,7 +29,7 @@ jobs:
       uses: actions/checkout@v4
 
     # Sets up the specified Python version and configures caching
-    # for pip packages to speed up subsequent runs.
+    # for pip packages to speed up further runs.
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
