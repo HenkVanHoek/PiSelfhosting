@@ -57,6 +57,11 @@ def create_app(
     )
 
     # --- Routes ---
+
+    @flask_app.route("/style-guide")
+    def style_guide():
+        """A page to display all standard UI components."""
+        return render_template("style_guide.html")
     @flask_app.route("/", methods=["GET", "POST"])
     def index():
         if request.method == "POST":
