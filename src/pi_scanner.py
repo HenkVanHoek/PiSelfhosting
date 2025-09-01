@@ -71,7 +71,7 @@ class PiScanner:
             s.connect(("8.8.8.8", 1))
             # Use an intermediate variable for clarity and to ensure correctness
             sock_info_tuple = s.getsockname()
-            ip_address = sock_info_tuple
+            ip_address = sock_info_tuple[0]
         except OSError:
             return "127.0.0.1"
         except Exception:
