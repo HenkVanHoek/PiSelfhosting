@@ -1,575 +1,183 @@
-{% extends "base.html" %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PiSelfhosting Configurator</title>
 
-{% block title %}PiSelfhosting Configurator - {{ super() }}{% endblock %}
+    <!-- NEW: Add Favicon links -->
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/piselfhosting-icon192x192.png') }}">
+    <link rel="apple-touch-icon" href="{{ url_for('static', filename='images/piselfhosting-icon192x192.png') }}">
 
-{% block extra_css %}
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/configurator.css') }}">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-{% endblock %}
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 
-{% block content %}
-<div class="main-container">
-    <h1 class="text-center mb-4">
-        <i class="fas fa-server text-primary"></i>
-        PiSelfhosting Configurator
-    </h1>
+    <!-- Link to our local, fetched stylesheet -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='piselfhosting-style.css') }}">
 
-    <!-- Main Navigation Tabs -->
-    <ul class="nav nav-tabs main-nav-tabs mb-0" id="mainTabs" role="tablist">
-        <li class="nav-item" role="presentation">
-            <button class="nav-link active" id="components-main-tab" data-bs-toggle="tab"
-                    data-bs-target="#components-main" type="button" role="tab">
-                <i class="fas fa-puzzle-piece"></i> 1. Select Components
-            </button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link disabled" id="pi-main-tab" data-bs-toggle="tab"
-                    data-bs-target="#pi-main" type="button" role="tab">
-                <i class="fas fa-search"></i> 2. Select Pi
-            </button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link disabled" id="install-main-tab" data-bs-toggle="tab"
-                    data-bs-target="#install-main" type="button" role="tab">
-                <i class="fas fa-rocket"></i> 3. Install & Monitor
-            </button>
-        </li>
-    </ul>
+    <!-- Google Fonts: Montserrat and Roboto -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700&family=Roboto:wght@400;700&display=swap" rel="stylesheet">
 
-    <!-- Main Tab Content -->
-    <div class="tab-content main-tab-content" id="mainTabsContent">
+    <!-- Font Awesome (Classic CDN Method) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkcmfRyVX3pBnMFcV7oQPJkl9QevSCWr3W6A==" crossorigin="anonymous" referrerpolicy="no-referrer" />
 
-        <!-- STEP 1: Component Selection -->
-        <div class="tab-pane fade show active" id="components-main" role="tabpanel">
-            <div class="info-box">
-                <h5><i class="fas fa-info-circle"></i> Component Selection</h5>
-                <p><strong>Uniqueness Groups:</strong> Some components belong to the same group (e.g., "dashboard" or "dns_blocker") and are mutually exclusive. Only one component from each group can be selected.</p>
-                <p><strong>User Interface:</strong> Components marked with <span class="badge badge-ui">UI</span> provide a web interface, while those with <span class="badge badge-no-ui">No UI</span> run in the background.</p>
-            </div>
+</head>
+<body>
+    <div class="container my-5">
+        <div class="row justify-content-center">
+            <div class="col-lg-8 col-md-10">
 
-            <form id="componentsForm">
-                <button type="button" class="btn btn-success btn-lg w-100 mb-4" id="nextToPiBtn" disabled>
-                    <i class="fas fa-arrow-right"></i> Next: Select Raspberry Pi
-                </button>
+                <div class="text-center mb-4">
+                    <img src="{{ url_for('static', filename='images/piselfhosting-icon192x192.png') }}" alt="PiSelfhosting Logo" style="height: 120px;">
+                    <h1 class="h2 mt-3">PiSelfhosting Configurator</h1>
+                </div>
 
-                {% set sections = {} %}
-                {% for comp_id, comp in components.items() %}
-                    {% set section = comp.get('dashy_section', 'Other') %}
-                    {% if section not in sections %}
-                        {% set _ = sections.update({section: []}) %}
-                    {% endif %}
-                    {% set _ = sections[section].append((comp_id, comp)) %}
-                {% endfor %}
+                <div class="card shadow-sm">
+                    <div class="card-header text-center bg-light">
+                        <strong>Step 1 of 3: Find Your Devices</strong>
+                    </div>
+                    <div class="card-body p-4 p-md-5 text-center">
 
-                <!-- Component Category Tabs -->
-                <ul class="nav nav-tabs component-tabs mb-3" id="componentTabs" role="tablist">
-                    {% for section, section_components in sections.items()|sort %}
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link {% if loop.first %}active{% endif %}"
-                                id="tab-{{ section|lower|replace(' ', '-')|replace('&', 'and') }}"
-                                data-bs-toggle="tab"
-                                data-bs-target="#content-{{ section|lower|replace(' ', '-')|replace('&', 'and') }}"
-                                type="button" role="tab">
-                            {{ section }}
-                        </button>
-                    </li>
-                    {% endfor %}
-                </ul>
+                        <h2 class="h4">Scan Your Network</h2>
+                        <p class="text-muted">
+                            PiSelfhosting will scan your local network to find any available Raspberry Pi devices.
+                            This process is safe and usually takes less than a minute.
+                        </p>
 
-                <!-- Component Category Content -->
-                <div class="tab-content" id="componentTabsContent">
-                    {% for section, section_components in sections.items()|sort %}
-                    <div class="tab-pane fade {% if loop.first %}show active{% endif %}"
-                         id="content-{{ section|lower|replace(' ', '-')|replace('&', 'and') }}"
-                         role="tabpanel">
-
-                        <!-- Components without uniqueness group -->
-                        <div class="row">
-                            {% for comp_id, comp in section_components %}
-                                {% if not comp.uniqueness_group %}
-                                    <div class="col-md-4 mb-3">
-                                        <div class="card h-100">
-                                            <div class="card-body">
-                                                <div class="form-check">
-                                                    <input class="form-check-input component-checkbox"
-                                                           type="checkbox"
-                                                           name="selected_components"
-                                                           value="{{ comp_id }}"
-                                                           id="check-{{ comp_id }}"
-                                                           {% if comp_id in default_components %}checked{% endif %}
-                                                           data-uniqueness-group="null">
-                                                    <label class="form-check-label" for="check-{{ comp_id }}">
-                                                        <h5 class="card-title">
-                                                            {% if comp.icon %}<i class="{{ comp.icon }}"></i> {% endif %}
-                                                            {{ comp.name }}
-                                                            {% if comp.has_ui %}
-                                                                <span class="badge badge-ui">UI</span>
-                                                            {% else %}
-                                                                <span class="badge badge-no-ui">No UI</span>
-                                                            {% endif %}
-                                                        </h5>
-                                                    </label>
-                                                </div>
-                                                <p class="card-text">{{ comp.description }}</p>
-                                                <a href="{{ comp.project_url }}" target="_blank" class="card-link">Project Link</a>
-                                            </div>
-                                        </div>
-                                    </div>
-                                {% endif %}
-                            {% endfor %}
+                        <div class="d-grid gap-2 col-8 mx-auto my-4">
+                            <button id="begin-scan-btn" class="btn btn-primary btn-lg">
+                                <i class="fa-solid fa-magnifying-glass me-2"></i>
+                                Begin Scan
+                            </button>
                         </div>
 
-                        <!-- Components grouped by uniqueness group -->
-                        {% set grouped_components = {} %}
-                        {% for comp_id, comp in section_components %}
-                            {% if comp.uniqueness_group %}
-                                {% if comp.uniqueness_group not in grouped_components %}
-                                    {% set _ = grouped_components.update({comp.uniqueness_group: []}) %}
-                                {% endif %}
-                                {% set _ = grouped_components[comp.uniqueness_group].append((comp_id, comp)) %}
-                            {% endif %}
-                        {% endfor %}
+                        <a class="small" data-bs-toggle="collapse" href="#advancedScanOptions" role="button" aria-expanded="false" aria-controls="advancedScanOptions">
+                            Need to scan a different network? <strong>Show Advanced Options</strong>
+                        </a>
 
-                        {% for group_name, group_components in grouped_components.items() %}
-                            <div class="mt-4">
-                                <h4>{{ group_name.replace('_', ' ')|title }}</h4>
-                                <p class="text-muted">Select one option from this group.</p>
-                                <div class="row">
-                                    {% for comp_id, comp in group_components %}
-                                        <div class="col-md-4 mb-3">
-                                            <div class="card h-100">
-                                                <div class="card-body">
-                                                    <div class="form-check">
-                                                        <input class="form-check-input component-checkbox"
-                                                               type="radio"
-                                                               name="group-{{ group_name }}"
-                                                               value="{{ comp_id }}"
-                                                               id="check-{{ comp_id }}"
-                                                               {% if comp_id in default_components %}checked{% endif %}
-                                                               data-uniqueness-group="{{ group_name }}">
-                                                        <label class="form-check-label" for="check-{{ comp_id }}">
-                                                            <h5 class="card-title">
-                                                                {% if comp.icon %}<i class="{{ comp.icon }}"></i> {% endif %}
-                                                                {{ comp.name }}
-                                                                {% if comp.has_ui %}
-                                                                    <span class="badge badge-ui">UI</span>
-                                                                {% else %}
-                                                                    <span class="badge badge-no-ui">No UI</span>
-                                                                {% endif %}
-                                                            </h5>
-                                                        </label>
-                                                    </div>
-                                                    <p class="card-text">{{ comp.description }}</p>
-                                                    <a href="{{ comp.project_url }}" target="_blank" class="card-link">Project Link</a>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    {% endfor %}
+                        <!-- Advanced Options Panel (Hidden by Default) -->
+                        <div class="collapse mt-4" id="advancedScanOptions">
+                            <div class="card card-body bg-light text-start">
+                                <h3 class="h6 mb-3">Advanced Scan Options</h3>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="scanType" id="autoDetectRadio" value="auto" checked>
+                                    <label class="form-check-label" for="autoDetectRadio">
+                                        Auto-detect my local subnet (Recommended)
+                                    </label>
                                 </div>
+                                <div class="form-check mt-2">
+                                    <input class="form-check-input" type="radio" name="scanType" id="manualScanRadio" value="manual">
+                                    <label class="form-check-label" for="manualScanRadio">
+                                        Manually specify a subnet or IP range:
+                                    </label>
+                                </div>
+                                <input type="text" class="form-control form-control-sm mt-2" id="manualSubnetInput" placeholder="e.g., 192.168.1.0/24" disabled>
                             </div>
-                        {% endfor %}
+                        </div>
+                        <!-- End Advanced Options -->
+
                     </div>
-                    {% endfor %}
-                </div>
-            </form>
-        </div>
-
-        <!-- STEP 2: Pi Selection -->
-        <div class="tab-pane fade" id="pi-main" role="tabpanel">
-            <div class="info-box">
-                <h5><i class="fas fa-info-circle"></i> Raspberry Pi Detection</h5>
-                <p>Enter your Pi credentials below and click "Scan Network" to automatically detect Raspberry Pis on your network.</p>
-            </div>
-
-            <div class="row">
-                <div class="col-md-6">
-                    <div class="form-group">
-                        <label for="username">SSH Username:</label>
-                        <input type="text" id="username" name="username" value="pi" required>
+                    <div class="card-footer bg-light" id="status-area" style="min-height: 50px; display: flex; align-items: center; justify-content: center;">
+                        <p class="text-muted small mb-0">Waiting to start...</p>
                     </div>
                 </div>
-                <div class="col-md-6">
-                    <div class="form-group">
-                        <label for="password">SSH Password:</label>
-                        <input type="password" id="password" name="password" required>
-                    </div>
-                </div>
+
             </div>
-
-            <div class="row mb-3">
-                <div class="col-md-8">
-                    <div class="form-group">
-                        <label for="subnet">Subnet (optional - leave empty for auto-detection):</label>
-                        <input type="text" id="subnet" name="subnet" placeholder="e.g., 192.168.1.0/24">
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="form-group">
-                        <label>&nbsp;</label>
-                        <button type="button" class="btn btn-primary w-100" onclick="scanForPis()">
-                            <i class="fas fa-search"></i> Scan Network
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Network Detection Info Section -->
-            <div id="network-detection-info" class="network-detection-info" style="display: none;">
-                <h4>🌐 Network Detection</h4>
-                <div id="detection-messages"></div>
-                <div id="detection-summary" class="detection-summary"></div>
-            </div>
-
-            <!-- Scan Results Info Section -->
-            <div id="scan-results-info" class="scan-results-info" style="display: none;">
-                <h4>📡 Scan Results</h4>
-                <div id="scan-messages"></div>
-            </div>
-
-            <div id="loading" class="loading">
-                <i class="fas fa-spinner fa-spin"></i> Scanning network for Raspberry Pis...
-            </div>
-
-            <div id="pi-list" class="pi-list"></div>
-
-            <button type="button" class="btn btn-success btn-lg w-100 mt-4" id="nextToInstallBtn" disabled>
-                <i class="fas fa-arrow-right"></i> Next: Install & Monitor
-            </button>
-        </div>
-
-        <!-- STEP 3: Installation & Monitoring -->
-        <div class="tab-pane fade" id="install-main" role="tabpanel">
-            <div class="info-box">
-                <h5><i class="fas fa-info-circle"></i> Installation Progress</h5>
-                <p>Monitor the installation progress in real-time. The process will automatically configure your selected components on the target Raspberry Pi.</p>
-            </div>
-
-            <div id="selected-pi-info" class="mb-4"></div>
-            <div id="selected-components-info" class="mb-4"></div>
-
-            <div class="progress-container">
-                <div class="progress mb-3">
-                    <div id="install-progress" class="progress-bar" role="progressbar" style="width: 0"></div>
-                </div>
-            </div>
-
-            <div id="install-log"></div>
-
-            <button type="button" class="btn btn-success btn-lg w-100 mt-4" id="startInstallBtn">
-                <i class="fas fa-rocket"></i> Start Installation
-            </button>
         </div>
     </div>
-</div>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
-<!--suppress JSUnresolvedReference -->
+    <!-- Bootstrap JS Bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- Application-specific JavaScript -->
     <script>
-// Global variables
-let selectedComponents = [];
-let selectedPi = null;
+        document.addEventListener('DOMContentLoaded', () => {
+            // Get references to all the important UI elements
+            const scanBtn = document.getElementById('begin-scan-btn');
+            const statusArea = document.getElementById('status-area');
+            const autoRadio = document.getElementById('autoDetectRadio');
+            const manualRadio = document.getElementById('manualScanRadio');
+            const manualInput = document.getElementById('manualSubnetInput');
 
-// Initialize component selection tracking
-document.addEventListener('DOMContentLoaded', function() {
-    updateSelectedComponents();
-
-    // Add event listeners to all component checkboxes
-    document.querySelectorAll('.component-checkbox').forEach(checkbox => {
-        checkbox.addEventListener('change', updateSelectedComponents);
-    });
-});
-
-function updateSelectedComponents() {
-    selectedComponents = [];
-
-    // Get checked regular checkboxes
-    document.querySelectorAll('input[type="checkbox"].component-checkbox:checked').forEach(checkbox => {
-        if (checkbox.dataset.uniquenessGroup === 'null') {
-            selectedComponents.push(checkbox.value);
-        }
-    });
-
-    // Get checked radio buttons (uniqueness groups)
-    document.querySelectorAll('input[type="radio"].component-checkbox:checked').forEach(radio => {
-        selectedComponents.push(radio.value);
-    });
-
-    // Enable/disable next button
-    const nextBtn = document.getElementById('nextToPiBtn');
-    nextBtn.disabled = selectedComponents.length === 0;
-
-    // Update next button handler
-    nextBtn.onclick = function() {
-        // Enable Pi tab
-        const piTab = document.getElementById('pi-main-tab');
-        piTab.classList.remove('disabled');
-        piTab.click();
-    };
-}
-
-function scanForPis() {
-    const username = document.getElementById('username').value;
-    const password = document.getElementById('password').value;
-    const subnet = document.getElementById('subnet').value;
-
-    if (!username || !password) {
-        alert('Please enter both username and password.');
-        return;
-    }
-
-    // Show detection info section
-    document.getElementById('network-detection-info').style.display = 'block';
-    document.getElementById('detection-messages').innerHTML = '<p class="detection-message">🔍 Starting network detection...</p>';
-    document.getElementById('detection-summary').innerHTML = '';
-
-    // Clear previous results
-    document.getElementById('scan-results-info').style.display = 'none';
-    document.getElementById('pi-list').innerHTML = '';
-    document.getElementById('loading').style.display = 'block';
-
-    const requestData = { username, password };
-    if (subnet) {
-        requestData.subnet = subnet;
-    }
-
-    fetch('/scan-pis', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(requestData)
-    })
-    .then(response => response.json())
-    .then(data => {
-        document.getElementById('loading').style.display = 'none';
-
-        // Show detection information
-        if (data.detection_info) {
-            const detectionInfo = data.detection_info;
-
-            const detectionSummary = document.getElementById('detection-summary');
-            const successColor = detectionInfo.success ? '#28a745' : '#dc3545';
-            const successIcon = detectionInfo.success ? '✅' : '❌';
-            const successText = detectionInfo.success ? 'Successful' : 'Failed';
-
-            let summaryContent = `<span style="color: ${successColor};">${successIcon} Detection ${successText}</span><br>`;
-            summaryContent += `<small>Method: ${detectionInfo.method_used || 'Unknown'}</small><br>`;
-
-            if (detectionInfo.detected_ip) {
-                summaryContent += `<small>Your IP: ${detectionInfo.detected_ip}</small><br>`;
-            }
-
-            detectionSummary.innerHTML = summaryContent;
-        }
-
-
-        // Show detection and scan messages
-        if (data.messages && data.messages.length > 0) {
-            const detectionMessages = data.messages.filter(msg =>
-                msg.includes('🔍') || msg.includes('✅ Found your IP') || msg.includes('🌐 Will scan')
-            );
-            if (detectionMessages.length > 0) {
-                const detectionHtml = detectionMessages.map(msg =>
-                    `<p class="detection-message">${msg}</p>`
-                ).join('');
-                document.getElementById('detection-messages').innerHTML = detectionHtml;
-            }
-
-            const scanMessages = data.messages.filter(msg =>
-                msg.includes('📡') || msg.includes('🍓') || msg.includes('⚠️ No Raspberry') || msg.includes('✅ Scan complete')
-            );
-            if (scanMessages.length > 0) {
-                document.getElementById('scan-results-info').style.display = 'block';
-                const messagesHtml = scanMessages.map(msg =>
-                    `<p class="detection-message">${msg}</p>`
-                ).join('');
-                document.getElementById('scan-messages').innerHTML = messagesHtml;
-            }
-        }
-
-        if (data.error) {
-            document.getElementById('pi-list').innerHTML = `<div class="error">Error: ${data.error}</div>`;
-        } else if (data.hosts && data.hosts.length > 0) {
-            displayPis(data.hosts);
-        } else {
-            document.getElementById('pi-list').innerHTML = '<div class="info-box">No Raspberry Pis found on the network.</div>';
-        }
-    })
-    .catch(error => {
-        document.getElementById('loading').style.display = 'none';
-        document.getElementById('pi-list').innerHTML = `<div class="error">Network error: ${error.message}</div>`;
-    });
-}
-
-// Function to handle per-device credential input
-async function getDeviceDetails(device) {
-    const credentialsModal = document.getElementById('deviceCredentialsModal');
-    const deviceIp = document.getElementById('deviceIp');
-    const deviceUsername = document.getElementById('deviceUsername');
-    const devicePassword = document.getElementById('devicePassword');
-
-    deviceIp.textContent = device.ip;
-    deviceUsername.value = '';
-    devicePassword.value = '';
-
-    return new Promise((resolve) => {
-        // Bootstrap 5 syntax
-        const modal = new bootstrap.Modal(credentialsModal, {
-            keyboard: false,
-            backdrop: 'static'
-        });
-        modal.show();
-
-        // Handle form submission
-        document.getElementById('submitDeviceCredentials').onclick = async () => {
-            const username = deviceUsername.value;
-            const password = devicePassword.value;
-
-            if (!username || !password) {
-                alert('Please enter both username and password');
-                return;
-            }
-
-            try {
-                const response = await fetch('/get-device-details', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        ip: device.ip,
-                        username: username,
-                        password: password
-                    })
-                });
-
-                const result = await response.json();
-                modal.hide();
-
-                if (response.ok) {
-                    resolve(result.details);
-                } else {
-                    resolve({ error: result.error });
+            // --- UI Logic for the Advanced Options panel ---
+            autoRadio.addEventListener('change', () => {
+                if (autoRadio.checked) {
+                    manualInput.disabled = true;
                 }
-            } catch (error) {
-                modal.hide();
-                resolve({ error: error.message });
-            }
-        };
+            });
 
-        // Handle skip button
-        document.getElementById('skipDeviceDetails').onclick = () => {
-            modal.hide();
-            resolve({ skipped: true });
-        };
-    });
-}
+            manualRadio.addEventListener('change', () => {
+                if (manualRadio.checked) {
+                    manualInput.disabled = false;
+                    manualInput.focus();
+                }
+            });
 
-// Update the scan results handler
-function displayScanResults(data) {
-    const resultsDiv = document.getElementById('scanResults');
+            // --- Core Application Logic ---
+            // This function is called when the "Begin Scan" button is clicked
+            const performScan = async () => {
+                // 1. Provide instant feedback to the user
+                scanBtn.disabled = true;
+                statusArea.innerHTML = `
+                    <p class="text-primary small mb-0">
+                        <i class="fa-solid fa-spinner fa-spin me-2"></i>
+                        Scanning network... This may take a moment.
+                    </p>
+                `;
 
-    for (const device of data.hosts) {
-        // Create device card
-        const deviceCard = createDeviceCard(device);
-        resultsDiv.appendChild(deviceCard);
+                // 2. Determine which subnet to scan
+                let subnetToScan = null; // A null subnet tells the backend to auto-detect
+                if (manualRadio.checked) {
+                    subnetToScan = manualInput.value;
+                }
 
-        // If device doesn't have details, show "Get Details" button
-        if (!device.details_available) {
-            const getDetailsBtn = document.createElement('button');
-            getDetailsBtn.textContent = 'Get Details';
-            getDetailsBtn.className = 'btn btn-outline-primary btn-sm';
-            getDetailsBtn.onclick = async () => {
-                const details = await getDeviceDetails(device);
-                updateDeviceCard(deviceCard, details);
+                // 3. Talk to the server using the fetch API
+                try {
+                    const response = await fetch('/scan-pis', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ subnet: subnetToScan })
+                    });
+
+                    if (!response.ok) {
+                        // If the server returns an error (like 500), handle it
+                        throw new Error(`Server responded with status: ${response.status}`);
+                    }
+
+                    const data = await response.json();
+
+                    // 4. Handle the result (for now, just log it)
+                    console.log("Scan successful. Data from server:", data);
+                    statusArea.innerHTML = `
+                        <p class="text-success small mb-0">
+                            <i class="fa-solid fa-check me-2"></i>
+                            Scan complete. Found ${data.hosts.length} device(s).
+                        </p>
+                    `;
+
+                    // In the future, we will use this 'data' to move to Step 2 of the wizard.
+
+                } catch (error) {
+                    console.error('An error occurred during the scan:', error);
+                    statusArea.innerHTML = `
+                        <p class="text-danger small mb-0">
+                            <i class="fa-solid fa-xmark me-2"></i>
+                            An error occurred. Check the console for details.
+                        </p>
+                    `;
+                } finally {
+                    // CRITICAL: Always re-enable the button, whether the scan succeeded or failed.
+                    scanBtn.disabled = false;
+                }
             };
-            deviceCard.appendChild(getDetailsBtn);
-        }
-    }
-}
 
-function displayPis(hosts) {
-    const piListDiv = document.getElementById('pi-list');
-    let html = '<h3>Found Raspberry Pis:</h3>';
-
-    hosts.forEach(host => {
-        html += `
-            <div class="pi-item" onclick="selectPi('${host.ip}', '${host.hostname}', '${host.model}', this)">
-                <h4><i class="fas fa-raspberry-pi text-danger"></i> ${host.hostname}</h4>
-                <p><strong>IP:</strong> ${host.ip}</p>
-                <p><strong>Model:</strong> ${host.model}</p>
-                <button class="btn btn-primary">Select This Pi</button>
-            </div>
-        `;
-    });
-
-    piListDiv.innerHTML = html;
-}
-
-
-function selectPi(ip, hostname, model, element) {
-    selectedPi = { ip, hostname, model };
-
-    // Visual feedback
-    document.querySelectorAll('.pi-item').forEach(item => {
-        item.classList.remove('selected');
-    });
-    element.classList.add('selected');
-
-    // Set IP in session
-    fetch('/set-ip', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ ip: ip })
-    });
-
-    // Enable next button
-    document.getElementById('nextToInstallBtn').disabled = false;
-    document.getElementById('nextToInstallBtn').onclick = function() {
-        // Enable Install tab
-        const installTab = document.getElementById('install-main-tab');
-        installTab.classList.remove('disabled');
-
-        // Update install tab with selected info
-        updateInstallTab();
-
-        installTab.click();
-    };
-}
-
-
-function updateInstallTab() {
-    const piInfo = document.getElementById('selected-pi-info');
-    const componentsInfo = document.getElementById('selected-components-info');
-
-    if (selectedPi) {
-        piInfo.innerHTML = `
-            <div class="info-box">
-                <h5><i class="fas fa-raspberry-pi text-danger"></i> Target Pi</h5>
-                <p><strong>Hostname:</strong> ${selectedPi.hostname}</p>
-                <p><strong>IP:</strong> ${selectedPi.ip}</p>
-                <p><strong>Model:</strong> ${selectedPi.model}</p>
-            </div>
-        `;
-    }
-
-    if (selectedComponents.length > 0) {
-        componentsInfo.innerHTML = `
-            <div class="info-box">
-                <h5><i class="fas fa-puzzle-piece"></i> Selected Components</h5>
-                <ul class="list-unstyled">
-                    ${selectedComponents.map(comp => `<li><i class="fas fa-check text-success"></i> ${comp}</li>`).join('')}
-                </ul>
-            </div>
-        `;
-    }
-}
-
-// Installation functionality (placeholder)
-document.getElementById('startInstallBtn').addEventListener('click', function() {
-    alert('Installation functionality will be implemented next!');
-    // This would connect to your installation backend
-});
-</script>
-{% endblock %}
+            // Attach the function to the button's click event
+            scanBtn.addEventListener('click', performScan);
+        });
+    </script>
+</body>
+</html>

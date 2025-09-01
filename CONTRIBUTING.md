@@ -78,17 +78,23 @@ Ensure you have the following installed on your development workstation using th
 
 ### 4. Critical: Platform-Specific Scanner Configuration
 
-The Pi Scanner uses **nmap** to discover devices by their MAC address. This requires elevated permissions, and the setup is **different for each operating system**.
+The Pi Scanner uses `nmap` to discover devices, which requires elevated permissions. The setup is **different for each operating system**. Without this step, the scanner will fail to find any devices.
 
-#### For Linux (Recommended)
+#### For Linux (Recommended Development Environment)
 
-On Linux, we use **setcap** to grant the **nmap** executable the specific network permissions it needs without requiring the entire application to run as root.
+On Linux, the application explicitly calls `sudo nmap` to ensure it has the necessary privileges for network scanning. To allow this to run without an interactive password prompt, you must add a custom rule to your system's `sudoers` configuration.
 
-**Run this command one time after installing nmap:**
+This is the modern and safe way to grant this permission.
 
-    sudo setcap cap_net_raw,cap_net_admin,cap_net_bind_service+eip $(which nmap)
+1.  **Create a new configuration file.** This command creates the file and adds the correct rule, replacing **your_username** with your actual Linux username.
 
-This is a secure, permanent fix. The application can now be run as a normal user.
+    echo 'your_username ALL=(ALL) NOPASSWD: /usr/bin/nmap' | sudo tee /etc/sudoers.d/99-piselfhosting
+
+2.  **Set the correct permissions for the file.**
+
+    sudo chmod 0440 /etc/sudoers.d/99-piselfhosting
+
+This configuration is secure because it only grants passwordless access for the single, specific `/usr/bin/nmap` command to your user.
 
 #### For Windows
 
