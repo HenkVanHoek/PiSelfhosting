@@ -1,6 +1,6 @@
 services:
   sabnzbd:
-    image: lscr.io/linuxserver/sabnzbd:latest
+    image: lscr.io/linuxserver/sabnzbd:{{ component_version }}
     container_name: piselfhosting-sabnzbd
     restart: unless-stopped
     environment:

@@ -1,7 +1,7 @@
 services:
   nginxproxymanager:
     container_name: piselfhosting-nginxproxymanager
-    image: 'jc21/nginx-proxy-manager:latest'
+    image: 'jc21/nginx-proxy-manager:{{ component_version }}'
     restart: unless-stopped
     ports:
       # Note: These ports conflict with Traefik if run on the same host.

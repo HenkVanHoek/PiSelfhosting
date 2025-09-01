@@ -1,7 +1,7 @@
 # templates/phpmyadmin/docker-compose.template.yml
 services:
   phpmyadmin:
-    image: arm64v8/phpmyadmin:latest # Specific image for ARM architecture
+    image: arm64v8/phpmyadmin:{{ component_version }}
     container_name: piselfhosting-phpmyadmin
     restart: unless-stopped
     environment:

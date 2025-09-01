@@ -1,7 +1,7 @@
 services:
   frigate:
     container_name: piselfhosting-frigate
-    image: ghcr.io/blakeblackshear/frigate:stable
+    image: ghcr.io/blakeblackshear/frigate:{{ component_version }}
     privileged: true # Required for direct hardware access (e.g., /dev/bus/usb for Coral)
     restart: unless-stopped
     shm_size: "512mb" # Shared memory for FFmpeg

@@ -1,7 +1,7 @@
 # templates/mosquitto/docker-compose.template.yml
 services:
   mosquitto:
-    image: eclipse-mosquitto
+    image: eclipse-mosquitto:{{ component_version }}
     container_name: piselfhosting-mosquitto
     restart: unless-stopped
     ports:

@@ -1,7 +1,7 @@
 # templates/mariadb/docker-compose.template.yml
 services:
   mariadb:
-    image: mariadb:11
+    image: mariadb:{{ component_version }}
     container_name: piselfhosting-mariadb
     restart: unless-stopped
     ports:

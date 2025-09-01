@@ -1,6 +1,6 @@
 services:
   nextcloud:
-    image: nextcloud:stable
+    image: nextcloud:{{ component_version }}
     container_name: piselfhosting-nextcloud
     restart: unless-stopped
     ports:

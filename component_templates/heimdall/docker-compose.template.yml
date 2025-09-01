@@ -1,7 +1,7 @@
 services:
   heimdall:
     container_name: piselfhosting-heimdall
-    image: lscr.io/linuxserver/heimdall:latest
+    image: lscr.io/linuxserver/heimdall:{{ component_version }}
     restart: unless-stopped
     ports:
       - "8090:80"

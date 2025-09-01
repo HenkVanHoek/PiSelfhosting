@@ -1,7 +1,7 @@
 services:
   organizr:
     container_name: piselfhosting-organizr
-    image: lscr.io/linuxserver/organizr:latest
+    image: lscr.io/linuxserver/organizr:{{ component_version }}
     restart: unless-stopped
     ports:
       - "8095:80"

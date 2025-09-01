@@ -27,372 +27,318 @@
       "web-notepad",
       "conduit",
       "gitlab",
-      "piselfhosting-backup-tool"
+      "piselfhosting-backup-tool",
+      "piselfhosting-service-maintenance"
     ]
   },
   "portainer": {
     "name": "Portainer",
+    "image_name": "portainer/portainer-ce",
+    "version": "latest",
     "project_url": "https://www.portainer.io/",
     "description": "A powerful management UI for Docker environments.",
-    "dashy_section": "Utilities",
     "uniqueness_group": null,
     "has_ui": true,
     "ui_port": 9443,
-    "icon": "fas fa-anchor",
     "protocol": "https",
     "default": true
   },
   "dashy": {
     "name": "Dashy",
+    "image_name": "lissy93/dashy",
+    "version": "latest",
     "project_url": "https://dashy.to/",
     "description": "A highly customizable, open-source personal dashboard.",
-    "dashy_section": "Dashboards",
     "uniqueness_group": "dashboard",
     "has_ui": true,
     "ui_port": 8080,
-    "icon": "fas fa-tachometer-alt",
     "protocol": "http",
     "default": true
   },
   "heimdall": {
     "name": "Heimdall",
+    "image_name": "lscr.io/linuxserver/heimdall",
+    "version": "latest",
     "project_url": "https://heimdall.site/",
     "description": "A simple and elegant application dashboard.",
-    "dashy_section": "Dashboards",
     "uniqueness_group": "dashboard",
     "has_ui": true,
     "ui_port": 8090,
-    "icon": "fas fa-grip-horizontal",
     "protocol": "http"
   },
   "homer": {
     "name": "Homer",
+    "image_name": "b4bz/homer",
+    "version": "latest",
     "project_url": "https://github.com/bastienwirtz/homer",
     "description": "A dead simple, static homepage for your server.",
-    "dashy_section": "Dashboards",
     "uniqueness_group": "dashboard",
     "has_ui": true,
     "ui_port": 8085,
-    "icon": "fas fa-home",
     "protocol": "http"
   },
   "organizr": {
     "name": "Organizr",
+    "image_name": "lscr.io/linuxserver/organizr",
+    "version": "latest",
     "project_url": "https://organizr.app/",
     "description": "A full-featured server organizer with a tabbed interface.",
-    "dashy_section": "Dashboards",
     "uniqueness_group": "dashboard",
     "has_ui": true,
     "ui_port": 8095,
-    "icon": "fas fa-sitemap",
     "protocol": "http"
   },
   "traefik": {
     "name": "Traefik",
+    "image_name": "traefik",
+    "version": "v3.0",
     "project_url": "https://traefik.io/traefik/",
     "description": "A modern reverse proxy and load balancer.",
-    "dashy_section": "Network Services",
     "uniqueness_group": "reverse_proxy",
     "has_ui": true,
     "ui_port": 8082,
-    "icon": "fas fa-route",
     "protocol": "http"
   },
   "nginx-proxy-manager": {
     "name": "Nginx Proxy Manager",
+    "image_name": "jc21/nginx-proxy-manager",
+    "version": "latest",
     "project_url": "https://nginxproxymanager.com/",
     "description": "User-friendly interface for managing Nginx proxy hosts and SSL certificates.",
-    "dashy_section": "Network Services",
     "depends_on": "mariadb",
     "uniqueness_group": "reverse_proxy",
     "has_ui": true,
     "ui_port": 81,
-    "icon": "fas fa-network-wired",
     "protocol": "http"
   },
   "pi-hole": {
     "name": "Pi-hole",
+    "image_name": "pihole/pihole",
+    "version": "latest",
     "project_url": "https://pi-hole.net/",
     "description": "A network-wide ad blocker that acts as a DNS sinkhole.",
-    "dashy_section": "Network Services",
     "uniqueness_group": "dns_blocker",
     "has_ui": true,
     "ui_port": 8088,
-    "icon": "fas fa-shield-alt",
-    "protocol": "http",
-    "environment": [
-      {
-        "name": "TZ",
-        "description": "Set the timezone for logs and scheduling (e.g., Europe/Amsterdam)",
-        "default_value": "Europe/Amsterdam"
-      },
-      {
-        "name": "WEBPASSWORD",
-        "description": "Admin password for the web interface. SET THIS TO SOMETHING SECURE!",
-        "default_value": "changeme"
-      }
-    ]
+    "protocol": "http"
   },
   "adguard-home": {
     "name": "AdGuard Home",
+    "image_name": "adguard/adguardhome",
+    "version": "latest",
     "project_url": "https://github.com/AdguardTeam/AdGuardHome",
     "description": "Network-wide ad & tracker blocking DNS server. An alternative to Pi-hole.",
-    "dashy_section": "Network Services",
     "uniqueness_group": "dns_blocker",
     "has_ui": true,
     "ui_port": 3000,
-    "icon": "fas fa-shield-virus",
     "protocol": "http"
   },
   "unbound": {
     "name": "Unbound",
+    "image_name": "mvance/unbound",
+    "version": "latest",
     "project_url": "https://www.nlnetlabs.nl/projects/unbound/about/",
     "description": "A validating, recursive, and caching DNS resolver for maximum privacy.",
-    "dashy_section": "Network Services",
     "uniqueness_group": null,
     "has_ui": false
   },
   "homeassistant": {
     "name": "Home Assistant",
+    "image_name": "homeassistant/home-assistant",
+    "version": "stable",
     "project_url": "https://www.home-assistant.io/",
     "description": "Open source home automation that puts local control and privacy first.",
-    "dashy_section": "Smart Home",
     "uniqueness_group": null,
     "has_ui": true,
     "ui_port": 8123,
-    "icon": "hass:home",
     "protocol": "http"
   },
   "frigate": {
     "name": "Frigate",
+    "image_name": "blakeblackshear/frigate",
+    "version": "stable",
     "project_url": "https://docs.frigate.video/",
     "description": "NVR with real-time object detection for IP cameras.",
-    "dashy_section": "Smart Home",
     "uniqueness_group": null,
     "has_ui": true,
     "ui_port": 5000,
-    "icon": "fas fa-video",
     "protocol": "http"
   },
   "zigbee2mqtt": {
     "name": "Zigbee2MQTT",
+    "image_name": "koenkk/zigbee2mqtt",
+    "version": "latest",
     "project_url": "https://www.zigbee2mqtt.io/",
     "description": "Bridge the gap between your Zigbee devices and your MQTT broker.",
-    "dashy_section": "Smart Home",
     "depends_on": "mosquitto",
     "uniqueness_group": null,
     "has_ui": true,
     "ui_port": 8099,
-    "icon": "fas fa-project-diagram",
     "protocol": "http"
   },
   "scrypted": {
     "name": "Scrypted",
+    "image_name": "koush/scrypted",
+    "version": "latest",
     "project_url": "https://www.scrypted.app/",
     "description": "High-performance video integration platform for smart homes.",
-    "dashy_section": "Smart Home",
     "uniqueness_group": null,
     "has_ui": true,
     "ui_port": 10443,
-    "icon": "fas fa-video-slash",
     "protocol": "https"
   },
   "nextcloud": {
     "name": "Nextcloud",
+    "image_name": "lscr.io/linuxserver/nextcloud",
+    "version": "latest",
     "project_url": "https://nextcloud.com/",
     "description": "The self-hosted productivity platform that keeps you in control.",
-    "dashy_section": "Storage & Network",
     "depends_on": "mariadb",
     "uniqueness_group": null,
     "has_ui": true,
     "ui_port": 4430,
-    "icon": "fas fa-cloud",
-    "protocol": "http",
-    "environment": [
-      {
-        "name": "TZ",
-        "description": "Set the timezone for the server (e.g., Europe/Berlin)",
-        "default_value": "Europe/Berlin"
-      }
-    ]
+    "protocol": "http"
   },
   "jellyfin": {
     "name": "Jellyfin",
+    "image_name": "lscr.io/linuxserver/jellyfin",
+    "version": "latest",
     "project_url": "https://jellyfin.org/",
     "description": "A Free Software Media System that puts you in control of your media.",
-    "dashy_section": "Media",
     "uniqueness_group": null,
     "has_ui": true,
     "ui_port": 8096,
-    "icon": "fas fa-tv",
     "protocol": "http"
   },
   "sonarr": {
     "name": "Sonarr",
+    "image_name": "lscr.io/linuxserver/sonarr",
+    "version": "latest",
     "project_url": "https://sonarr.tv/",
     "description": "Smart PVR for newsgroup and bittorrent users to manage and download TV shows.",
-    "dashy_section": "Media",
     "uniqueness_group": null,
     "has_ui": true,
     "ui_port": 8989,
-    "icon": "fas fa-download",
-    "protocol": "http",
-    "environment": [
-      {
-        "name": "PUID",
-        "description": "User ID for file permissions",
-        "default_value": "1000"
-      },
-      {
-        "name": "PGID",
-        "description": "Group ID for file permissions",
-        "default_value": "1000"
-      },
-      {
-        "name": "TZ",
-        "description": "Set the timezone (e.g., America/New_York)",
-        "default_value": "America/New_York"
-      }
-    ]
+    "protocol": "http"
   },
   "radarr": {
     "name": "Radarr",
+    "image_name": "lscr.io/linuxserver/radarr",
+    "version": "latest",
     "project_url": "https://radarr.video/",
     "description": "A fork of Sonarr to work with movies.",
-    "dashy_section": "Media",
     "uniqueness_group": null,
     "has_ui": true,
     "ui_port": 7878,
-    "icon": "fas fa-film",
     "protocol": "http"
   },
   "qbittorrent": {
     "name": "qBittorrent",
+    "image_name": "lscr.io/linuxserver/qbittorrent",
+    "version": "latest",
     "project_url": "https://www.qbittorrent.org/",
     "description": "A lightweight and powerful BitTorrent client.",
-    "dashy_section": "Downloaders",
     "uniqueness_group": null,
     "has_ui": true,
     "ui_port": 8084,
-    "icon": "fas fa-cloud-download-alt",
     "protocol": "http"
   },
   "sabnzbd": {
     "name": "SABnzbd",
+    "image_name": "lscr.io/linuxserver/sabnzbd",
+    "version": "latest",
     "project_url": "https://sabnzbd.org/",
     "description": "The popular and easy-to-use Usenet download client.",
-    "dashy_section": "Downloaders",
     "uniqueness_group": null,
     "has_ui": true,
     "ui_port": 8086,
-    "icon": "fas fa-newspaper",
     "protocol": "http"
   },
   "vaultwarden": {
     "name": "Vaultwarden",
+    "image_name": "vaultwarden/server",
+    "version": "latest",
     "project_url": "https://github.com/dani-garcia/vaultwarden",
     "description": "Lightweight, self-hosted password manager compatible with Bitwarden clients.",
-    "dashy_section": "Utilities",
     "uniqueness_group": null,
     "has_ui": true,
     "ui_port": 8081,
-    "icon": "fas fa-shield-alt",
     "protocol": "http"
   },
   "unifi-controller": {
     "name": "UniFi Controller",
+    "image_name": "lscr.io/linuxserver/unifi-controller",
+    "version": "latest",
     "project_url": "https://ui.com/wi-fi",
     "description": "Manage your UniFi networking devices from a central controller.",
-    "dashy_section": "Network Services",
     "uniqueness_group": null,
     "has_ui": true,
     "ui_port": 8443,
-    "icon": "fas fa-wifi",
     "protocol": "https"
   },
   "uptime-kuma": {
     "name": "Uptime Kuma",
+    "image_name": "louislam/uptime-kuma",
+    "version": "1",
     "project_url": "https://github.com/louislam/uptime-kuma",
     "description": "A fancy, easy-to-use self-hosted monitoring tool.",
-    "dashy_section": "Utilities",
     "uniqueness_group": null,
     "has_ui": true,
     "ui_port": 3001,
-    "icon": "fas fa-heartbeat",
     "protocol": "http"
   },
   "web-notepad": {
     "name": "Web Notepad",
+    "image_name": "dprandzioch/docker-http-notepad",
+    "version": "latest",
     "project_url": "https://github.com/pajikos/minimalist-web-notepad",
     "description": "Simple notepad to display the post-install summary.",
-    "dashy_section": "Utilities",
     "uniqueness_group": null,
     "has_ui": true,
     "ui_port": 8083,
-    "icon": "fas fa-file-alt",
     "protocol": "http"
   },
   "conduit": {
     "name": "Conduit (Matrix Server)",
+    "image_name": "matrixconduit/matrix-conduit",
+    "version": "latest",
     "project_url": "https://conduit.rs/",
     "description": "A lightweight, next-generation Matrix homeserver, ideal for Raspberry Pi.",
-    "dashy_section": "Communication",
     "uniqueness_group": null,
-    "has_ui": false,
-    "access_info": {
-      "local_path": "",
-      "notes": "This is a backend server. Connect to it using a Matrix client like Element."
-    }
+    "has_ui": false
   },
   "gitlab": {
     "name": "GitLab",
+    "image_name": "gitlab/gitlab-ce",
+    "version": "latest",
     "project_url": "https://about.gitlab.com/",
     "description": "A complete DevOps platform for project planning, source code management, CI/CD, and monitoring.",
-    "dashy_section": "Development",
     "uniqueness_group": "git_server",
     "has_ui": true,
     "ui_port": 10080,
-    "icon": "fab fa-gitlab",
-    "protocol": "http",
-    "config_options": {
-      "groups": [
-        {
-          "name": "developers",
-          "path": "developers",
-          "description": "Main group for all developers",
-          "project_creation_level": "developer"
-        },
-        {
-          "name": "viewers",
-          "path": "viewers",
-          "description": "Group with read-only access"
-        }
-      ]
-    }
+    "protocol": "http"
   },
   "piselfhosting-backup-tool": {
     "name": "Backup & Restore Tool",
+    "image_name": "henkvanhoek/piselfhosting-backup-tool",
+    "version": "0.1.0",
     "project_url": "https://github.com/HenkVanHoek/PiSelfhosting",
     "description": "A simple tool to back up and restore all your persistent service data.",
-    "dashy_section": "System Tools",
-    "category": "Management Tool",
     "uniqueness_group": null,
     "has_ui": true,
     "ui_port": 9901,
-    "icon": "fas fa-save",
     "protocol": "http",
     "default": true
   },
   "piselfhosting-service-maintenance": {
-  "name": "Service Maintenance",
-  "project_url": "https://github.com/HenkVanHoek/PiSelfhosting",
-  "description": "Monitor status, updates and vulnerabilities.",
-  "dashy_section": "System Tools",
-  "has_ui": true,
-  "ui_port": 9999,
-  "icon": "fas fa-tools",
-  "protocol": "http",
-  "default": true
-}
-
+    "name": "Service Maintenance",
+    "image_name": "henkvanhoek/piselfhosting-service-maintenance",
+    "version": "0.1.0",
+    "project_url": "https://github.com/HenkVanHoek/PiSelfhosting",
+    "description": "Monitor status, updates and vulnerabilities.",
+    "has_ui": true,
+    "ui_port": 9999,
+    "protocol": "http",
+    "default": true
+  }
 }

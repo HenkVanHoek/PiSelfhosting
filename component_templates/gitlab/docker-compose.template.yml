@@ -1,7 +1,7 @@
 # templates/gitlab/docker-compose.template.yml
 services:
   gitlab:
-    image: 'gitlab/gitlab-ce:latest' # 'ce' stands for Community Edition, the free version.
+    image: 'gitlab/gitlab-ce:{{ component_version }}' # 'ce' stands for Community Edition, the free version.
     container_name: piselfhosting-gitlab
     restart: unless-stopped
     hostname: '{{ DOMAIN }}' # GitLab needs a hostname to configure itself correctly.

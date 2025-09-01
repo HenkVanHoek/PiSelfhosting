@@ -2,7 +2,7 @@
 services:
   dashy:
     container_name: piselfhosting-dashy
-    image: lissy93/dashy:2.1.1
+    image: lissy93/dashy:{{ component_version }}
     restart: unless-stopped
     ports:
       - "8080:80" # Dashy HTTP port

@@ -1,6 +1,6 @@
 services:
   adguard-home:
-    image: adguard/adguardhome:latest
+    image: adguard/adguardhome:{{ component_version }}
     container_name: piselfhosting-adguard-home
     restart: unless-stopped
     ports:

@@ -1,7 +1,7 @@
 services:
   homer:
     container_name: piselfhosting-homer
-    image: bcpierce/homer:latest
+    image: bcpierce/homer:{{ component_version }}
     restart: unless-stopped
     ports:
       - "8085:8080"

@@ -1,7 +1,7 @@
 # templates/portainer/docker-compose.template.yml
 services:
   portainer:
-    image: portainer/portainer-ce:latest
+    image: portainer/portainer-ce:{{ component_version }}
     container_name: piselfhosting-portainer
     restart: unless-stopped
     volumes:

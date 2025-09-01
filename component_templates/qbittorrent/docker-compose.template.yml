@@ -1,6 +1,6 @@
 services:
   qbittorrent:
-    image: lscr.io/linuxserver/qbittorrent:latest
+    image: lscr.io/linuxserver/qbittorrent:{{ component_version }}
     container_name: piselfhosting-qbittorrent
     restart: unless-stopped
     environment:

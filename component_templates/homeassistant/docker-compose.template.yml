@@ -2,7 +2,7 @@
 services:
   homeassistant:
     container_name: piselfhosting-homeassistant
-    image: ghcr.io/home-assistant/home-assistant:stable
+    image: ghcr.io/home-assistant/home-assistant:{{ component_version }}
     restart: unless-stopped
     volumes:
       - homeassistant_config:/config

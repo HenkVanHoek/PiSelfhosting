@@ -1,7 +1,7 @@
 # templates/traefik/docker-compose.template.yml
 services:
   traefik:
-    image: traefik:v3.0 # Use a specific Traefik v3 version
+    image: traefik:{{ component_version }} # Use a specific Traefik v3 version
     container_name: piselfhosting-traefik
     restart: unless-stopped
     security_opt:

@@ -1,6 +1,6 @@
 services:
   sonarr:
-    image: lscr.io/linuxserver/sonarr:latest
+    image: lscr.io/linuxserver/sonarr:{{ component_version }}
     container_name: piselfhosting-sonarr
     restart: unless-stopped
     environment:

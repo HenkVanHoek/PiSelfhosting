@@ -2,7 +2,7 @@
 services:
   pihole:
     container_name: piselfhosting-pihole
-    image: pihole/pihole:latest
+    image: pihole/pihole:{{ component_version }}
     restart: unless-stopped
     environment:
       - TZ=${TZ}
