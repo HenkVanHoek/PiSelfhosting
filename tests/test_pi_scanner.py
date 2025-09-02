@@ -101,31 +101,31 @@ class TestPiScannerStaticMethods:
 class TestPiScannerScan:
     """Tests for the main network scan functionality."""
 
-    # def test_scan_finds_pi(self, mock_nmap, scanner):
-    #     """Test a scan where a Raspberry Pi is found."""
-    #     mock_nmap_instance = mock_nmap.return_value
-    #     mock_nmap_instance.scan.return_value = {
-    #         "scan": {
-    #             "192.168.1.5": {
-    #                 "hostnames": [{"name": "pi.local"}],
-    #                 "addresses": {"mac": "B8:27:EB:01:02:03"},
-    #                 "vendor": {"B8:27:EB:01:02:03": "Raspberry Pi Foundation"},
-    #             },
-    #             "192.168.1.2": {
-    #                 "hostnames": [{"name": "other-device"}],
-    #                 "addresses": {"mac": "00:1A:2B:AA:BB:CC"},
-    #                 "vendor": {"00:1A:2B:AA:BB:CC": "Some Other Vendor"},
-    #             },
-    #         }
-    #     }
-    #
-    #     hosts, messages, err, _ = scanner.scan(subnet="192.168.1.0/24")
-    #
-    #     assert not err
-    #     assert len(hosts) == 1
-    #     assert hosts[0]["ip"] == "192.168.1.5"
-    #     assert hosts[0]["mac"] == "B8:27:EB:01:02:03"
-    #     assert "🍓 Raspberry Pi found" in "".join(messages)
+    def test_scan_finds_pi(self, mock_nmap, scanner):
+        """Test a scan where a Raspberry Pi is found."""
+        mock_nmap_instance = mock_nmap.return_value
+        mock_nmap_instance.scan.return_value = {
+            "scan": {
+                "192.168.1.5": {
+                    "hostnames": [{"name": "pi.local"}],
+                    "addresses": {"mac": "B8:27:EB:01:02:03"},
+                    "vendor": {"B8:27:EB:01:02:03": "Raspberry Pi Foundation"},
+                },
+                "192.168.1.2": {
+                    "hostnames": [{"name": "other-device"}],
+                    "addresses": {"mac": "00:1A:2B:AA:BB:CC"},
+                    "vendor": {"00:1A:2B:AA:BB:CC": "Some Other Vendor"},
+                },
+            }
+        }
+
+        hosts, messages, err, _ = scanner.scan(subnet="192.168.1.0/24")
+
+        assert not err
+        assert len(hosts) == 1
+        assert hosts[0]["ip"] == "192.168.1.5"
+        assert hosts[0]["mac"] == "B8:27:EB:01:02:03"
+        assert "🍓 Raspberry Pi found" in "".join(messages)
 
     def test_scan_finds_no_pi(self, mock_nmap, scanner):
         """Test a scan where no Raspberry Pi devices are found."""

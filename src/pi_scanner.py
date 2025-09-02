@@ -155,7 +155,7 @@ class PiScanner:
                         pi_count += 1
                         hosts.append({
                             "ip": host, "mac": mac_address, "vendor": vendor,
-                            "hostname": host_info.get("hostnames", [{}]).get(
+                            "hostname": host_info.get("hostnames", [{}])[0].get(
                                 "name", "Unknown"),
                         })
                         messages.append(
