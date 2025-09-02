@@ -28,8 +28,8 @@ setup_manager = SetupManager(component_manager)
 
 
 def create_app(
-        _component_manager_instance=component_manager,
-        _setup_manager_instance=setup_manager,
+        component_manager_instance=component_manager,
+        setup_manager_instance=setup_manager,
 ):
     """
     Factory function to create the Flask application.
