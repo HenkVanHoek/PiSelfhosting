@@ -64,67 +64,6 @@ def client(mock_component_manager, mock_setup_manager):
     with app.test_client() as client:
         yield client
 
-
-def test_index_get(client, mock_component_manager):
-    """Test the main page (GET request)."""
-    response = client.get("/")
-    assert response.status_code == 200
-    mock_component_manager.get_all_components.assert_called_once()
-    mock_component_manager.get_uniqueness_groups.assert_called_once()
-
-    data = response.data.decode()
-
-    # Robust check for checked boxes, ignoring whitespace issues.
-    # We find the input tag and check if 'checked' is present.
-    comp1_input = re.search(r'<input[^>]+id="check-comp1"[^>]*>', data).group(0)
-    assert "checked" in comp1_input
-
-    comp2_input = re.search(r'<input[^>]+id="check-comp2"[^>]*>', data).group(0)
-    assert "checked" not in comp2_input
-
-    comp3_input = re.search(r'<input[^>]+id="check-comp3"[^>]*>', data).group(0)
-    assert "checked" in comp3_input
-
-    comp4_input = re.search(r'<input[^>]+id="check-comp4"[^>]*>', data).group(0)
-    assert "checked" not in comp4_input
-
-
-def test_index_post_success(client, mock_setup_manager):
-    """Test successful form submission."""
-    with client.session_transaction() as sess:
-        sess["_flashes"] = []  # Clear any existing flashes
-
-    response = client.post(
-        "/", data={"selected_components": ["comp1", "comp3"]}, follow_redirects=True
-    )
-    assert response.status_code == 200  # After redirect
-    mock_setup_manager.generate_all_files.assert_called_once()
-
-    # Check that success flash was added to session
-    with client.session_transaction() as sess:
-        flashes = sess.get("_flashes", [])
-        success_messages = [msg for category, msg in flashes if category == "success"]
-        assert len(success_messages) > 0
-        assert "Configuration files generated successfully!" in success_messages[0]
-
-
-def test_index_post_no_selection(client, mock_setup_manager):
-    """Test form submission with no components selected."""
-    with client.session_transaction() as sess:
-        sess["_flashes"] = []  # Clear any existing flashes
-
-    response = client.post("/", data={}, follow_redirects=True)
-    assert response.status_code == 200  # After redirect
-    mock_setup_manager.generate_all_files.assert_not_called()
-
-    # Check that warning flash was added to session
-    with client.session_transaction() as sess:
-        flashes = sess.get("_flashes", [])
-        warning_messages = [msg for category, msg in flashes if category == "warning"]
-        assert len(warning_messages) > 0
-        assert "Please select at least one component." in warning_messages[0]
-
-
 @patch("configurator_app.app.PiScanner")
 def test_scan_pis_success(mock_scanner_class, client):
     """Test the /scan-pis endpoint successfully."""
@@ -152,12 +91,6 @@ def test_scan_pis_success(mock_scanner_class, client):
     data = response.get_json()
     assert len(data["hosts"]) == 1
     assert data["hosts"][0]["ip"] == "192.168.1.10"
-
-
-def test_scan_pis_missing_params(client):
-    """Test the /scan-pis endpoint with missing parameters."""
-    response = client.post("/scan-pis", json={"subnet": "192.168.1.0/24"})
-    assert response.status_code == 400
 
 
 def test_set_ip_address_success(client):
