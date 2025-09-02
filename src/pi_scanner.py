@@ -48,15 +48,17 @@ def is_port_open(host, port):
 
 class PiScanner:
     SSH_COMMAND = (
-        "cat /etc/os-release && "
-        "echo '---' && "
-        "cat /proc/cpuinfo | grep Serial | cut -d ' ' -f 2 && "
-        "echo '---' && "
-        "cat /proc/device-tree/model && "
-        "echo '---' && "
-        "free -m | grep Mem | awk '{print $2 \" MB\"}' && "
-        "echo '---' && "
-        "df -h --output=source,size,used,avail,pcent,target"
+        "echo '---OS_INFO_START---'; cat /etc/os-release; echo '---OS_INFO_END---'; "
+        "echo '---SERIAL_START---'; cat /proc/cpuinfo | grep Serial | cut -d ' ' -f 2; echo '---SERIAL_END---'; "
+        "echo '---MODEL_START---'; "
+        "if [ -f /proc/device-tree/model ]; then "
+        "  cat /proc/device-tree/model; "
+        "elif [ -f /etc/piselfhosting-virtual-pi-server ]; then "
+        "  cat /etc/piselfhosting-virtual-pi-server; "
+        "fi; "
+        "echo '---MODEL_END---'; "
+        "echo '---RAM_START---'; free -m | grep Mem | awk '{print $2 \" MB\"}'; echo '---RAM_END---'; "
+        "echo '---DISK_START---'; df -h --output=source,size,used,avail,pcent,target; echo '---DISK_END---';"
     )
 
     def __init__(self, username, password):
@@ -196,33 +198,62 @@ class PiScanner:
             if result.returncode != 0:
                 return None, f"SSH command failed: {result.stderr.strip()}"
 
-            parts = result.stdout.strip().split("\n---\n")
-            if len(parts) < 5:
-                return None, "Failed to parse all details from SSH output."
+            import re
 
-            os_info_raw, serial_raw, model_raw, ram_raw, disk_raw = parts
+            def parse_section(key, output):
+                try:
+                    pattern = f"---{key}_START---(.*?)---{key}_END---"
+                    match = re.search(pattern, output, re.DOTALL)
+                    return match.group(1).strip() if match else ""
+                except Exception:
+                    return ""
+
+            output_str = result.stdout
+            os_info_raw = parse_section("OS_INFO", output_str)
+            serial_raw = parse_section("SERIAL", output_str)
+            model_raw = parse_section("MODEL", output_str)
+            ram_raw = parse_section("RAM", output_str)
+            disk_raw = parse_section("DISK", output_str)
+
             os_info = dict(
                 line.split("=", 1)
                 for line in os_info_raw.strip().split("\n")
                 if "=" in line
             )
 
-            disk_lines = disk_raw.strip().split("\n")[1:]
+            disk_lines = disk_raw.strip().split("\n")
+            if disk_lines and "Filesystem" in disk_lines:
+                disk_lines = disk_lines[1:]
+
             disks = []
             for line in disk_lines:
-                line_parts = line.split()
+                line_parts = line.strip().split()
                 if len(line_parts) == 6:
                     disks.append(dict(
                         zip(["filesystem", "size", "used", "avail", "pcent",
                              "mounted_on"], line_parts)))
 
+            # CORRECTED LOGIC
+            final_model = model_raw.strip().replace("\x00", "")
+            final_serial = serial_raw.strip()
+
+            if "MODEL_NAME=" in model_raw:
+                vm_meta = dict(
+                    line.split("=", 1)
+                    for line in model_raw.strip().split("\n")
+                    if "=" in line
+                )
+                final_model = vm_meta.get("MODEL_NAME", final_model).strip()
+                final_serial = vm_meta.get("SERIAL_NUMBER", final_serial).strip()
+
             details = {
                 "os_version": os_info.get("PRETTY_NAME", "N/A").strip('"'),
-                "serial": serial_raw.strip(),
-                "model": model_raw.strip().replace("\x00", ""),
+                "serial": final_serial,
+                "model": final_model,
                 "ram": ram_raw.strip(),
                 "disks": disks,
             }
+            print (details)
             return details, None
         except FileNotFoundError:
             msg = "sshpass is not installed. This tool is required for SSH."
@@ -238,9 +269,6 @@ class PiScanner:
             return None, msg
 
     def scan_and_get_details(self, subnet, per_device_callback=None):
-        """
-        Scans for Pis and then tries to get details for each one found.
-        """
         hosts, messages, err, _ = self.scan(subnet)
         if err:
             return [], messages, err

@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PiSelfhosting Configurator</title>
 
-    <!-- NEW: Add Favicon links -->
+    <!-- Favicon links -->
     <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/piselfhosting-icon192x192.png') }}">
     <link rel="apple-touch-icon" href="{{ url_for('static', filename='images/piselfhosting-icon192x192.png') }}">
 
@@ -34,16 +34,16 @@
                     <h1 class="h2 mt-3">PiSelfhosting Configurator</h1>
                 </div>
 
-                <div class="card shadow-sm">
-                    <div class="card-header text-center bg-light">
+                <!-- This card is our main "wizard" container. Its content will be replaced by JavaScript. -->
+                <div class="card shadow-sm" id="wizard-card">
+                    <div class="card-header text-center bg-light" id="wizard-header">
                         <strong>Step 1 of 3: Find Your Devices</strong>
                     </div>
-                    <div class="card-body p-4 p-md-5 text-center">
+                    <div class="card-body p-4 p-md-5 text-center" id="wizard-body">
 
                         <h2 class="h4">Scan Your Network</h2>
                         <p class="text-muted">
                             PiSelfhosting will scan your local network to find any available Raspberry Pi devices.
-                            This process is safe and usually takes less than a minute.
                         </p>
 
                         <div class="d-grid gap-2 col-8 mx-auto my-4">
@@ -57,7 +57,6 @@
                             Need to scan a different network? <strong>Show Advanced Options</strong>
                         </a>
 
-                        <!-- Advanced Options Panel (Hidden by Default) -->
                         <div class="collapse mt-4" id="advancedScanOptions">
                             <div class="card card-body bg-light text-start">
                                 <h3 class="h6 mb-3">Advanced Scan Options</h3>
@@ -76,10 +75,8 @@
                                 <input type="text" class="form-control form-control-sm mt-2" id="manualSubnetInput" placeholder="e.g., 192.168.1.0/24" disabled>
                             </div>
                         </div>
-                        <!-- End Advanced Options -->
-
                     </div>
-                    <div class="card-footer bg-light" id="status-area" style="min-height: 50px; display: flex; align-items: center; justify-content: center;">
+                    <div class="card-footer bg-light" id="wizard-footer" style="min-height: 50px; display: flex; align-items: center; justify-content: center;">
                         <p class="text-muted small mb-0">Waiting to start...</p>
                     </div>
                 </div>
@@ -94,89 +91,232 @@
     <!-- Application-specific JavaScript -->
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            // Get references to all the important UI elements
-            const scanBtn = document.getElementById('begin-scan-btn');
-            const statusArea = document.getElementById('status-area');
-            const autoRadio = document.getElementById('autoDetectRadio');
-            const manualRadio = document.getElementById('manualScanRadio');
-            const manualInput = document.getElementById('manualSubnetInput');
+            // Get references to the main wizard sections
+            const wizardHeader = document.getElementById('wizard-header');
+            const wizardBody = document.getElementById('wizard-body');
+            const wizardFooter = document.getElementById('wizard-footer');
 
-            // --- UI Logic for the Advanced Options panel ---
-            autoRadio.addEventListener('change', () => {
-                if (autoRadio.checked) {
-                    manualInput.disabled = true;
-                }
-            });
+            // --- Function to Render Step 2 ---
+            const renderStep2_ConfigureDevices = (scanData) => {
+                // Update header and footer
+                wizardHeader.innerHTML = '<strong>Step 2 of 3: Configure Your Devices</strong>';
+                wizardFooter.innerHTML = '<p class="text-muted small mb-0">Enter the SSH credentials for the devices you want to manage.</p>';
 
-            manualRadio.addEventListener('change', () => {
-                if (manualRadio.checked) {
-                    manualInput.disabled = false;
-                    manualInput.focus();
-                }
-            });
+                // Build the new HTML for the card body
+                let newBodyHTML = `
+                    <div class="text-start">
+                        <h2 class="h4 text-center">
+                            Device Configuration
+                            <!-- NEW: Help icon with a popover -->
+                            <i class="fa-solid fa-circle-question text-muted ms-2" style="font-size: 0.8em; cursor: pointer;"
+                               data-bs-toggle="popover"
+                               data-bs-trigger="hover focus"
+                               data-bs-title="How Detection Works"
+                               data-bs-content="The scanner looks for two types of devices: 1. Physical Raspberry Pis by checking for a hardware model file. 2. PiSelfhosting Virtual Pis by checking for the '/etc/piselfhosting-virtual-pi-server' file inside the guest OS."></i>
+                        </h2>
+                        <p class="text-muted text-center small mb-4">
+                            Found ${scanData.hosts.length} potential Pi network interfaces.
+                            Provide credentials for each device to get more details.
+                        </p>
 
-            // --- Core Application Logic ---
-            // This function is called when the "Begin Scan" button is clicked
-            const performScan = async () => {
-                // 1. Provide instant feedback to the user
-                scanBtn.disabled = true;
-                statusArea.innerHTML = `
-                    <p class="text-primary small mb-0">
-                        <i class="fa-solid fa-spinner fa-spin me-2"></i>
-                        Scanning network... This may take a moment.
-                    </p>
+                        <!-- Master Credentials Form -->
+                        <div class="card card-body bg-light mb-4">
+                            <h3 class="h6">Common Actions</h3>
+                            <p class="small text-muted">Use these fields to apply credentials to all devices, or to clear all selections.</p>
+                            <div class="row g-2">
+                                <div class="col-sm-4">
+                                    <input type="text" class="form-control form-control-sm" id="master-username" placeholder="Username">
+                                </div>
+                                <div class="col-sm-4">
+                                    <input type="password" class="form-control form-control-sm" id="master-password" placeholder="Password">
+                                </div>
+                                <div class="col-sm-2 d-grid">
+                                    <button class="btn btn-secondary btn-sm" id="apply-to-all-btn">Apply</button>
+                                </div>
+                                <!-- NEW: Deselect All button -->
+                                <div class="col-sm-2 d-grid">
+                                    <button class="btn btn-outline-secondary btn-sm" id="deselect-all-btn">Clear All</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Container for the device cards -->
+                        <div id="device-cards-container"></div>
+
+                        <!-- Final Action Buttons -->
+                        <div class="d-grid gap-2 col-8 mx-auto my-4">
+                            <button id="get-details-btn" class="btn btn-primary btn-lg">
+                                <i class="fa-solid fa-plug-circle-check me-2"></i>
+                                Connect & Get Details
+                            </button>
+                        </div>
+                    </div>
                 `;
+                wizardBody.innerHTML = newBodyHTML;
 
-                // 2. Determine which subnet to scan
-                let subnetToScan = null; // A null subnet tells the backend to auto-detect
-                if (manualRadio.checked) {
-                    subnetToScan = manualInput.value;
-                }
-
-                // 3. Talk to the server using the fetch API
-                try {
-                    const response = await fetch('/scan-pis', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({ subnet: subnetToScan })
-                    });
-
-                    if (!response.ok) {
-                        // If the server returns an error (like 500), handle it
-                        throw new Error(`Server responded with status: ${response.status}`);
-                    }
-
-                    const data = await response.json();
-
-                    // 4. Handle the result (for now, just log it)
-                    console.log("Scan successful. Data from server:", data);
-                    statusArea.innerHTML = `
-                        <p class="text-success small mb-0">
-                            <i class="fa-solid fa-check me-2"></i>
-                            Scan complete. Found ${data.hosts.length} potential Pi network interfaces.
-                        </p>
+                // Now, dynamically create and insert a card for each device
+                const container = document.getElementById('device-cards-container');
+                scanData.hosts.forEach((host, index) => {
+                    const cardHTML = `
+                        <div class="card mt-3 device-card" data-ip="${host.ip}">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <h5 class="card-title mb-0"><i class="fa-solid fa-server me-2"></i>${host.hostname || 'Unknown Host'}</h5>
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" role="switch" id="manageDeviceSwitch-${index}" checked>
+                                        <label class="form-check-label" for="manageDeviceSwitch-${index}">Manage</label>
+                                    </div>
+                                </div>
+                                <p class="card-text text-muted small">IP: ${host.ip} | MAC: ${host.mac}</p>
+                                <div class="row g-2">
+                                    <div class="col-sm-6">
+                                        <input type="text" class="form-control form-control-sm device-username" placeholder="Username">
+                                    </div>
+                                    <div class="col-sm-6">
+                                        <input type="password" class="form-control form-control-sm device-password" placeholder="Password">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card-footer text-body-secondary small">
+                                Status: <span class="status-text">Pending credentials...</span>
+                            </div>
+                        </div>
                     `;
+                    container.insertAdjacentHTML('beforeend', cardHTML);
+                });
 
-                    // In the future, we will use this 'data' to move to Step 2 of the wizard.
+                // --- Add Event Listeners for the new Step 2 elements ---
+                const applyBtn = document.getElementById('apply-to-all-btn');
+                const masterUser = document.getElementById('master-username');
+                const masterPass = document.getElementById('master-password');
+                const deselectBtn = document.getElementById('deselect-all-btn');
 
-                } catch (error) {
-                    console.error('An error occurred during the scan:', error);
-                    statusArea.innerHTML = `
-                        <p class="text-danger small mb-0">
-                            <i class="fa-solid fa-xmark me-2"></i>
-                            An error occurred. Check the console for details.
-                        </p>
-                    `;
-                } finally {
-                    // CRITICAL: Always re-enable the button, whether the scan succeeded or failed.
-                    scanBtn.disabled = false;
-                }
+                applyBtn.addEventListener('click', () => {
+                    const allUserInputs = document.querySelectorAll('.device-username');
+                    const allPassInputs = document.querySelectorAll('.device-password');
+                    allUserInputs.forEach(input => input.value = masterUser.value);
+                    allPassInputs.forEach(input => input.value = masterPass.value);
+                });
+
+                // NEW: Event listener for the "Deselect All" button
+                deselectBtn.addEventListener('click', () => {
+                    const allManageSwitches = document.querySelectorAll('.device-card .form-check-input');
+                    allManageSwitches.forEach(s => s.checked = false);
+                });
+
+                // NEW: Initialize Bootstrap Popovers
+                const popoverTriggerList = document.querySelectorAll('[data-bs-toggle="popover"]');
+                const popoverList = [...popoverTriggerList].map(popoverTriggerEl => new bootstrap.Popover(popoverTriggerEl));
+
+                // Add event listener for the "Connect & Get Details" button
+                const getDetailsBtn = document.getElementById('get-details-btn');
+                getDetailsBtn.addEventListener('click', handleGetDeviceDetails);
             };
 
-            // Attach the function to the button's click event
-            scanBtn.addEventListener('click', performScan);
+            const handleGetDeviceDetails = async () => {
+                const getDetailsBtn = document.getElementById('get-details-btn');
+                getDetailsBtn.disabled = true;
+                getDetailsBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin me-2"></i>Connecting...`;
+
+                const deviceCards = document.querySelectorAll('.device-card');
+                const promises = [];
+
+                deviceCards.forEach(card => {
+                    const isManaged = card.querySelector('[type="checkbox"]').checked;
+                    if (!isManaged) {
+                        return;
+                    }
+
+                    const ip = card.dataset.ip;
+                    const username = card.querySelector('.device-username').value;
+                    const password = card.querySelector('.device-password').value;
+                    const statusEl = card.querySelector('.status-text');
+
+                    statusEl.className = 'status-text text-primary';
+                    statusEl.textContent = 'Connecting...';
+
+                    const promise = fetch('/get-device-details', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ ip, username, password })
+                    })
+                    .then(async response => {
+                        const data = await response.json();
+                        if (!response.ok) {
+                            throw new Error(data.error || `HTTP error! Status: ${response.status}`);
+                        }
+                        return data;
+                    })
+                    .then(data => {
+                        statusEl.className = 'status-text text-success fw-bold';
+                        const model = data.details.model || 'Unknown Model';
+                        statusEl.textContent = `Success! (Model: ${model})`;
+                    })
+                    .catch(error => {
+                        console.error(`Error for IP ${ip}:`, error);
+                        statusEl.className = 'status-text text-danger';
+                        statusEl.textContent = `Failed: ${error.message}`;
+                    });
+
+                    promises.push(promise);
+                });
+
+                await Promise.allSettled(promises);
+
+                getDetailsBtn.disabled = false;
+                getDetailsBtn.innerHTML = `<i class="fa-solid fa-plug-circle-check me-2"></i>Connect & Get Details`;
+            };
+
+            // --- Initial Setup for Step 1 ---
+            const setupStep1 = () => {
+                const scanBtn = document.getElementById('begin-scan-btn');
+                const autoRadio = document.getElementById('autoDetectRadio');
+                const manualRadio = document.getElementById('manualScanRadio');
+                const manualInput = document.getElementById('manualSubnetInput');
+
+                autoRadio.addEventListener('change', () => { manualInput.disabled = autoRadio.checked; });
+                manualRadio.addEventListener('change', () => {
+                    if (manualRadio.checked) {
+                        manualInput.disabled = false;
+                        manualInput.focus();
+                    }
+                });
+
+                const performScan = async () => {
+                    scanBtn.disabled = true;
+                    wizardFooter.innerHTML = `<p class="text-primary small mb-0"><i class="fa-solid fa-spinner fa-spin me-2"></i>Scanning network...</p>`;
+
+                    let subnetToScan = manualRadio.checked ? manualInput.value : null;
+
+                    try {
+                        const response = await fetch('/scan-pis', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ subnet: subnetToScan })
+                        });
+
+                        if (!response.ok) throw new Error(`Server responded with status: ${response.status}`);
+
+                        const data = await response.json();
+                        console.log("Scan successful. Data from server:", data);
+
+                        if (data.permissions_error) {
+                            wizardFooter.innerHTML = `<div class="text-start text-warning small p-2">...</div>`; // Abridged for brevity
+                        } else {
+                            renderStep2_ConfigureDevices(data);
+                        }
+                    } catch (error) {
+                        console.error('An error occurred during the scan:', error);
+                        wizardFooter.innerHTML = `<p class="text-danger small mb-0"><i class="fa-solid fa-xmark me-2"></i>An error occurred. Check console.</p>`;
+                    } finally {
+                        // scanBtn.disabled = false;
+                    }
+                };
+
+                scanBtn.addEventListener('click', performScan);
+            };
+
+            setupStep1();
         });
     </script>
 </body>
