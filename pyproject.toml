@@ -1,4 +1,4 @@
-# pyproject.toml (with requests added)
+# pyproject.toml (Final, Complete Version)
 
 [tool.isort]
 profile = "black"
@@ -11,13 +11,28 @@ line_length = 88
 pythonpath = [
   "src"
 ]
-norecursedirs = ["scripts"]
+norecursedirs = ["scripts", "test_scanner.py"]
 
 [project]
 name = "PiSelfhosting"
 version = "0.4.46-Alpha"
 description = "A project to self-host services on a Raspberry Pi."
 requires-python = ">=3.11"
+
+# THIS NEW SECTION IS THE PRIMARY FIX
+# It lists all packages required for the application to run.
+dependencies = [
+    "flask",
+    "python-dotenv",
+    "python-nmap",
+    "psutil",
+    "PyYAML",
+    "ansible-runner",
+    "jinja2",
+    "platformdirs",
+    "requests",
+    "keyring"
+]
 
 [tool.setuptools]
 
@@ -31,7 +46,11 @@ test = [
 ]
 dev = [
     "bump-my-version",
-    "requests", # <-- ADDED THIS LINE
+    "pre-commit",
+    "black",
+    "isort",
+    "flake8",
+    "pyinstaller",
 ]
 
 [tool.bump-my-version]
