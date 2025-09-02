@@ -1,4 +1,6 @@
-name: CI/CD Pipeline
+# .github/workflows/test.yml
+
+name: CI Pipeline
 
 on:
   push:
@@ -15,25 +17,31 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+    # Step 1: Checks out the repository's code.
     - name: Checkout repository
-      uses: actions/checkout@v4 # Clones the repository to the runner
+      uses: actions/checkout@v4
 
+    # Step 2: Sets up the specified Python version.
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
-        python-version: '3.11' # Use Python 3.11, consistent with your local setup
+        python-version: '3.11'
         cache: 'pip'
-        cache-dependency-path: 'requirements-dev.txt'
+        # MODERNIZED CACHING: Point to pyproject.toml
+        cache-dependency-path: pyproject.toml
 
-    - name: Install dependencies
-      # Install dependencies into a virtual environment
+    # Step 3: Install critical system-level dependencies for the tests.
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y nmap sshpass
+
+    # Step 4: Install Python packages from pyproject.toml.
+    - name: Install Python dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install -r requirements-dev.txt # Install dependencies from requirements.txt
+        pip install -e .[dev,test]
 
+    # Step 5: Run the Pytest test suite.
     - name: Run Pytest tests
-      # This step executes the tests.
-      # The 'working-directory' is already the repository root by default for 'actions/checkout'.
-      # We call the wrapper script that internally calls pytest.
-      run: |
-        python src/utils/run_pytest_wrapper.py # Execute the wrapper script
+      run: pytest
