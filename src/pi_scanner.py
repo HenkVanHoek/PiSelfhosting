@@ -233,7 +233,7 @@ class PiScanner:
                         zip(["filesystem", "size", "used", "avail", "pcent",
                              "mounted_on"], line_parts)))
 
-            # CORRECTED LOGIC
+            # Corrected logic
             final_model = model_raw.strip().replace("\x00", "")
             final_serial = serial_raw.strip()
 
@@ -253,7 +253,6 @@ class PiScanner:
                 "ram": ram_raw.strip(),
                 "disks": disks,
             }
-            print (details)
             return details, None
         except FileNotFoundError:
             msg = "sshpass is not installed. This tool is required for SSH."

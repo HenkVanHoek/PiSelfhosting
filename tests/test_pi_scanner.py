@@ -61,7 +61,8 @@ class TestPiScannerStaticMethods:
     def test_get_primary_ip_success(self, mock_socket):
         """Test successful IP detection."""
         mock_sock_instance = MagicMock()
-        mock_sock_instance.getsockname.return_value = ["192.168.1.10"]
+        # MODIFICATION: Return a tuple to more accurately reflect the real function.
+        mock_sock_instance.getsockname.return_value = ("192.168.1.10", 12345)
         mock_socket.return_value = mock_sock_instance
 
         assert PiScanner.get_primary_ip() == "192.168.1.10"
@@ -123,8 +124,8 @@ class TestPiScannerScan:
 
         assert not err
         assert len(hosts) == 1
-        assert hosts[0]["ip"] == "192.168.1.5"
-        assert hosts[0]["mac"] == "B8:27:EB:01:02:03"
+        assert hosts["ip"] == "192.168.1.5"
+        assert hosts["mac"] == "B8:27:EB:01:02:03"
         assert "🍓 Raspberry Pi found" in "".join(messages)
 
     def test_scan_finds_no_pi(self, mock_nmap, scanner):
@@ -174,17 +175,24 @@ class TestPiScannerGetDetails:
         """Test successful retrieval of device details."""
         mock_result = MagicMock()
         mock_result.returncode = 0
+        # MODIFICATION: Update the mock stdout to use the new marker-based format.
         mock_result.stdout = (
+            "---OS_INFO_START---"
             'PRETTY_NAME="Raspbian GNU/Linux 11 (bullseye)"\n'
-            "---\n"
+            "---OS_INFO_END---"
+            "---SERIAL_START---"
             "1000000012345678\n"
-            "---\n"
+            "---SERIAL_END---"
+            "---MODEL_START---"
             "Raspberry Pi 4 Model B Rev 1.4\n"
-            "---\n"
+            "---MODEL_END---"
+            "---RAM_START---"
             "4096 MB\n"
-            "---\n"
+            "---RAM_END---"
+            "---DISK_START---"
             "Filesystem Size Used Avail Use% Mounted on\n"
-            "/dev/root 30G 5.0G 23G 18% /"
+            "/dev/root 30G 5.0G 23G 18% /\n"
+            "---DISK_END---"
         )
         mock_subprocess.return_value = mock_result
 
@@ -192,6 +200,11 @@ class TestPiScannerGetDetails:
 
         assert err is None
         assert details["os_version"] == "Raspbian GNU/Linux 11 (bullseye)"
+        assert details["serial"] == "1000000012345678"
+        assert details["model"] == "Raspberry Pi 4 Model B Rev 1.4"
+        assert details["ram"] == "4096 MB"
+        assert len(details["disks"]) == 1
+        assert details["disks"]["filesystem"] == "/dev/root"
 
     @patch("subprocess.run")
     @patch("pi_scanner.is_port_open", return_value=True)
@@ -252,9 +265,9 @@ class TestPiScannerEndToEnd:
 
         assert err is None
         assert len(hosts) == 1
-        assert hosts[0]["ip"] == "192.168.1.5"
-        assert hosts[0]["os_version"] == "Raspbian"
-        assert hosts[0]["details_available"] is True
+        assert hosts["ip"] == "192.168.1.5"
+        assert hosts["os_version"] == "Raspbian"
+        assert hosts["details_available"] is True
         mock_get_details.assert_called_once_with("192.168.1.5")
 
     @patch("pi_scanner.PiScanner.get_device_details")
@@ -274,5 +287,5 @@ class TestPiScannerEndToEnd:
 
         assert err is None
         assert len(hosts) == 1
-        assert "Error: Auth failed" in hosts[0]["os_version"]
-        assert hosts[0]["details_available"] is False
+        assert "Error: Auth failed" in hosts["os_version"]
+        assert hosts["details_available"] is False
