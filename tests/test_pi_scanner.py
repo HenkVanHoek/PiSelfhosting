@@ -21,7 +21,6 @@ class TestIsPortOpen:
     @patch("socket.socket")
     def test_port_is_open(self, mock_socket):
         """Verify it returns True when a connection is successful."""
-        # The mock socket's connect method will not raise an error
         mock_instance = mock_socket.return_value
         mock_instance.connect.return_value = None
 
@@ -32,7 +31,6 @@ class TestIsPortOpen:
     def test_port_is_closed(self, mock_socket):
         """Verify it returns False when a connection is refused."""
         mock_instance = mock_socket.return_value
-        # Simulate a ConnectionRefusedError
         mock_instance.connect.side_effect = ConnectionRefusedError
 
         assert is_port_open("192.168.1.1", 22) is False
@@ -41,7 +39,6 @@ class TestIsPortOpen:
     def test_host_is_unreachable(self, mock_socket):
         """Verify it returns False on a socket timeout."""
         mock_instance = mock_socket.return_value
-        # Simulate a timeout
         mock_instance.connect.side_effect = socket.timeout
 
         assert is_port_open("192.168.1.100", 22) is False
@@ -61,7 +58,6 @@ class TestPiScannerStaticMethods:
     def test_get_primary_ip_success(self, mock_socket):
         """Test successful IP detection."""
         mock_sock_instance = MagicMock()
-        # MODIFICATION: Return a tuple to more accurately reflect the real function.
         mock_sock_instance.getsockname.return_value = ("192.168.1.10", 12345)
         mock_socket.return_value = mock_sock_instance
 
@@ -82,7 +78,6 @@ class TestPiScannerStaticMethods:
         """Test successful subnet detection."""
         mock_get_ip.return_value = "192.168.1.10"
 
-        # Mock psutil return value
         mock_addr = MagicMock()
         mock_addr.family = socket.AF_INET
         mock_addr.address = "192.168.1.10"
@@ -124,8 +119,9 @@ class TestPiScannerScan:
 
         assert not err
         assert len(hosts) == 1
-        assert hosts["ip"] == "192.168.1.5"
-        assert hosts["mac"] == "B8:27:EB:01:02:03"
+        # CORRECTED: Access the first element of the list.
+        assert hosts[0]["ip"] == "192.168.1.5"
+        assert hosts[0]["mac"] == "B8:27:EB:01:02:03"
         assert "🍓 Raspberry Pi found" in "".join(messages)
 
     def test_scan_finds_no_pi(self, mock_nmap, scanner):
@@ -175,21 +171,20 @@ class TestPiScannerGetDetails:
         """Test successful retrieval of device details."""
         mock_result = MagicMock()
         mock_result.returncode = 0
-        # MODIFICATION: Update the mock stdout to use the new marker-based format.
         mock_result.stdout = (
-            "---OS_INFO_START---"
+            "---OS_INFO_START---\n"
             'PRETTY_NAME="Raspbian GNU/Linux 11 (bullseye)"\n'
-            "---OS_INFO_END---"
-            "---SERIAL_START---"
+            "---OS_INFO_END---\n"
+            "---SERIAL_START---\n"
             "1000000012345678\n"
-            "---SERIAL_END---"
-            "---MODEL_START---"
+            "---SERIAL_END---\n"
+            "---MODEL_START---\n"
             "Raspberry Pi 4 Model B Rev 1.4\n"
-            "---MODEL_END---"
-            "---RAM_START---"
+            "---MODEL_END---\n"
+            "---RAM_START---\n"
             "4096 MB\n"
-            "---RAM_END---"
-            "---DISK_START---"
+            "---RAM_END---\n"
+            "---DISK_START---\n"
             "Filesystem Size Used Avail Use% Mounted on\n"
             "/dev/root 30G 5.0G 23G 18% /\n"
             "---DISK_END---"
@@ -204,7 +199,8 @@ class TestPiScannerGetDetails:
         assert details["model"] == "Raspberry Pi 4 Model B Rev 1.4"
         assert details["ram"] == "4096 MB"
         assert len(details["disks"]) == 1
-        assert details["disks"]["filesystem"] == "/dev/root"
+        # CORRECTED: Access the first element of the list.
+        assert details["disks"][0]["filesystem"] == "/dev/root"
 
     @patch("subprocess.run")
     @patch("pi_scanner.is_port_open", return_value=True)
@@ -251,23 +247,22 @@ class TestPiScannerEndToEnd:
     @patch("pi_scanner.PiScanner.scan")
     def test_scan_and_get_details_success(self, mock_scan, mock_get_details, scanner):
         """Test the combined scan-and-get-details workflow."""
-        # Mock scan returns one Pi
         mock_scan.return_value = (
             [{"ip": "192.168.1.5", "mac": "B8:27:EB:01:02:03"}],
             ["Scan message"],
             None,
             {},
         )
-        # Mock get_details returns OS version
         mock_get_details.return_value = ({"os_version": "Raspbian"}, None)
 
         hosts, messages, err = scanner.scan_and_get_details("192.168.1.0/24")
 
         assert err is None
         assert len(hosts) == 1
-        assert hosts["ip"] == "192.168.1.5"
-        assert hosts["os_version"] == "Raspbian"
-        assert hosts["details_available"] is True
+        # CORRECTED: Access the first element of the list.
+        assert hosts[0]["ip"] == "192.168.1.5"
+        assert hosts[0]["os_version"] == "Raspbian"
+        assert hosts[0]["details_available"] is True
         mock_get_details.assert_called_once_with("192.168.1.5")
 
     @patch("pi_scanner.PiScanner.get_device_details")
@@ -280,12 +275,12 @@ class TestPiScannerEndToEnd:
             None,
             {},
         )
-        # Mock get_details returns an error
         mock_get_details.return_value = (None, "Auth failed")
 
         hosts, messages, err = scanner.scan_and_get_details("192.168.1.0/24")
 
         assert err is None
         assert len(hosts) == 1
-        assert "Error: Auth failed" in hosts["os_version"]
-        assert hosts["details_available"] is False
+        # CORRECTED: Access the first element of the list.
+        assert "Error: Auth failed" in hosts[0]["os_version"]
+        assert hosts[0]["details_available"] is False
