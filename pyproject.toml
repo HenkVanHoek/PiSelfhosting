@@ -31,7 +31,8 @@ dependencies = [
     "jinja2",
     "platformdirs",
     "requests",
-    "keyring"
+    "keyring",
+    "appdirs"
 ]
 
 [tool.setuptools]

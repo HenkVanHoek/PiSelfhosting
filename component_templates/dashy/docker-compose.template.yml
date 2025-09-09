@@ -1,24 +1,20 @@
-# templates/dashy/docker-compose.template.yml
 services:
   dashy:
     container_name: piselfhosting-dashy
-    image: lissy93/dashy:{{ component_version }}
+    image: lissy93/dashy:{{ DASHY_IMAGE_TAG | default('latest') }}
     restart: unless-stopped
     ports:
-      - "8080:80" # Dashy HTTP port
-      - "4443:443" # Dashy HTTPS port
+      - "{{ DASHY_HTTP_PORT | default('8080') }}:80"
+      - "{{ DASHY_HTTPS_PORT | default('4443') }}:443"
     volumes:
-      - "{{DATA_ROOT}}/dashy/conf.yml:app/user-data/conf.yml" # FHS compliance for config
+      - "{{ DATA_ROOT | default('/srv/piselfhosting') }}/dashy/conf.yml:/app/user-data/conf.yml"
     environment:
-      - "PUID={{PUID}}" # Host user ID, for file permissions
-      - "PGID={{PUID}}" # Host group ID
-      - "TZ={{ TZ | default('Europe/Amsterdam') }}" # Adjust timezone if necessary, uses default if not set
+      - "PUID={{ PUID | default('1000') }}"
+      - "PGID={{ PUID | default('1000') }}" # PGID uses the same as PUID
+      - "TZ={{ TZ | default('Europe/Amsterdam') }}"
       - NODE_ENV=production
     extra_hosts:
-      # This adds an entry to /etc/hosts in the container,
-      # so services can be accessed via the DOMAIN if they run through Nginx Proxy Manager.
-      # HOST_IP is dynamically filled by deploy.sh.
-      - "{{DOMAIN}}:{{ HOST_IP | default('127.0.0.1') }}" # Ensure HOST_IP is always there, and no extra spaces
+      - "{{ DOMAIN | default('home.arpa') }}:{{ HOST_IP }}"
     networks:
       - piselfhosting_net
 networks:

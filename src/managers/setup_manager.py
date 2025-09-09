@@ -1,5 +1,4 @@
 import logging
-import os
 import re
 from pathlib import Path
 
@@ -10,36 +9,24 @@ from jinja2 import Environment, FileSystemLoader
 logger = logging.getLogger(__name__)
 
 
-class DockerComposeYAMLLoader(yaml.SafeLoader):
-    def construct_scalar(self, node):
-        # Preserve the style (quotes) from the input
-        value = super().construct_scalar(node)
-        if isinstance(node, yaml.ScalarNode):
-            style = node.style
-            if style in ['"', "'"] and isinstance(value, str):
-                # Only preserve quotes for port mappings
-                if re.match(r"^\d+:\d+(/[a-z]+)?$", value):
-                    return f'"{value}"'  # Explicitly add quotes
-        return value
+# --- YAML Customization ---
+
+# This is a standalone function with an explicit signature that PyCharm understands.
+def represent_quoted_str(dumper, data):
+    """A PyYAML representer that forces quotes on port-like strings."""
+    if re.match(r"^\d+:\d+(/[a-z]+)?$", data):
+        return dumper.represent_scalar("tag:yaml.org,2002:str",
+                                     data, style='"')
+    return dumper.represent_scalar("tag:yaml.org,2002:str", data)
 
 
+# The Dumper class can now be a simple subclass without custom methods.
 class DockerComposeYAMLDumper(yaml.SafeDumper):
-    @staticmethod
-    def represent_str(dumper, data):
-        # Match both simple port mappings (8080:80) and
-        # those with protocols (8080:80/tcp)
-        if isinstance(data, str) and (
-            re.match(r"^\d+:\d+$", data)  # Simple port mapping
-            or re.match(r"^\d+:\d+/[a-z]+$", data)  # Port with protocol
-        ):
-            # Force double quotes for port mappings
-            return dumper.represent_scalar("tag:yaml.org,2002:str",
-                                         data, style='"')
-        return super(DockerComposeYAMLDumper, dumper).represent_str(data)
+    pass
 
 
-DockerComposeYAMLDumper.add_representer(str,
-                                        DockerComposeYAMLDumper.represent_str)
+# We register our standalone function to handle all strings.
+DockerComposeYAMLDumper.add_representer(str, represent_quoted_str)
 
 
 class SetupManager:
@@ -47,94 +34,72 @@ class SetupManager:
 
     DOCKER_COMPOSE_TEMPLATE = "docker-compose.template.yml"
 
-    def __init__(self, component_manager):
+    def __init__(self, component_manager, output_dir=None):
         self.component_manager = component_manager
-        self.output_dir = "output"  # Default output directory
-        self.docker_compose_path = f"{self.output_dir}/docker-compose.yml"
+        self.output_dir = Path(output_dir) if output_dir else Path("output")
+        self.docker_compose_path = self.output_dir / "docker-compose.yml"
 
     def generate_all_files(self, selected_components, env_vars):
         """
-        Generates docker-compose.yml and other necessary configuration files
-        from the selected components and their dependencies.
-
-        Args:
-            selected_components: List of component IDs to generate files for
-            env_vars: Dictionary of environment variables
+        Generates all necessary configuration files.
+        Returns a tuple: (bool_success, list_of_errors)
         """
-        logger.info(
-            f"Starting file generation for components: {', '.join(selected_components)}"
-        )
-        logger.info(f"Environment variables: {env_vars}")
+        errors = []
+        logger.info(f"Starting file generation for: {', '.join(selected_components)}")
 
         full_component_list = self._resolve_dependencies(selected_components)
-        logger.info(
-            "Full component list with dependencies: %s", ", ".join(full_component_list)
-        )
-
         compose_data = {"version": "3.8", "services": {}, "volumes": {}, "networks": {}}
 
         for component_id in full_component_list:
             details = self.component_manager.get_component_details(component_id)
             if not details:
-                logger.warning(
-                    f"No details found for " f"component '{component_id}'. Skipping."
-                )
+                errors.append(f"Component '{component_id}' not found in metadata.")
                 continue
 
-            template_path = self.component_manager.config.get_component_template_path(
-                component_id
-            )
-            jinja_env = Environment(loader=FileSystemLoader(str(template_path)))
-
             try:
-                logger.info(f"Processing docker-compose template for {component_id}")
+                template_path = self.component_manager.config.get_component_template_path(
+                    component_id
+                )
+                jinja_env = Environment(loader=FileSystemLoader(str(template_path)))
+
                 self._merge_docker_compose_template(
-                    component_id, jinja_env, compose_data, env_vars
-                )
-            except (jinja2.TemplateNotFound, yaml.YAMLError) as e:
-                logger.debug(
-                    f"Error processing "
-                    f"docker-compose template for {component_id}: {e}"
+                    component_id, jinja_env, compose_data, env_vars, errors
                 )
 
-            if "other_files" in details:
-                self._generate_other_files(component_id, details, jinja_env, env_vars)
+                if "other_files" in details:
+                    self._generate_other_files(
+                        component_id, details, jinja_env, env_vars, errors
+                    )
+            except Exception as e:
+                msg = f"An unexpected error occurred for component {component_id}: {e}"
+                logger.error(msg, exc_info=True)
+                errors.append(msg)
 
-        if not compose_data["services"]:
-            logger.warning(
-                "No Docker configurations processed;" " no file will be generated."
-            )
-            return
+        if not compose_data["services"] and not errors:
+            msg = "No valid Docker services were processed. docker-compose.yml will not be generated."
+            logger.warning(msg)
+            errors.append(msg)
+
+        if errors:
+            return False, errors
 
         try:
-            Path(self.docker_compose_path).parent.mkdir(parents=True, exist_ok=True)
+            self.output_dir.mkdir(parents=True, exist_ok=True)
             with open(self.docker_compose_path, "w") as f:
                 yaml.dump(
-                    compose_data,
-                    f,
-                    Dumper=DockerComposeYAMLDumper,
-                    default_flow_style=False,
-                    sort_keys=False,
-                    width=float("inf"),
+                    compose_data, f, Dumper=DockerComposeYAMLDumper,
+                    default_flow_style=False, sort_keys=False, width=float("inf")
                 )
-            logger.info(
-                "Successfully generated " "docker-compose.yml at %s",
-                self.docker_compose_path,
-            )
+            logger.info(f"Successfully generated {self.docker_compose_path}")
         except IOError as e:
-            logger.error(f"Failed to write docker-compose file: {e}")
-            raise
+            msg = f"Failed to write docker-compose file: {e}"
+            logger.error(msg)
+            errors.append(msg)
+            return False, errors
+
+        return True, []
 
     def _resolve_dependencies(self, selected_components):
-        """
-        Gets a full list of components including all dependencies.
-
-        Args:
-            selected_components: List of component IDs to resolve dependencies for
-
-        Returns:
-            list: Ordered list of components with their dependencies
-        """
         resolved = set()
         queue = list(selected_components)
 
@@ -154,29 +119,14 @@ class SetupManager:
                     if dep not in resolved:
                         queue.append(dep)
 
-        # Get component order from metadata if available
-        order = (
-            self.component_manager.get_all_components()
-            .get("_piselfhosting", {})
-            .get("components_order", [])
-        )
+        order = self.component_manager.get_component_order()
 
-        # Sort components based on predefined order, putting unordered components first
         return sorted(
             list(resolved), key=lambda x: order.index(x) if x in order else -1
         )
 
     @staticmethod
-    def _merge_docker_compose_template(comp_id, jinja_env, compose_data, env_vars):
-        """
-        Loads a component's docker-compose template and merges it.
-
-        Args:
-            comp_id: Component ID
-            jinja_env: Jinja2 Environment instance
-            compose_data: Dictionary to merge the template data into
-            env_vars: Environment variables for template rendering
-        """
+    def _merge_docker_compose_template(comp_id, jinja_env, compose_data, env_vars, errors):
         try:
             template = jinja_env.get_template(SetupManager.DOCKER_COMPOSE_TEMPLATE)
             rendered_content = template.render(env_vars)
@@ -187,47 +137,29 @@ class SetupManager:
                 compose_data["volumes"].update(component_compose.get("volumes", {}))
                 compose_data["networks"].update(component_compose.get("networks", {}))
         except (jinja2.TemplateNotFound, yaml.YAMLError) as e:
-            logger.error(
-                f"Failed to process " f"docker-compose template for {comp_id}: {e}"
-            )
+            msg = f"Failed to process template for {comp_id}: {e}"
+            logger.error(msg)
+            errors.append(msg)
 
-    def _generate_other_files(self, component_id, details, jinja_env, env_vars):
-        """
-        Generates other configuration files for a component.
-
-        Args:
-            component_id: Component ID
-            details: Component details dictionary
-            jinja_env: Jinja2 Environment instance
-            env_vars: Environment variables for template rendering
-        """
-        other_files = details.get("other_files", [])
-
-        for file_config in other_files:
+    def _generate_other_files(self, component_id, details, jinja_env, env_vars, errors):
+        for file_config in details.get("other_files", []):
             template_name = file_config.get("template")
-            output_path = file_config.get("destination")
+            output_path_str = file_config.get("destination")
 
-            if not template_name or not output_path:
-                logger.warning(
-                    f"Incomplete file configuration for {component_id}: {file_config}"
-                )
+            if not template_name or not output_path_str:
+                errors.append(f"Incomplete file config for {component_id}: {file_config}")
                 continue
 
             try:
                 template = jinja_env.get_template(template_name)
                 rendered_content = template.render(env_vars)
+                full_output_path = self.output_dir / output_path_str
+                full_output_path.parent.mkdir(parents=True, exist_ok=True)
 
-                # Ensure output directory exists
-                full_output_path = os.path.join(self.output_dir, output_path)
-                os.makedirs(os.path.dirname(full_output_path), exist_ok=True)
-
-                # Write the rendered content
                 with open(full_output_path, "w") as f:
                     f.write(rendered_content)
-
-                logger.info(f"Generated {output_path} for component {component_id}")
-
+                logger.info(f"Generated {full_output_path}")
             except (jinja2.TemplateNotFound, IOError) as e:
-                logger.error(
-                    f"Failed to generate {output_path} for {component_id}: {e}"
-                )
+                msg = f"Failed to generate {output_path_str} for {component_id}: {e}"
+                logger.error(msg)
+                errors.append(msg)

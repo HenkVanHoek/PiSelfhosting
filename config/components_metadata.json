@@ -41,6 +41,7 @@
     "has_ui": true,
     "ui_port": 9443,
     "protocol": "https",
+    "has_configuration": true,
     "default": true
   },
   "dashy": {
@@ -53,6 +54,7 @@
     "has_ui": true,
     "ui_port": 8080,
     "protocol": "http",
+    "has_configuration": true,
     "default": true
   },
   "heimdall": {

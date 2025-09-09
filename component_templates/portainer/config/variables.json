@@ -1,0 +1,16 @@
+[
+  {
+    "id": "PORTAINER_IMAGE_TAG",
+    "name": "Portainer Version Tag",
+    "description": "The Docker image tag to use for Portainer CE. 'latest' is usually fine.",
+    "type": "string",
+    "default": "latest"
+  },
+  {
+    "id": "PORTAINER_HTTP_PORT",
+    "name": "Portainer Web Port",
+    "description": "The external HTTP port for the Portainer web UI.",
+    "type": "string",
+    "default": "9000"
+  }
+]
