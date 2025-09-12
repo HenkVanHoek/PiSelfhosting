@@ -32,7 +32,8 @@ dependencies = [
     "platformdirs",
     "requests",
     "keyring",
-    "appdirs"
+    "appdirs",
+    "paramiko"
 ]
 
 [tool.setuptools]

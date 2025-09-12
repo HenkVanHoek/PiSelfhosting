@@ -39,7 +39,7 @@
     "description": "A powerful management UI for Docker environments.",
     "uniqueness_group": null,
     "has_ui": true,
-    "ui_port": 9443,
+    "ui_port": 9000,
     "protocol": "https",
     "has_configuration": true,
     "default": true
@@ -52,7 +52,7 @@
     "description": "A highly customizable, open-source personal dashboard.",
     "uniqueness_group": "dashboard",
     "has_ui": true,
-    "ui_port": 8080,
+    "ui_port": 80,
     "protocol": "http",
     "has_configuration": true,
     "default": true

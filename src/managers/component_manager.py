@@ -76,36 +76,28 @@ class ComponentManager:
         """
         Finds all components that require configuration and consolidates
         their required variables from their 'config/variables.json' files.
-
-        Args:
-            component_ids: A list of the component IDs selected by the user.
-
-        Returns:
-            A list of unique variable definition dictionaries.
         """
-        all_variables = {}  # Use a dict to ensure variable IDs are unique
+        all_variables = {}
         for comp_id in component_ids:
             details = self.get_component_details(comp_id)
             if not details or not details.get("has_configuration"):
                 continue
-
             try:
-                # Construct the path to the variables.json file
-                # This relies on the ConfigManager providing the base path
                 template_path = self.config.get_component_template_path(comp_id)
-                variables_file_path = os.path.join(template_path, "config",
-                                                   "variables.json")
-
+                variables_file_path = os.path.join(template_path, "config", "variables.json")
                 if os.path.exists(variables_file_path):
                     with open(variables_file_path, "r") as f:
                         variables = json.load(f)
                         for var in variables:
-                            # Use the variable's 'id' as the key to prevent duplicates
                             if 'id' in var:
                                 all_variables[var['id']] = var
             except (FileNotFoundError, json.JSONDecodeError, TypeError) as e:
-                logger.error(
-                    f"Error processing variables for component {comp_id}: {e}"
-                )
-
+                logger.error(f"Error processing variables for {comp_id}: {e}")
         return list(all_variables.values())
+
+    def get_all_components_dict(self) -> dict:
+        """
+        Returns the raw components data, excluding private keys like '_piselfhosting'.
+        This is useful for quick lookups by component ID.
+        """
+        return {k: v for k, v in self._components_data.items() if not k.startswith("_")}

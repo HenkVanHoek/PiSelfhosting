@@ -7,14 +7,14 @@ services:
       - "{{ DASHY_HTTP_PORT | default('8080') }}:80"
       - "{{ DASHY_HTTPS_PORT | default('4443') }}:443"
     volumes:
-      - "{{ DATA_ROOT | default('/srv/piselfhosting') }}/dashy/conf.yml:/app/user-data/conf.yml"
+      - "{{ PISelfhosting_DATA_PATH }}/dashy:/app/user-data"
     environment:
       - "PUID={{ PUID | default('1000') }}"
       - "PGID={{ PUID | default('1000') }}" # PGID uses the same as PUID
       - "TZ={{ TZ | default('Europe/Amsterdam') }}"
       - NODE_ENV=production
     extra_hosts:
-      - "{{ DOMAIN | default('home.arpa') }}:{{ HOST_IP }}"
+      - "{{ DOMAIN | default('home.arpa') }}:{{ PISelfhosting_HOST_IP | default('127.0.0.1') }}"
     networks:
       - piselfhosting_net
 networks:
