@@ -125,13 +125,32 @@ We use **pytest** for testing. Run tests from the project root:
 
     pytest
 
-## ✍️ Development Philosophy
+## ✍️ Development Philosophy and Architectural Doctrine
 
-- **User-Centric:** Prioritize simple, intuitive, and reliable user experiences
-- **Clean Code:** Follow PEP 8, write clear and maintainable code
-- **English Only:** All code, comments, documentation, and commit messages must be in English for international accessibility
-- **Robust Error Handling:** Include comprehensive logging and error handling
-- **Security-First:** Handle credentials securely, never commit secrets
+This section outlines the core principles that guide our development. All contributions must adhere to this doctrine to ensure the project remains stable, maintainable, and testable.
+
+- **User-Centric:** Prioritize simple, intuitive, and reliable user experiences.
+- **Clean Code:** Follow PEP 8, write clear and maintainable code.
+- **English Only:** All code, comments, documentation, and commit messages must be in English for international accessibility.
+- **Robust Error Handling:** Include comprehensive logging and error handling.
+- **Security-First:** Handle credentials securely, never commit secrets.
+
+### Core Architectural Principles
+
+- **The Application Factory Pattern**: The Flask application instance shall only be created inside a `create_app()` factory function. No global application object shall be instantiated at the module level. This is the definitive solution to test suite initialization failures and hangs, as it allows for the creation of test-specific app instances with mocked dependencies.
+- **Dependency Injection for Testability**: Classes that interact with the file system or other external resources must be designed to have those resources injected into them. Hardcoded paths or resource locators are forbidden. This pattern is essential for creating fully isolated and reliable unit tests.
+- **Two-Pass Template Rendering**: The `SetupManager` must perform a "self-rendering" pass on its variable context before rendering the final component templates. This correctly handles nested variables (e.g., `HOMARR_CONFIG_PATH` resolving to `{{ CONFIG_BASE_PATH }}/homarr`) and ensures the final output is fully rendered.
+
+### Doctrine for High-Reliability Testing
+
+- **Full Isolation is Mandatory**: Unit tests must be hermetically sealed. They shall never perform real network I/O or touch the real file system (outside of a controlled, temporary directory). This is the only way to guarantee fast, reliable, and platform-independent test execution.
+- **Use Explicit Manual Patching**: For complex test cases, mocks shall be controlled by manually starting them in `setUp` and stopping them in `tearDown`. This provides unambiguous control over the mock lifecycle and is the standard for our robust test suite.
+- **Test Data Must Match Application Contracts**: The data structures provided to a function in a test must be identical in type and shape to what the real application provides. The test suite is the first line of defense for enforcing these internal API contracts.
+
+### Git Workflow and Commit Hygiene
+
+- **Commits Must Be Atomic**: A single commit must represent a single, complete, logical unit of work that leaves the application in a fully-tested, stable state.
+- **Use Amend for In-Flight Corrections**: The `git commit --amend` command shall be the standard procedure for adding corrections to a logical change that has not yet been pushed to a shared remote. This ensures the final commit is atomic and avoids cluttering the history with "fix-up" commits.
 
 ## 릴 Creating a New Release
 
