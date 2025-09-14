@@ -1,0 +1,20 @@
+{
+  "variables": [
+    {
+      "name": "HOMARR_HTTP_PORT",
+      "label": "Homarr HTTP Port",
+      "default": 7575,
+      "type": "port",
+      "required": true,
+      "description": "The external port to access the Homarr web UI."
+    },
+    {
+      "name": "HOMARR_CONFIG_PATH",
+      "label": "Homarr Config Path",
+      "default": "{{ CONFIG_BASE_PATH }}/homarr",
+      "type": "hidden",
+      "required": true,
+      "description": "The path to the Homarr configuration files."
+    }
+  ]
+}

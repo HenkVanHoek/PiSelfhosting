@@ -5,14 +5,17 @@ from datetime import datetime
 import os
 from pathlib import Path
 import yaml
+import tarfile
 
 from managers.ssh_manager import SSHManager
 
 
 class DeploymentManager:
+    """Manages the deployment process to remote devices via SSH."""
+
     def __init__(self, component_manager):
         self.component_manager = component_manager
-        logging.info("DeploymentManager initialized.")
+        logging.info("DeploymentManager instance created.")
 
     def start_deployment(self, task_id: str, tasks_dict: Dict, output_path: str,
                          managed_devices: List[Dict[str, Any]]):
@@ -50,7 +53,7 @@ class DeploymentManager:
             password = device.get("password")
 
             if not all([ip, username, password]):
-                log_step(f"WARN: Skipping device with incomplete details.")
+                log_step("WARN: Skipping device with incomplete details.")
                 overall_success = False
                 continue
 
@@ -64,42 +67,8 @@ class DeploymentManager:
                 continue
             log_step(f"Successfully connected to {ip}.")
 
-            def _reconnect_ssh(reason: str):
-                log_step(reason)
-                ssh.close()
-                time.sleep(2)
-                new_ssh = SSHManager(hostname=ip, username=username,
-                                     password=password)
-                is_connected, reconnect_msg = new_ssh.connect()
-                if not is_connected:
-                    log_step(f"ERROR: Failed to reconnect: {reconnect_msg}")
-                    return None
-                log_step("SUCCESS: Reconnected successfully.")
-                return new_ssh
-
-            apparmor_was_stopped = False
+            remote_tmp_tarball = f"/tmp/deployment-{task_id}.tar.gz"
             try:
-                log_step("Checking AppArmor status...")
-                exit_code, _ = ssh.execute_command(
-                    "systemctl is-active apparmor", dummy_callback)
-                if exit_code == 0:
-                    log_step(
-                        "AppArmor is active. Temporarily stopping for installation...")
-                    apparmor_was_stopped = True
-                    stop_cmd = f'echo "{password}" | sudo -S systemctl stop apparmor'
-                    exit_code, _ = ssh.execute_command(stop_cmd, log_stream)
-                    if exit_code != 0:
-                        log_step("ERROR: Failed to stop AppArmor.")
-                        overall_success = False
-                        continue
-
-                    reconnected_ssh = _reconnect_ssh(
-                        "Reconnecting to apply new security context...")
-                    if not reconnected_ssh:
-                        overall_success = False
-                        continue
-                    ssh = reconnected_ssh
-
                 log_step("Discovering remote home directory...")
                 exit_code, remote_home_dir = ssh.execute_command("echo $HOME",
                                                                  dummy_callback)
@@ -111,154 +80,58 @@ class DeploymentManager:
                 log_step(
                     f"SUCCESS: Remote home directory is '{remote_home_dir}'")
 
-                exit_code, _ = ssh.execute_command("command -v curl",
-                                                   dummy_callback)
-                if exit_code != 0:
-                    log_step("'curl' not found. Installing...")
-                    exit_code, _ = ssh.execute_command(
-                        f'echo "{password}" | sudo -S apt-get -y update',
-                        log_stream)
-                    if exit_code != 0:
-                        log_step("ERROR: 'apt-get update' failed.")
-                        overall_success = False
-                        continue
-                    exit_code, _ = ssh.execute_command(
-                        f'echo "{password}" | sudo -S apt-get install -y curl',
-                        log_stream)
-                    if exit_code != 0:
-                        log_step("ERROR: Failed to install 'curl'.")
-                        overall_success = False
-                        continue
-                    log_step("SUCCESS: 'curl' has been installed.")
-
-                exit_code, _ = ssh.execute_command("docker --version",
-                                                   dummy_callback)
-                if exit_code != 0:
+                log_step("Creating local deployment archive...")
+                local_output_path = Path(output_path)
+                tarball_path = local_output_path / "deployment.tar.gz"
+                try:
+                    with tarfile.open(tarball_path, "w:gz") as tar:
+                        for item in os.listdir(local_output_path):
+                            if item != "deployment.tar.gz":
+                                tar.add(os.path.join(local_output_path, item),
+                                        arcname=item)
+                    log_step("SUCCESS: Local deployment archive created.")
+                except Exception as e:
                     log_step(
-                        "Docker not found. Installing (this may take several minutes)...")
-                    install_cmd = f'echo "{password}" | sudo -S sh -c "curl -sSL https://get.docker.com | sh"'
-                    exit_code, _ = ssh.execute_command(install_cmd, log_stream)
-                    if exit_code != 0:
-                        log_step("ERROR: Docker installation script failed.")
-                        overall_success = False
-                        continue
-                    perm_cmd = f'echo "{password}" | sudo -S usermod -aG docker {username}'
-                    exit_code, _ = ssh.execute_command(perm_cmd, log_stream)
-                    if exit_code != 0:
-                        log_step("ERROR: Failed to add user to docker group.")
-                        overall_success = False
-                        continue
-
-                    reconnected_ssh = _reconnect_ssh(
-                        "Reconnecting session for new group permissions...")
-                    if not reconnected_ssh:
-                        overall_success = False
-                        continue
-                    ssh = reconnected_ssh
-
-                exit_code, version_out = ssh.execute_command("docker --version",
-                                                             dummy_callback)
-                if exit_code != 0:
-                    log_step(f"ERROR: Docker is still not accessible.")
+                        f"FATAL ERROR: Could not create local tarball: {e}")
                     overall_success = False
                     continue
-                log_step(f"SUCCESS: Docker is ready. Version: {version_out}")
 
                 log_step(
-                    "Checking for shared Docker network 'piselfhosting_net'...")
-                exit_code, _ = ssh.execute_command(
-                    "docker network inspect piselfhosting_net", dummy_callback)
-                if exit_code != 0:
-                    log_step("Network not found. Creating it now...")
-                    exit_code, _ = ssh.execute_command(
-                        "docker network create piselfhosting_net", log_stream)
-                    if exit_code != 0:
-                        log_step("ERROR: Failed to create Docker network.")
+                    f"Uploading deployment archive to {remote_tmp_tarball}...")
+                try:
+                    with open(tarball_path, 'rb') as f:
+                        content = f.read()
+                    uploaded, msg = ssh.upload_content(content,
+                                                       remote_tmp_tarball)
+                    if not uploaded:
+                        log_step(f"ERROR: Archive upload failed: {msg}")
                         overall_success = False
                         continue
-                    log_step("SUCCESS: Shared Docker network created.")
-                else:
-                    log_step("SUCCESS: Shared Docker network already exists.")
+                    log_step("SUCCESS: Archive uploaded successfully.")
+                finally:
+                    if os.path.exists(tarball_path):
+                        os.remove(tarball_path)
 
                 remote_deployment_dir = f"{remote_home_dir}/piselfhosting_deployment"
-                remote_data_dir = f"{remote_home_dir}/piselfhosting_data"
-                log_step(f"Ensuring remote directories exist...")
+                log_step(
+                    f"Ensuring remote deployment directory '{remote_deployment_dir}' exists...")
                 exit_code, _ = ssh.execute_command(
-                    f"mkdir -p {remote_deployment_dir}", dummy_callback)
+                    f'mkdir -p {remote_deployment_dir}', dummy_callback)
                 if exit_code != 0:
                     log_step(
                         "FATAL ERROR: Could not create remote deployment directory.")
                     overall_success = False
                     continue
-                exit_code, _ = ssh.execute_command(
-                    f"mkdir -p {remote_data_dir}", dummy_callback)
+
+                log_step("Extracting remote archive...")
+                extract_command = f"tar -xzf {remote_tmp_tarball} -C {remote_deployment_dir}"
+                exit_code, _ = ssh.execute_command(extract_command, log_stream)
                 if exit_code != 0:
-                    log_step(
-                        "FATAL ERROR: Could not create remote data directory.")
+                    log_step("ERROR: Failed to extract remote archive.")
                     overall_success = False
                     continue
 
-                log_step(
-                    "Scanning for and uploading other configuration files...")
-                local_output_path = Path(output_path)
-                other_files_uploaded = True
-                for local_file in local_output_path.rglob('*'):
-                    if local_file.is_file() and local_file.name != 'docker-compose.yml':
-                        relative_path = local_file.relative_to(
-                            local_output_path)
-                        remote_file_path = f"{remote_data_dir}/{relative_path}"
-                        remote_file_dir = os.path.dirname(remote_file_path)
-
-                        exit_code, _ = ssh.execute_command(
-                            f"mkdir -p {remote_file_dir}", dummy_callback)
-                        if exit_code != 0:
-                            log_step(
-                                f"ERROR: Could not create remote subdirectory: {remote_file_dir}")
-                            overall_success = False
-                            other_files_uploaded = False
-                            break
-
-                        log_step(f"  Uploading {relative_path}...")
-                        try:
-                            with open(local_file, 'rb') as f:
-                                content = f.read()
-                            uploaded, msg = ssh.upload_content(content,
-                                                               remote_file_path)
-                            if not uploaded:
-                                log_step(
-                                    f"  ERROR: Upload failed for {relative_path}: {msg}")
-                                overall_success = False
-                                other_files_uploaded = False
-                                break
-                        except Exception as e:
-                            log_step(
-                                f"  ERROR: Could not read local file {local_file}: {e}")
-                            overall_success = False
-                            other_files_uploaded = False
-                            break
-                if not other_files_uploaded:
-                    continue
-
-                local_compose_file_path = os.path.join(output_path,
-                                                       "docker-compose.yml")
-                try:
-                    with open(local_compose_file_path, 'rb') as f:
-                        compose_content = f.read()
-                except Exception as e:
-                    log_step(f"FATAL ERROR: Could not read local file: {e}")
-                    overall_success = False
-                    continue
-
-                remote_compose_file = f"{remote_deployment_dir}/docker-compose.yml"
-                log_step(
-                    f"Uploading main compose file to {remote_compose_file}...")
-                uploaded, msg = ssh.upload_content(compose_content,
-                                                   remote_compose_file)
-                if not uploaded:
-                    log_step(f"ERROR: Content upload failed: {msg}")
-                    overall_success = False
-                    continue
-                log_step("SUCCESS: Main compose file uploaded successfully.")
+                log_step("SUCCESS: Remote archive extracted and prepared.")
 
                 command = f"cd {remote_deployment_dir} && docker compose up -d"
                 log_step(f"Executing deployment command: {command}")
@@ -287,24 +160,22 @@ class DeploymentManager:
                             if component_meta and "ui_port" in component_meta:
                                 protocol = component_meta.get("protocol",
                                                               "http")
-                                ui_port = str(component_meta.get("ui_port"))
-                                host_port = None
+                                target_container_port = str(
+                                    component_meta.get("ui_port"))
+                                final_host_port = None
                                 for port_mapping in service_config.get("ports",
                                                                        []):
                                     try:
-                                        # THE DEFINITIVE, FINAL, CORRECTED FIX using tuple unpacking
-                                        current_host_port, current_container_port = str(
+                                        host_part, container_part = str(
                                             port_mapping).split(':')
-                                        if current_container_port == ui_port:
-                                            host_port = current_host_port
+                                        if container_part == target_container_port:
+                                            final_host_port = host_part
                                             break
                                     except ValueError:
-                                        log_step(
-                                            f"WARN: Skipping invalid port mapping format: {port_mapping}")
                                         continue
 
-                                if host_port:
-                                    service_url = f"{protocol}://{ip}:{host_port}"
+                                if final_host_port:
+                                    service_url = f"{protocol}://{ip}:{final_host_port}"
                                     service_links.append({
                                         "name": component_meta.get("name",
                                                                    component_id),
@@ -320,16 +191,8 @@ class DeploymentManager:
                             f"WARN: Could not discover web interfaces: {e}")
 
             finally:
-                if apparmor_was_stopped:
-                    log_step("Re-enabling AppArmor service...")
-                    start_cmd = f'echo "{password}" | sudo -S systemctl start apparmor'
-                    exit_code, _ = ssh.execute_command(start_cmd, log_stream)
-                    if exit_code == 0:
-                        log_step("SUCCESS: AppArmor has been re-enabled.")
-                    else:
-                        log_step(
-                            "WARN: Failed to re-enable AppArmor. Please check device manually.")
-
+                log_step("Cleaning up remote archive...")
+                ssh.execute_command(f"rm {remote_tmp_tarball}", dummy_callback)
                 log_step("Closing final SSH connection.")
                 ssh.close()
 

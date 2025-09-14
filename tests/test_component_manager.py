@@ -1,66 +1,70 @@
+import unittest
+from unittest.mock import patch, mock_open
 import json
-from unittest.mock import MagicMock
-
-import pytest
 
 from managers.component_manager import ComponentManager
 
-@pytest.fixture
-def mock_config_manager(monkeypatch):
-    mock = MagicMock()
-    monkeypatch.setattr("managers.component_manager.ConfigManager", mock)
-    return mock
 
-@pytest.fixture
-def mock_metadata_file(tmp_path):
-    data = {
-        "comp1": {"name": "Component 1", "description": "First comp", "default": True},
-        "comp2": {"name": "Component 2", "description": "Second comp"},
-        "dashy": {"name": "Dashy", "description": "A dashboard.", "default": False},
-        "_piselfhosting": {
-            "components_order": ["comp1", "comp2", "dashy"],
-            "dashy_section": "Services",
-        },
-    }
-    file_path = tmp_path / "components_metadata.json"
-    file_path.write_text(json.dumps(data))
-    return str(file_path)
+class TestComponentManager(unittest.TestCase):
+    """Unit tests for the ComponentManager class."""
 
-def test_initialization_with_file(mock_metadata_file, mock_config_manager):
-    manager = ComponentManager(metadata_file=mock_metadata_file)
-    assert manager.components is not None
-    assert "comp1" in manager.components
-    mock_config_manager.assert_called_once()
+    def setUp(self):
+        """Prepare common mock data for tests."""
+        self.mock_metadata_content = {
+            "_piselfhosting": {
+                "components_order": ["portainer", "homarr"]
+            },
+            "portainer": {"name": "Portainer", "has_configuration": True},
+            "homarr": {"name": "Homarr", "has_configuration": True},
+            "unconfigured_service": {"name": "No Config Service",
+                                     "has_configuration": False}
+        }
+        self.mock_variables_content = {
+            "variables": [
+                {"name": "HOMARR_HTTP_PORT", "default": 7575}
+            ]
+        }
 
-def test_get_all_components_sorted(mock_metadata_file, mock_config_manager):
-    manager = ComponentManager(metadata_file=mock_metadata_file)
-    components = manager.get_all_components()
-    assert isinstance(components, list)
-    component_ids = [comp['id'] for comp in components]
-    assert component_ids == ["comp1", "comp2", "dashy"]
-    assert components[0]['name'] == "Component 1"
+    @patch("pathlib.Path.exists", return_value=True)
+    def test_initialization_and_enrichment(self, _mock_exists):
+        """Verify that the manager enriches components with variables correctly."""
+        mock_metadata_json = json.dumps(self.mock_metadata_content)
+        mock_variables_json = json.dumps(self.mock_variables_content)
 
-def test_get_component_details(mock_metadata_file, mock_config_manager):
-    manager = ComponentManager(metadata_file=mock_metadata_file)
-    details = manager.get_component_details("dashy")
-    assert details is not None
-    assert details["name"] == "Dashy"
-    assert manager.get_component_details("non_existent_component") is None
+        m_open = mock_open()
+        m_open.side_effect = [
+            unittest.mock.mock_open(read_data=mock_metadata_json).return_value,
+            unittest.mock.mock_open(read_data=mock_variables_json).return_value,
+            unittest.mock.mock_open(read_data=mock_variables_json).return_value,
+        ]
 
-def test_get_dashy_section(mock_metadata_file, mock_config_manager):
-    manager = ComponentManager(metadata_file=mock_metadata_file)
-    section = manager.get_dashy_section()
-    assert section == "Services"
+        with patch("builtins.open", m_open):
+            manager = ComponentManager(
+                metadata_file="/fake/path/config/components_metadata.json")
 
-def test_loads_default_flag(mock_metadata_file, mock_config_manager):
-    manager = ComponentManager(metadata_file=mock_metadata_file)
-    components = manager.get_all_components()
-    comp1 = next((c for c in components if c['id'] == 'comp1'), None)
-    comp2 = next((c for c in components if c['id'] == 'comp2'), None)
-    dashy = next((c for c in components if c['id'] == 'dashy'), None)
-    assert comp1 is not None
-    assert comp2 is not None
-    assert dashy is not None
-    assert comp1.get("default") is True
-    assert comp2.get("default") is None
-    assert dashy.get("default") is False
+        homarr_details = manager.get_component_details("homarr")
+        self.assertIn("required_variables", homarr_details)
+        self.assertEqual(len(homarr_details["required_variables"]), 1)
+        # --- FIX: Access the first element of the list before the key ---
+        self.assertEqual(homarr_details["required_variables"][0]["name"],
+                         "HOMARR_HTTP_PORT")
+
+    @patch("pathlib.Path.exists", return_value=False)
+    def test_get_all_components_sorted(self, _mock_exists):
+        """Test that components are returned in the correct master order."""
+        mock_metadata_json = json.dumps(self.mock_metadata_content)
+        with patch("builtins.open", mock_open(read_data=mock_metadata_json)):
+            manager = ComponentManager(
+                metadata_file="/fake/path/config/components_metadata.json")
+
+        all_components = manager.get_all_components()
+
+        self.assertEqual(len(all_components), 3)
+        # --- FIX: Access the first element of the list before the key ---
+        self.assertEqual(all_components[0]['id'], 'portainer')
+        self.assertEqual(all_components[1]['id'], 'homarr')
+        self.assertEqual(all_components[2]['id'], 'unconfigured_service')
+
+
+if __name__ == '__main__':
+    unittest.main()

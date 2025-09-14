@@ -55,7 +55,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 <i class="fa-solid fa-server me-2"></i>${host.hostname || 'Unknown Host'}
                             </h5>
                             <div class="form-check form-switch text-nowrap">
-                                <input class="form-check-input" type="checkbox" role="switch" id="manageDeviceSwitch-${index}" checked>
+                                <input class="form-check-input" type="checkbox" role="switch" id="manageDeviceSwitch-${index}">
                                 <label class="form-check-label" for="manageDeviceSwitch-${index}">Manage</label>
                             </div>
                         </div>
@@ -356,22 +356,33 @@ document.addEventListener('DOMContentLoaded', () => {
         reviewBtn.disabled = true;
         reviewBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin me-2"></i>Validating...`;
 
+        const final_vars = {};
+        document.querySelectorAll('#variables-form-container [name]').forEach(input => {
+            final_vars[input.name] = input.value;
+        });
+
         try {
-            const response = await fetch('/validate-selection', {
+            const portResponse = await fetch('/validate-ports', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ final_vars: final_vars })
+            });
+            if (!portResponse.ok) throw await portResponse.json();
+
+            const templateResponse = await fetch('/validate-selection', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ selected_components: selectedComponentsCache })
             });
-
-            if (!response.ok) {
-                throw await response.json();
-            }
+            if (!templateResponse.ok) throw await templateResponse.json();
 
             await renderStep5_Confirmation();
 
         } catch (error) {
             console.error('Validation failed:', error);
-            wizardFooter.innerHTML = `<p class="text-danger small mb-0">${error.error || 'An unknown error occurred.'}</p>`;
+            // --- THE IMPROVED ERROR REPORTING ---
+            const errorMessage = error.error || (error.message || 'An unknown server error occurred. Please check the backend console for details.');
+            wizardFooter.innerHTML = `<p class="text-danger small mb-0">${errorMessage}</p>`;
             reviewBtn.disabled = false;
             reviewBtn.innerHTML = `<i class="fa-solid fa-clipboard-check me-2"></i> Review and Confirm`;
         }
@@ -406,15 +417,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     <h2 class="h4 text-center">Confirmation Summary</h2>
                     <div class="card my-4">
                         <div class="card-header">Target Devices</div>
-                        <div class="card-body">
-                            <ul class="list-unstyled mb-0">${devicesHTML}</ul>
-                        </div>
+                        <div class="card-body"><ul class="list-unstyled mb-0">${devicesHTML}</ul></div>
                     </div>
                     <div class="card mb-4">
                         <div class="card-header">Selected Software</div>
-                        <div class="card-body">
-                            <ul class="mb-0">${softwareHTML}</ul>
-                        </div>
+                        <div class="card-body"><ul class="mb-0">${softwareHTML}</ul></div>
                     </div>
                     <div class="d-grid gap-2 col-8 mx-auto my-4">
                         <button id="final-generate-btn" class="btn btn-success btn-lg">
@@ -620,7 +627,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         </div>
                       </div>
                     </div>
-                    <p class="small text-muted mt-4">This may be a known issue. Please check the Q&A section.</p>
+                    <p class="text-muted small mt-4">This may be a known issue. Please check the Q&A section.</p>
                     <div class="d-grid gap-2 col-8 mx-auto mt-2">
                         <a href="${QA_URL}" target="_blank" class="btn btn-info"><i class="fa-solid fa-comments me-2"></i>Check Q&A / Discussions</a>
                         <a href="${githubIssueURL}" target="_blank" class="btn btn-outline-secondary"><i class="fa-brands fa-github me-2"></i>Report Issue on GitHub</a>

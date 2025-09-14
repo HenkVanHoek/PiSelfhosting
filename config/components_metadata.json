@@ -2,7 +2,7 @@
   "_piselfhosting": {
     "components_order": [
       "portainer",
-      "dashy",
+      "homarr",
       "heimdall",
       "homer",
       "organizr",
@@ -44,19 +44,6 @@
     "has_configuration": true,
     "default": true
   },
-  "dashy": {
-    "name": "Dashy",
-    "image_name": "lissy93/dashy",
-    "version": "latest",
-    "project_url": "https://dashy.to/",
-    "description": "A highly customizable, open-source personal dashboard.",
-    "uniqueness_group": "dashboard",
-    "has_ui": true,
-    "ui_port": 80,
-    "protocol": "http",
-    "has_configuration": true,
-    "default": true
-  },
   "heimdall": {
     "name": "Heimdall",
     "image_name": "lscr.io/linuxserver/heimdall",
@@ -67,6 +54,19 @@
     "has_ui": true,
     "ui_port": 8090,
     "protocol": "http"
+  },
+  "homarr": {
+    "name": "Homarr",
+    "image_name": "ghcr.io/ajnart/homarr",
+    "version": "latest",
+    "project_url": "https://homarr.dev/",
+    "description": "A simple, yet powerful dashboard for your server.",
+    "uniqueness_group": "dashboard",
+    "has_ui": true,
+    "ui_port": 7575,
+    "protocol": "http",
+    "has_configuration": true,
+    "default": true
   },
   "homer": {
     "name": "Homer",
@@ -330,7 +330,7 @@
     "has_ui": true,
     "ui_port": 9901,
     "protocol": "http",
-    "default": true
+    "default": false
   },
   "piselfhosting-service-maintenance": {
     "name": "Service Maintenance",
@@ -341,6 +341,6 @@
     "has_ui": true,
     "ui_port": 9999,
     "protocol": "http",
-    "default": true
+    "default": false
   }
 }

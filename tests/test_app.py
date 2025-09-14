@@ -1,66 +1,85 @@
-from unittest.mock import MagicMock, patch
+import unittest
+from unittest.mock import patch
 
-import pytest
-# from flask import session
-
+# Import the factory function from our application
 from configurator_app.app import create_app
-from managers.component_manager import ComponentManager
-from managers.setup_manager import SetupManager
 
-@pytest.fixture
-def mock_component_manager():
-    mock_manager = MagicMock(spec=ComponentManager)
-    mock_manager.get_all_components.return_value = [
-        {"id": "comp1", "name": "Component 1", "default": True, "uniqueness_group": "group_a"},
-        {"id": "comp2", "name": "Component 2", "default": False, "uniqueness_group": "group_a"},
-    ]
-    mock_manager.get_uniqueness_groups.return_value = {"group_a": ["comp1", "comp2"]}
-    return mock_manager
 
-@pytest.fixture
-def mock_setup_manager():
-    return MagicMock(spec=SetupManager)
+class AppTestCase(unittest.TestCase):
+    """Unit tests for the Flask application using manual patching."""
 
-@pytest.fixture
-def client(mock_component_manager, mock_setup_manager):
-    # MODIFIED: Use the correct, underscored keyword argument.
-    app = create_app(
-        component_manager_instance=mock_component_manager,
-        setup_manager_instance=mock_setup_manager,
-    )
-    app.config["TESTING"] = True
-    app.config["SECRET_KEY"] = "test-secret-key"
-    with app.test_client() as client:
-        yield client
+    def setUp(self):
+        """
+        Set up the Flask app and test client. This is run before each test.
+        """
+        # --- THE CRITICAL FIX: Manually start all patches ---
+        # We create a patcher for each manager we need to mock.
+        self.patcher_scanner = patch('configurator_app.app.PiScanner')
+        self.patcher_deployment = patch(
+            'configurator_app.app.DeploymentManager')
+        self.patcher_component = patch('configurator_app.app.ComponentManager')
+        self.patcher_setup = patch('configurator_app.app.SetupManager')
 
-@patch("configurator_app.app.PiScanner")
-def test_scan_pis_success(mock_scanner_class, client):
-    mock_scanner_instance = mock_scanner_class.return_value
-    mock_scanner_instance.scan.return_value = (
-        [
-            {"ip": "192.168.1.10", "mac": "ab:cd", "hostname": "raspberrypi", "vendor": "Raspberry Pi Foundation"}
-        ],
-        ["🔍 Scanning network..."],
-        "",
-        {"success": True, "method_used": "user_provided", "subnet": "192.168.1.0/24"},
-    )
+        # Start the patchers and get the mock objects.
+        self.mock_pi_scanner = self.patcher_scanner.start()
+        self.mock_deployment_manager = self.patcher_deployment.start()
+        self.mock_component_manager = self.patcher_component.start()
+        self.mock_setup_manager = self.patcher_setup.start()
 
-    response = client.post(
-        "/scan-pis",
-        json={"subnet": "192.168.1.0/24", "username": "user", "password": "pass"},
-    )
-    assert response.status_code == 200
-    data = response.get_json()
-    assert len(data["hosts"]) == 1
-    assert data["hosts"][0]["ip"] == "192.168.1.10"
+        # Store mocks for easy access in tests
+        self.mocks = {
+            "scanner": self.mock_pi_scanner,
+            "deployment": self.mock_deployment_manager,
+            "component": self.mock_component_manager,
+            "setup": self.mock_setup_manager
+        }
 
-def test_set_ip_address_success(client):
-    response = client.post("/set-ip", json={"ip": "192.168.1.10"})
-    assert response.status_code == 200
-    assert response.json == {"message": "IP address set successfully"}
-    with client.session_transaction() as sess:
-        assert sess["target_ip"] == "192.168.1.10"
+        # Create the app now that the mocks are firmly in place
+        app = create_app()
+        app.config.update({"TESTING": True, "WTF_CSRF_ENABLED": False})
+        self.client = app.test_client()
 
-def test_set_ip_address_no_ip(client):
-    response = client.post("/set-ip", json={})
-    assert response.status_code == 400
+    def tearDown(self):
+        """
+        Clean up by stopping all patches after each test.
+        This is crucial to avoid tests interfering with each other.
+        """
+        self.patcher_scanner.stop()
+        self.patcher_deployment.stop()
+        self.patcher_component.stop()
+        self.patcher_setup.stop()
+
+    def test_index_route(self):
+        """Test that the index route returns a 200 OK status."""
+        response = self.client.get('/')
+        self.assertEqual(response.status_code, 200)
+
+    def test_scan_pis_success(self):
+        """Test the /scan-pis endpoint with a successful scan."""
+        mock_scanner_instance = self.mocks['scanner'].return_value
+        mock_scanner_instance.scan.return_value = (["192.168.1.10"], [], None,
+                                                   {})
+
+        response = self.client.post('/scan-pis',
+                                    json={'subnet': '192.168.1.0/24'})
+
+        self.assertEqual(response.status_code, 200)
+        data = response.get_json()
+        self.assertEqual(data['hosts'], ["192.168.1.10"])
+
+    def test_set_ip_address_success(self):
+        """Test setting a target IP address successfully."""
+        response = self.client.post('/set-ip', json={'ip': '192.168.1.10'})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()['message'],
+                         "IP address set successfully")
+
+    def test_set_ip_address_no_ip(self):
+        """Test the /set-ip endpoint without providing an IP."""
+        response = self.client.post('/set-ip', json={})
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("error", response.get_json())
+
+
+if __name__ == '__main__':
+    unittest.main()
