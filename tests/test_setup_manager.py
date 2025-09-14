@@ -12,6 +12,7 @@ class TestSetupManager(unittest.TestCase):
 
     def setUp(self):
         """Set up a mock ComponentManager and a temporary file system."""
+        # We only need to patch the direct dependency, ComponentManager.
         self.patcher_component_manager = patch(
             'managers.setup_manager.ComponentManager')
         self.mock_component_manager = self.patcher_component_manager.start()
@@ -30,11 +31,11 @@ class TestSetupManager(unittest.TestCase):
             "services:\n  portainer:\n    image: portainer/portainer-ce:{{ PISelfhosting_HOST_IP }}"
         )
 
-        # Create the SetupManager, injecting both the mock manager and the temporary template path
+        # Create the SetupManager, injecting both the mock manager and the real temporary template path
         self.setup_manager = SetupManager(
             component_manager=self.mock_component_manager,
             output_dir=self.output_dir,
-            template_base_path=self.template_base_dir  # <-- The definitive fix
+            template_base_path=self.template_base_dir
         )
 
     def tearDown(self):
@@ -55,10 +56,11 @@ class TestSetupManager(unittest.TestCase):
         }
 
         # --- ACT ---
+        # The managed_devices argument must be a LIST of dictionaries.
         success, errors = self.setup_manager.generate_all_files(
             selected_components=["portainer"],
             user_variables={},
-            managed_devices={"ip": "192.168.1.10"}
+            managed_devices=[{"ip": "192.168.1.10"}]
         )
 
         # --- ASSERT ---
