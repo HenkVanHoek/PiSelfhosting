@@ -1,5 +1,6 @@
-import paramiko
 import select
+
+import paramiko
 
 
 class SSHManager:
@@ -14,9 +15,13 @@ class SSHManager:
         try:
             self.client = paramiko.SSHClient()
             self.client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-            self.client.connect(hostname=self.hostname, username=self.username,
-                                password=self.password, port=self.port,
-                                timeout=10)
+            self.client.connect(
+                hostname=self.hostname,
+                username=self.username,
+                password=self.password,
+                port=self.port,
+                timeout=10,
+            )
             return True, "Connection successful."
         except Exception as e:
             self.client = None
@@ -41,12 +46,11 @@ class SSHManager:
                 readq, _, _ = select.select([channel], [], [], 0.2)
                 if readq:
                     if channel.recv_ready():
-                        chunk = channel.recv(4096).decode('utf-8', 'ignore')
+                        chunk = channel.recv(4096).decode("utf-8", "ignore")
                         stdout_parts.append(chunk)
                         callback(chunk)
                     if channel.recv_stderr_ready():
-                        chunk = channel.recv_stderr(4096).decode('utf-8',
-                                                                 'ignore')
+                        chunk = channel.recv_stderr(4096).decode("utf-8", "ignore")
                         stderr_parts.append(chunk)
                         callback(chunk)
 
@@ -60,17 +64,19 @@ class SSHManager:
             return -1, ""
 
     def upload_content(self, content_bytes, remote_path):
-        if not self.client: return False, "Client not connected."
+        if not self.client:
+            return False, "Client not connected."
         sftp = None
         try:
             sftp = self.client.open_sftp()
-            with sftp.open(remote_path, 'wb') as f:
+            with sftp.open(remote_path, "wb") as f:
                 f.write(content_bytes)
             return True, "File content uploaded successfully."
         except Exception as e:
             return False, str(e)
         finally:
-            if sftp: sftp.close()
+            if sftp:
+                sftp.close()
 
     def close(self):
         if self.client:

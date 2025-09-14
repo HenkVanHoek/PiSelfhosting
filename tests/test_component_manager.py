@@ -1,6 +1,6 @@
-import unittest
-from unittest.mock import patch, mock_open
 import json
+import unittest
+from unittest.mock import mock_open, patch
 
 from managers.component_manager import ComponentManager
 
@@ -11,18 +11,16 @@ class TestComponentManager(unittest.TestCase):
     def setUp(self):
         """Prepare common mock data for tests."""
         self.mock_metadata_content = {
-            "_piselfhosting": {
-                "components_order": ["portainer", "homarr"]
-            },
+            "_piselfhosting": {"components_order": ["portainer", "homarr"]},
             "portainer": {"name": "Portainer", "has_configuration": True},
             "homarr": {"name": "Homarr", "has_configuration": True},
-            "unconfigured_service": {"name": "No Config Service",
-                                     "has_configuration": False}
+            "unconfigured_service": {
+                "name": "No Config Service",
+                "has_configuration": False,
+            },
         }
         self.mock_variables_content = {
-            "variables": [
-                {"name": "HOMARR_HTTP_PORT", "default": 7575}
-            ]
+            "variables": [{"name": "HOMARR_HTTP_PORT", "default": 7575}]
         }
 
     @patch("pathlib.Path.exists", return_value=True)
@@ -40,14 +38,16 @@ class TestComponentManager(unittest.TestCase):
 
         with patch("builtins.open", m_open):
             manager = ComponentManager(
-                metadata_file="/fake/path/config/components_metadata.json")
+                metadata_file="/fake/path/config/components_metadata.json"
+            )
 
         homarr_details = manager.get_component_details("homarr")
         self.assertIn("required_variables", homarr_details)
         self.assertEqual(len(homarr_details["required_variables"]), 1)
         # --- FIX: Access the first element of the list before the key ---
-        self.assertEqual(homarr_details["required_variables"][0]["name"],
-                         "HOMARR_HTTP_PORT")
+        self.assertEqual(
+            homarr_details["required_variables"][0]["name"], "HOMARR_HTTP_PORT"
+        )
 
     @patch("pathlib.Path.exists", return_value=False)
     def test_get_all_components_sorted(self, _mock_exists):
@@ -55,16 +55,17 @@ class TestComponentManager(unittest.TestCase):
         mock_metadata_json = json.dumps(self.mock_metadata_content)
         with patch("builtins.open", mock_open(read_data=mock_metadata_json)):
             manager = ComponentManager(
-                metadata_file="/fake/path/config/components_metadata.json")
+                metadata_file="/fake/path/config/components_metadata.json"
+            )
 
         all_components = manager.get_all_components()
 
         self.assertEqual(len(all_components), 3)
         # --- FIX: Access the first element of the list before the key ---
-        self.assertEqual(all_components[0]['id'], 'portainer')
-        self.assertEqual(all_components[1]['id'], 'homarr')
-        self.assertEqual(all_components[2]['id'], 'unconfigured_service')
+        self.assertEqual(all_components[0]["id"], "portainer")
+        self.assertEqual(all_components[1]["id"], "homarr")
+        self.assertEqual(all_components[2]["id"], "unconfigured_service")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

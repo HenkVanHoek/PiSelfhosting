@@ -283,7 +283,7 @@ def merge_docker_compose_files(file_paths, output_path):
         raise
 
 
-if __name__ == "__main__":
+def main():
     print("Running setup.py directly for testing purposes...")
     try:
         if "REMOTE_PROJECT_PATH" not in os.environ:
@@ -312,3 +312,7 @@ if __name__ == "__main__":
         sys.stderr.write(f"FATAL: {e}\n")
     except Exception as e:
         sys.stderr.write(f"An unexpected fatal error occurred: {e}\n")
+
+
+if __name__ == "__main__":
+    main()

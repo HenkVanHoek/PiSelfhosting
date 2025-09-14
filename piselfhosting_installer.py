@@ -1,5 +1,6 @@
 import os
 import sys
+
 # NEW: Import the standard library for parsing TOML files
 import tomllib
 
@@ -49,6 +50,7 @@ def run_installation():
         sys.path.insert(0, src_path)
 
     import ansible_runner
+
     # The correct import path assumes piselfhosting_installer is outside src
     from managers.component_manager import ComponentManager
 
