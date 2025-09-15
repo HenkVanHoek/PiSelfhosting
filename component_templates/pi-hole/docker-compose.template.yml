@@ -1,0 +1,32 @@
+services:
+  pi-hole:
+    container_name: piselfhosting-pihole
+    image: pihole/pihole:{{ version }}
+    restart: unless-stopped
+    ports:
+      - "{{ PIHOLE_DNS_PORT }}:53/tcp"
+      - "{{ PIHOLE_DNS_PORT }}:53/udp"
+      - "{{ PIHOLE_WEB_PORT }}:80/tcp"
+    environment:
+      TZ: 'Etc/UTC'
+      WEBPASSWORD: '{{ PIHOLE_WEB_PASSWORD }}'
+      DNSMASQ_LISTENING: all
+    volumes:
+      - pihole_etc:/etc/pihole
+      - pihole_dnsmasq:/etc/dnsmasq.d
+    cap_add:
+      - NET_ADMIN
+    networks:
+      - piselfhosting_net
+    extra_hosts:
+      - "{{ DOMAIN | default('home.arpa') }}:{{ PISelfhosting_HOST_IP | default('127.0.0.1') }}"
+
+volumes:
+  pihole_etc:
+    name: piselfhosting-pihole-etc
+  pihole_dnsmasq:
+    name: piselfhosting-pihole-dnsmasq
+
+networks:
+  piselfhosting_net:
+    external: true

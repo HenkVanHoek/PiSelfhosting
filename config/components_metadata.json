@@ -99,7 +99,8 @@
     "uniqueness_group": "reverse_proxy",
     "has_ui": true,
     "ui_port": 8082,
-    "protocol": "http"
+    "protocol": "http",
+    "has_configuration": true
   },
   "nginx-proxy-manager": {
     "name": "Nginx Proxy Manager",
@@ -122,7 +123,8 @@
     "uniqueness_group": "dns_blocker",
     "has_ui": true,
     "ui_port": 8088,
-    "protocol": "http"
+    "protocol": "http",
+    "has_configuration": true
   },
   "adguard-home": {
     "name": "AdGuard Home",
@@ -330,7 +332,7 @@
     "has_ui": true,
     "ui_port": 9901,
     "protocol": "http",
-    "default": false
+    "default": true
   },
   "piselfhosting-service-maintenance": {
     "name": "Service Maintenance",
@@ -341,6 +343,6 @@
     "has_ui": true,
     "ui_port": 9999,
     "protocol": "http",
-    "default": false
+    "default": true
   }
 }
