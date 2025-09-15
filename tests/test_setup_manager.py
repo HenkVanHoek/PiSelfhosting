@@ -1,7 +1,8 @@
-import unittest
-from unittest.mock import patch, MagicMock
 import tempfile
+import unittest
 from pathlib import Path
+from unittest.mock import MagicMock, patch
+
 import yaml
 
 from managers.setup_manager import SetupManager
@@ -14,7 +15,8 @@ class TestSetupManager(unittest.TestCase):
         """Set up a mock ComponentManager and a temporary file system."""
         # We only need to patch the direct dependency, ComponentManager.
         self.patcher_component_manager = patch(
-            'managers.setup_manager.ComponentManager')
+            "managers.setup_manager.ComponentManager"
+        )
         self.mock_component_manager = self.patcher_component_manager.start()
 
         self.temp_dir = tempfile.TemporaryDirectory()
@@ -28,14 +30,16 @@ class TestSetupManager(unittest.TestCase):
         template_path = self.template_base_dir / "portainer"
         template_path.mkdir(parents=True)
         (template_path / "docker-compose.template.yml").write_text(
-            "services:\n  portainer:\n    image: portainer/portainer-ce:{{ PISelfhosting_HOST_IP }}"
+            "services:\n  portainer:\n"
+            "    image: portainer/portainer-ce:{{ PISelfhosting_HOST_IP }}"
         )
 
-        # Create the SetupManager, injecting both the mock manager and the real temporary template path
+        # Create the SetupManager, injecting both the mock manager and
+        # the real temporary template path
         self.setup_manager = SetupManager(
             component_manager=self.mock_component_manager,
             output_dir=self.output_dir,
-            template_base_path=self.template_base_dir
+            template_base_path=self.template_base_dir,
         )
 
     def tearDown(self):
@@ -49,10 +53,10 @@ class TestSetupManager(unittest.TestCase):
         temporary template file.
         """
         # --- ARRANGE ---
-        self.setup_manager._resolve_dependencies = MagicMock(
-            return_value=["portainer"])
+        self.setup_manager._resolve_dependencies = MagicMock(return_value=["portainer"])
         self.mock_component_manager.get_component_details.return_value = {
-            "name": "Portainer", "required_variables": []
+            "name": "Portainer",
+            "required_variables": [],
         }
 
         # --- ACT ---
@@ -60,22 +64,23 @@ class TestSetupManager(unittest.TestCase):
         success, errors = self.setup_manager.generate_all_files(
             selected_components=["portainer"],
             user_variables={},
-            managed_devices=[{"ip": "192.168.1.10"}]
+            managed_devices=[{"ip": "192.168.1.10"}],
         )
 
         # --- ASSERT ---
-        self.assertTrue(success,
-                        f"generate_all_files failed with errors: {errors}")
+        self.assertTrue(success, f"generate_all_files failed with errors: {errors}")
 
         expected_output_file = self.output_dir / "docker-compose.yml"
         self.assertTrue(expected_output_file.exists())
 
-        with open(expected_output_file, 'r') as f:
+        with open(expected_output_file, "r") as f:
             content = yaml.safe_load(f)
         self.assertIn("portainer", content.get("services", {}))
-        self.assertEqual(content["services"]["portainer"]["image"],
-                         "portainer/portainer-ce:192.168.1.10")
+        self.assertEqual(
+            content["services"]["portainer"]["image"],
+            "portainer/portainer-ce:192.168.1.10",
+        )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

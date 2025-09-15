@@ -6,14 +6,7 @@ import uuid
 from pathlib import Path
 
 from appdirs import user_data_dir
-from flask import (
-    Flask,
-    jsonify,
-    render_template,
-    request,
-    session,
-    Response,
-)
+from flask import Flask, Response, jsonify, render_template, request, session
 
 from managers.component_manager import ComponentManager
 from managers.deployment_manager import DeploymentManager
@@ -21,19 +14,19 @@ from managers.setup_manager import SetupManager
 from pi_scanner import PiScanner
 from utils.resource_utils import resource_path
 
-logging.basicConfig(level=logging.INFO,
-                    format="%(asctime)s - %(levelname)s - %(message)s")
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
 
 
 def create_app():
     """Factory function to create and configure the Flask application."""
-    flask_app = Flask(__name__, static_folder='static',
-                      static_url_path='/static')
-    flask_app.secret_key = os.environ.get("FLASK_SECRET_KEY",
-                                          "a-default-secret-key-for-development")
+    flask_app = Flask(__name__, static_folder="static", static_url_path="/static")
+    flask_app.secret_key = os.environ.get(
+        "FLASK_SECRET_KEY", "a-default-secret-key-for-development"
+    )
 
-    metadata_path = resource_path(
-        str(Path("config") / "components_metadata.json"))
+    metadata_path = resource_path(str(Path("config") / "components_metadata.json"))
     app_data_dir = Path(user_data_dir("PiSelfhosting", "PiSelfhosting"))
     output_dir = app_data_dir / "output"
 
@@ -51,19 +44,27 @@ def create_app():
         data = request.get_json()
         subnet = data.get("subnet")
         try:
-            scanner = PiScanner(username="dummy", password="dummy")
+            scanner = PiScanner(
+                username=os.environ.get("PI_SCANNER_USERNAME", "dummy"),
+                password=os.environ.get("PI_SCANNER_PASSWORD", "dummy"),
+            )
             hosts, messages, error, detection_info = scanner.scan(subnet=subnet)
             if error:
                 return jsonify({"error": error, "messages": messages}), 500
             permissions_error_detected = False
             num_hosts_found = len(hosts)
-            mac_addresses_found = detection_info.get('mac_addresses_found', 0)
-            if num_hosts_found == 0 and mac_addresses_found == 0 and detection_info.get(
-                    'total_hosts_scanned', 0) > 0:
+            mac_addresses_found = detection_info.get("mac_addresses_found", 0)
+            if (
+                num_hosts_found == 0
+                and mac_addresses_found == 0
+                and detection_info.get("total_hosts_scanned", 0) > 0
+            ):
                 permissions_error_detected = True
             return jsonify(
                 {
-                    "hosts": hosts, "messages": messages, "error": error,
+                    "hosts": hosts,
+                    "messages": messages,
+                    "error": error,
                     "permissions_error": permissions_error_detected,
                     "detection_info": {
                         "success": detection_info.get("success"),
@@ -75,8 +76,12 @@ def create_app():
             )
         except Exception as e:
             logging.error(f"Pi scanning failed: {e}")
-            return jsonify({"error": str(e),
-                            "messages": [f"❌ Unexpected error: {str(e)}"]}), 500
+            return (
+                jsonify(
+                    {"error": str(e), "messages": [f"❌ Unexpected error: {str(e)}"]}
+                ),
+                500,
+            )
 
     @flask_app.route("/set-ip", methods=["POST"])
     def set_ip_address():
@@ -94,8 +99,10 @@ def create_app():
         username = data.get("username")
         password = data.get("password")
         if not all([ip_address, username, password]):
-            return jsonify(
-                {"error": "Missing IP address, username, or password"}), 400
+            return (
+                jsonify({"error": "Missing IP address, username, or password"}),
+                400,
+            )
         try:
             scanner = PiScanner(username=username, password=password)
             details, error = scanner.get_device_details(ip_address)
@@ -107,8 +114,9 @@ def create_app():
                 return jsonify({"error": "No device details retrieved"}), 400
         except Exception as e:
             logging.error(
-                f"Error in get_device_details for IP {ip_address}: {e}",
-                exc_info=True)
+                f"Error in get_device_details for IP " f"{ip_address}: {e}",
+                exc_info=True,
+            )
             return jsonify({"error": str(e)}), 500
 
     @flask_app.route("/get-available-software", methods=["POST"])
@@ -142,21 +150,18 @@ def create_app():
             if selected_components is None:
                 return jsonify({"error": "Missing selected_components"}), 400
             all_components_list = component_manager.get_all_components()
-            all_components_dict = {comp['id']: comp for comp in
-                                   all_components_list}
+            all_components_dict = {comp["id"]: comp for comp in all_components_list}
             components_for_ui = {}
             for component_id in selected_components:
                 component_data = all_components_dict.get(component_id)
                 if component_data and component_data.get("required_variables"):
                     components_for_ui[component_id] = {
                         "name": component_data.get("name", component_id),
-                        "variables": component_data.get("required_variables",
-                                                        []),
+                        "variables": component_data.get("required_variables", []),
                     }
             return jsonify({"components": components_for_ui}), 200
         except Exception as e:
-            logging.error(f"Failed to get required variables: {e}",
-                          exc_info=True)
+            logging.error(f"Failed to get required variables: {e}", exc_info=True)
             return jsonify({"error": str(e)}), 500
 
     @flask_app.route("/validate-selection", methods=["POST"])
@@ -171,15 +176,21 @@ def create_app():
 
             # --- THE CRITICAL FIX ---
             # Use the robust pathing logic, not the old .config attribute
-            base_template_path = Path(resource_path('component_templates'))
+            base_template_path = Path(resource_path("component_templates"))
 
             for component_id in selected_components:
                 template_path_obj = base_template_path / component_id
                 if not template_path_obj.exists():
-                    error_message = f"Validation failed: Template directory not found for '{component_id}'."
+                    error_message = (
+                        f"Validation failed: Template "
+                        f"directory not found for "
+                        f"'{component_id}'."
+                    )
                     logging.warning(error_message)
-                    return jsonify({"error": error_message,
-                                    "component_id": component_id}), 400
+                    return (
+                        jsonify({"error": error_message, "component_id": component_id}),
+                        400,
+                    )
 
             return jsonify({"message": "Selection is valid."}), 200
         except Exception as e:
@@ -196,18 +207,26 @@ def create_app():
             managed_devices = data.get("devices")
             env_vars = data.get("env_vars", {})
             if selected_components is None or managed_devices is None:
-                return jsonify(
-                    {"error": "Missing selected_components or devices"}), 400
+                return jsonify({"error": "Missing selected_components or devices"}), 400
             success, errors = setup_manager.generate_all_files(
-                selected_components, env_vars, managed_devices)
+                selected_components, env_vars, managed_devices
+            )
             if not success:
                 logging.error(f"File generation failed with errors: {errors}")
-                return jsonify({"error": "File generation failed.",
-                                "details": errors}), 400
+                return (
+                    jsonify({"error": "File generation failed.", "details": errors}),
+                    400,
+                )
             output_directory_path = str(setup_manager.output_dir)
-            return jsonify(
-                {"message": "Configuration files generated successfully.",
-                 "output_path": output_directory_path}), 200
+            return (
+                jsonify(
+                    {
+                        "message": "Configuration files generated successfully.",
+                        "output_path": output_directory_path,
+                    }
+                ),
+                200,
+            )
         except Exception as e:
             logging.error(f"Installation process failed: {e}", exc_info=True)
             return jsonify({"error": str(e)}), 500
@@ -220,11 +239,14 @@ def create_app():
         if not output_path or not managed_devices:
             return jsonify({"error": "Missing output_path or devices"}), 400
         task_id = str(uuid.uuid4())
-        deployment_tasks[task_id] = {"status": "running", "logs": [],
-                                     "last_update": time.time()}
+        deployment_tasks[task_id] = {
+            "status": "running",
+            "logs": [],
+            "last_update": time.time(),
+        }
         thread = threading.Thread(
             target=deployment_manager.start_deployment,
-            args=(task_id, deployment_tasks, output_path, managed_devices)
+            args=(task_id, deployment_tasks, output_path, managed_devices),
         )
         thread.start()
         return jsonify({"task_id": task_id}), 202
@@ -235,12 +257,14 @@ def create_app():
             last_sent_index = 0
             while True:
                 task = deployment_tasks.get(task_id)
-                if not task: break
+                if not task:
+                    break
                 logs_to_send = task["logs"][last_sent_index:]
                 for log_line in logs_to_send:
                     yield f"data: {log_line}\n\n"
                 last_sent_index += len(logs_to_send)
-                if task["status"] != "running": break
+                if task["status"] != "running":
+                    break
                 time.sleep(0.5)
 
         return Response(generate(), mimetype="text/event-stream")
@@ -265,12 +289,14 @@ def create_app():
             for var_id, var_value in final_vars.items():
                 if var_id.endswith("_PORT"):
                     port_number = str(var_value)
-                    component_name = var_id.split('_').capitalize()
+                    component_name = var_id.split("_").capitalize()
                     if port_number in port_usage:
                         conflicting_component = port_usage[port_number]
                         error_message = (
-                            f"Port conflict detected: Port '{port_number}' is used by both "
-                            f"'{conflicting_component}' and '{component_name}'. "
+                            f"Port conflict detected: Port '{port_number}' "
+                            f"is used by both "
+                            f"'{conflicting_component}' and "
+                            f"'{component_name}'. "
                             f"Please assign a unique port to one of them."
                         )
                         logging.warning(error_message)
@@ -286,4 +312,8 @@ def create_app():
 
 if __name__ == "__main__":
     app = create_app()
-    app.run(host="0.0.0.0", port=5000, threaded=True)
+    app.run(
+        host=os.environ.get("FLASK_HOST", "0.0.0.0"),  # nosec
+        port=5000,
+        threaded=True,
+    )

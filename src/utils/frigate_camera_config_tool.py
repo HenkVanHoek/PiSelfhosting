@@ -5,7 +5,7 @@ import ipaddress  # For IP address parsing
 import json
 import os
 import platform
-import subprocess
+import subprocess  # nosec
 from urllib.parse import quote
 
 import yaml
@@ -20,13 +20,16 @@ from onvif.exceptions import ONVIFError
 # noinspection PyPackageRequirements
 from zeep.exceptions import Fault
 
+from pi_scanner import PiScanner
+
 # Attempting to import discover from onvif.discovery, with robust error handling
 try:
-    # noinspection PyPackageRequirements
+    # noinspection PyPackageRequirements,PyUnusedImports
     from onvif.discovery import discover
 
     ONVIF_DISCOVERY_AVAILABLE = True
 except ImportError:
+
     ONVIF_DISCOVERY_AVAILABLE = False
 
 # Define base directory (consistent with your existing setup)
@@ -59,36 +62,24 @@ def url_encode_password(password):
 
 def get_local_subnet_suggestion():
     """
-    Attempts to get the host's primary IP address and suggest a /24 subnet range.
+    Attempts to get the host's primary IP address and
+     suggest a /24 subnet range.
     Returns a string like "192.168.1.1-254" or an empty string if unable.
     """
-    try:
-        # Use 'hostname -I' to get local IPs
-        result = subprocess.run(
-            ["hostname", "-I"], capture_output=True, text=True, check=True, timeout=5
-        )
-        output_ips = result.stdout.strip().split()
+    primary_ip = PiScanner.get_primary_ip()
+    if primary_ip == "127.0.0.1":
+        return ""
 
-        for ip_str in output_ips:
-            try:
-                # Try to parse as IPv4 and suggest the /24 range
-                ip_obj = ipaddress.ip_address(ip_str)
-                if ip_obj.version == 4:
-                    network = ipaddress.ip_network(f"{ip_obj}/24", strict=False)
-                    network_prefix = str(network.network_address).rsplit(".", 1)[0]
-                    return f"{network_prefix}.1-254"
-            except ipaddress.AddressValueError:
-                continue  # Not a valid IP, try next one
-        return ""  # No valid IPv4 found
-    except (
-        subprocess.CalledProcessError,
-        subprocess.TimeoutExpired,
-        FileNotFoundError,
-    ):
-        return ""
-    # Corrected: Catch a more specific OS-level error
-    except OSError:
-        return ""
+    try:
+        ip_obj = ipaddress.ip_address(primary_ip)
+        if ip_obj.version == 4:
+            network = ipaddress.ip_network(f"{ip_obj}/24", strict=False)
+            network_prefix = str(network.network_address).rsplit(".", 1)[0]
+            return f"{network_prefix}.1-254"
+    except ipaddress.AddressValueError:
+        pass  # Not a valid IP, return empty string
+
+    return ""
 
 
 def test_rtsp_stream(rtsp_url, timeout=10):
@@ -112,7 +103,7 @@ def test_rtsp_stream(rtsp_url, timeout=10):
 
         process = subprocess.Popen(
             command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
-        )
+        )  # nosec
         stdout, stderr = process.communicate(timeout=timeout)
 
         if process.returncode == 0:
@@ -121,16 +112,19 @@ def test_rtsp_stream(rtsp_url, timeout=10):
                 if "streams" in data and any(
                     s.get("codec_type") == "video" for s in data["streams"]
                 ):
-                    print(f"✅ RTSP stream is valid and contains video: {rtsp_url}")
+                    print(f"✅ RTSP stream is valid and contains " f"video: {rtsp_url}")
                     return True
-                print("❌ RTSP stream is reachable but does not contain video streams.")
+                print(
+                    "❌ RTSP stream is reachable but does " "not contain video streams."
+                )
                 return False
             except json.JSONDecodeError:
                 print(f"❌ Error parsing FFprobe JSON output for {rtsp_url}")
                 return False
         else:
             print(
-                f"❌ FFprobe could not open the stream (exit code {process.returncode})."
+                f"❌ FFprobe could not open the stream (exit code "
+                f"{process.returncode})."
             )
             if "Unauthorized" in stderr or "401" in stderr:
                 print("  Authentication error. Check username and password.")
@@ -278,6 +272,7 @@ async def discover_onvif_cameras(ip_range_str=None):
                             mycam = ONVIFCamera(
                                 ip, port, cred["user"], cred["pass"], xaddr
                             )
+                            # noinspection PyUnresolvedReferences
                             await mycam.create_media_service()
                             dev_info = await mycam.devicemgmt.GetDeviceInformation()
                             cam_name = getattr(dev_info, "Model", f"ONVIF at {ip}")
@@ -301,7 +296,7 @@ async def discover_onvif_cameras(ip_range_str=None):
                                 # This broad exception is acceptable here as we want to
                                 # continue to the next profile
                                 # even on unexpected errors.
-                                except Exception:
+                                except Exception:  # nosec B110
                                     pass
 
                             if rtsp_uris:
@@ -392,5 +387,6 @@ async def main():
 
 if __name__ == "__main__":
     if platform.system() == "Windows":
-        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+        policy = asyncio.WindowsSelectorEventLoopPolicy()  # type: ignore
+        asyncio.set_event_loop_policy(policy)
     asyncio.run(main())

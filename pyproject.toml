@@ -72,3 +72,23 @@ replace = 'version = "{new_version}"'
 path = "README.md"
 search = "label=release-v{current_version}"
 replace = "label=release-v{new_version}"
+
+[[tool.bump-my-version.parts.release]]
+values = ["Alpha", "Beta", "prod"]
+optional_value = "prod"
+
+[[tool.mypy.overrides]]
+module = [
+    "utils.resource_utils",
+    "managers.ssh_manager",
+    "onvif.*",
+    "appdirs",
+    "managers.component_manager",
+    "managers.deployment_manager",
+    "managers.setup_manager",
+    "pi_scanner",
+]
+ignore_missing_imports = true
+
+[tool.bandit]
+exclude_dirs = ["tests"]

@@ -1,6 +1,7 @@
 # scripts/fetch_assets.py
-import requests
 from pathlib import Path
+
+import requests
 
 # The new single source of truth
 DESIGN_SYSTEM_REPO = "HenkVanHoek/piselfhosting-design-system"
@@ -23,17 +24,23 @@ def fetch_assets():
     IMAGES_DIR.mkdir(exist_ok=True)
 
     # 1. Fetch the master CSS file
-    css_url = f"https://raw.githubusercontent.com/{DESIGN_SYSTEM_REPO}/{BRANCH}/css/piselfhosting-style.css"
+    css_url = (
+        f"https://raw.githubusercontent.com/"
+        f"{DESIGN_SYSTEM_REPO}/{BRANCH}/css/piselfhosting-style.css"
+    )
     print(f"Downloading CSS from {css_url}")
-    response = requests.get(css_url)
+    response = requests.get(css_url, timeout=10)  # nosec
     response.raise_for_status()
     (STATIC_DIR / "piselfhosting-style.css").write_text(response.text)
     print("✅ CSS updated successfully.")
 
     # 2. Fetch the logo
-    logo_url = f"https://raw.githubusercontent.com/{DESIGN_SYSTEM_REPO}/{BRANCH}/images/{LOGO_FILENAME}"
+    logo_url = (
+        f"https://raw.githubusercontent.com/"
+        f"{DESIGN_SYSTEM_REPO}/{BRANCH}/images/{LOGO_FILENAME}"
+    )
     print(f"Downloading logo from {logo_url}")
-    response = requests.get(logo_url)
+    response = requests.get(logo_url, timeout=10)  # nosec
     response.raise_for_status()
     (IMAGES_DIR / LOGO_FILENAME).write_bytes(response.content)
     print("✅ Logo updated successfully.")

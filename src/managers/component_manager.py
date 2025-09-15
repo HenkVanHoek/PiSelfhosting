@@ -29,12 +29,20 @@ class ComponentManager:
         for comp_id, comp_details in self._components_data.items():
             if not comp_id.startswith("_") and comp_details.get("has_configuration"):
                 try:
-                    template_dir = Path(self.metadata_file).parent.parent / "component_templates" / comp_id
-                    variables_file_path = template_dir / "template-config" / "variables.json"
+                    template_dir = (
+                        Path(self.metadata_file).parent.parent
+                        / "component_templates"
+                        / comp_id
+                    )
+                    variables_file_path = (
+                        template_dir / "template-config" / "variables.json"
+                    )
                     if variables_file_path.exists():
                         with open(variables_file_path, "r") as f:
                             data = json.load(f)
-                            self._components_data[comp_id]["required_variables"] = data.get("variables", [])
+                            self._components_data[comp_id]["required_variables"] = (
+                                data.get("variables", [])
+                            )
                     else:
                         self._components_data[comp_id]["required_variables"] = []
                 except (FileNotFoundError, json.JSONDecodeError, TypeError) as e:
@@ -42,13 +50,17 @@ class ComponentManager:
                     self._components_data[comp_id]["required_variables"] = []
 
     def get_component_order(self) -> list[str]:
-        return self._components_data.get("_piselfhosting", {}).get("components_order", [])
+        return self._components_data.get("_piselfhosting", {}).get(
+            "components_order", []
+        )
 
     def sort_components_by_master_order(self, component_ids: list[str]) -> list[str]:
         """Sorts a given list of component IDs based on the master order."""
         master_order = self.get_component_order()
         order_map = {comp_id: i for i, comp_id in enumerate(master_order)}
-        return sorted(component_ids, key=lambda cid: order_map.get(cid, len(master_order)))
+        return sorted(
+            component_ids, key=lambda cid: order_map.get(cid, len(master_order))
+        )
 
     def get_all_components(self) -> list[dict]:
         all_component_ids = [
@@ -57,22 +69,24 @@ class ComponentManager:
         sorted_ids = self.sort_components_by_master_order(all_component_ids)
         sorted_components_list = []
         for comp_id in sorted_ids:
-            component_data = self.get_component_details(comp_id).copy()
-            component_data['id'] = comp_id
-            sorted_components_list.append(component_data)
+            component_data = self.get_component_details(comp_id)
+            if component_data:
+                new_data = component_data.copy()
+                new_data["id"] = comp_id
+                sorted_components_list.append(new_data)
         return sorted_components_list
 
     def get_component_details(self, component_id: str) -> dict | None:
         return self._components_data.get(component_id)
 
     def get_uniqueness_groups(self) -> dict[str, list]:
-        groups = {}
+        groups: dict[str, list] = {}
         for comp_data in self.get_all_components():
             group_name = comp_data.get("uniqueness_group")
             if group_name:
                 if group_name not in groups:
                     groups[group_name] = []
-                groups[group_name].append(comp_data.get('id'))
+                groups[group_name].append(comp_data.get("id"))
         return groups
 
     def get_all_components_dict(self) -> dict:

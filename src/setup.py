@@ -112,6 +112,7 @@ def generate_docker_compose_files(all_component_data, selected_components):
         loader=jinja2.FileSystemLoader(templates_root),
         trim_blocks=True,
         lstrip_blocks=True,
+        autoescape=True,
     )
 
     domain_name = os.getenv("DOMAIN", "yourdomain.com")

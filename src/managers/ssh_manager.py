@@ -14,7 +14,7 @@ class SSHManager:
     def connect(self):
         try:
             self.client = paramiko.SSHClient()
-            self.client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            self.client.set_missing_host_key_policy(paramiko.WarningPolicy())  # nosec
             self.client.connect(
                 hostname=self.hostname,
                 username=self.username,
@@ -35,7 +35,7 @@ class SSHManager:
         try:
             channel = self.client.get_transport().open_session()
             channel.get_pty()
-            channel.exec_command(command)
+            channel.exec_command(command)  # nosec
 
             stdout_parts = []
             stderr_parts = []

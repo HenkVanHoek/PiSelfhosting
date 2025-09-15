@@ -27,8 +27,23 @@ repos:
     -   id: isort
         name: isort (python)
 
-# Finally, run 'flake8' to catch any remaining issues.
+# Run 'flake8' to catch any remaining issues.
 -   repo: https://github.com/pycqa/flake8
     rev: 7.0.0
     hooks:
     -   id: flake8
+
+# Add 'mypy' for static type checking.
+-   repo: https://github.com/pre-commit/mirrors-mypy
+    rev: 'v1.10.0'
+    hooks:
+    -   id: mypy
+        additional_dependencies: [types-requests, types-paramiko, types-PyYAML]
+
+# Add 'bandit' for security scanning.
+-   repo: https://github.com/PyCQA/bandit
+    rev: '1.7.9'
+    hooks:
+    -   id: bandit
+        args: ["-c", "pyproject.toml"]
+        additional_dependencies: ["bandit[toml]"]
