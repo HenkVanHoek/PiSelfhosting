@@ -79,6 +79,17 @@ class ComponentManager:
     def get_component_details(self, component_id: str) -> dict | None:
         return self._components_data.get(component_id)
 
+    # --- NEW METHOD ---
+    # This is the new authoritative method for determining the Docker-safe
+    # service name from a given component ID.
+    @staticmethod
+    def get_docker_service_name(component_id: str) -> str:
+        """
+        Sanitizes a component ID to be a valid Docker Compose service name.
+        The current convention is to remove hyphens.
+        """
+        return component_id.replace("-", "")
+
     def get_uniqueness_groups(self) -> dict[str, list]:
         groups: dict[str, list] = {}
         for comp_data in self.get_all_components():

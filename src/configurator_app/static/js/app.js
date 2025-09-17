@@ -5,6 +5,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let managedDeviceCache = {};
     let selectedComponentsCache = [];
+    let allSoftwareCache = [];
+    let finalVariablesCache = {};
+    let componentsToCleanCache = []; // The definitive cache for the cleanup list
 
     const renderStep2_ConfigureDevices = (scanData) => {
         wizardHeader.innerHTML = '<strong>Step 2 of 5: Configure Your Devices</strong>';
@@ -117,7 +120,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ ip, username, password })
             })
-            .then(response => response.ok ? response.json() : Promise.reject(response.json()))
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then(Promise.reject.bind(Promise));
+                }
+                return response.json();
+            })
             .then(data => {
                 statusEl.className = 'status-text text-success fw-bold';
                 statusEl.textContent = `Success! (Model: ${data.details.model || 'Unknown Model'})`;
@@ -134,8 +142,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 `;
                 detailsEl.style.display = 'block';
             })
-            .catch(async errorPromise => {
-                const error = await errorPromise;
+            .catch(error => {
                 console.error(`Error for IP ${ip}:`, error);
                 statusEl.className = 'status-text text-danger';
                 statusEl.textContent = `Failed: ${error.error || 'Unknown error'}`;
@@ -172,12 +179,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 fetch('/get-software-groups')
             ]);
 
-            if (!softwareResponse.ok) throw await softwareResponse.json();
-            if (!groupsResponse.ok) throw await groupsResponse.json();
+            if (!softwareResponse.ok || !groupsResponse.ok) {
+                const error = !softwareResponse.ok ? await softwareResponse.json() : await groupsResponse.json();
+                throw error;
+            }
 
             const softwareData = await softwareResponse.json();
             const groupsData = await groupsResponse.json();
-            const softwareList = softwareData.available_software;
+            allSoftwareCache = softwareData.available_software;
             const groups = groupsData.groups;
             const allGroupedComponents = new Set(Object.values(groups).flat());
 
@@ -190,7 +199,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 tabNavHTML += `<li class="nav-item" role="presentation"><button class="nav-link ${active}" id="${tabId}-tab" data-bs-toggle="tab" data-bs-target="#${tabId}" type="button" role="tab">${groupName}</button></li>`;
                 tabContentHTML += `<div class="tab-pane fade show ${active} p-3" id="${tabId}" role="tabpanel">`;
                 groups[groupName].forEach(compId => {
-                    const component = softwareList.find(c => c.id === compId);
+                    const component = allSoftwareCache.find(c => c.id === compId);
                     if (component) tabContentHTML += createComponentInput(component, groupName, 'radio');
                 });
                 tabContentHTML += `</div>`;
@@ -199,7 +208,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             tabNavHTML += `<li class="nav-item" role="presentation"><button class="nav-link ${active}" id="tab-standalone-tab" data-bs-toggle="tab" data-bs-target="#tab-standalone" type="button" role="tab">Standalone</button></li>`;
             tabContentHTML += `<div class="tab-pane fade show ${active} p-3" id="tab-standalone" role="tabpanel">`;
-            softwareList.forEach(component => {
+            allSoftwareCache.forEach(component => {
                 if (!allGroupedComponents.has(component.id)) {
                     tabContentHTML += createComponentInput(component, 'standalone', 'checkbox');
                 }
@@ -263,7 +272,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 body: JSON.stringify({ selected_components: selectedComponentsCache })
             });
 
-            if (!response.ok) throw await response.json();
+            if (!response.ok) {
+                throw await response.json();
+            }
 
             const data = await response.json();
             const components = data.components;
@@ -300,6 +311,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else {
                     tabContentHTML += '<p class="text-center text-muted pt-4">This component requires no configuration.</p>';
                 }
+
+                tabContentHTML += `
+                    <hr>
+                    <div class="form-check mt-3">
+                        <input class="form-check-input clean-install-checkbox" type="checkbox" id="clean-install-checkbox-${compId}" data-comp-id="${compId}">
+                        <label class="form-check-label" for="clean-install-checkbox-${compId}">
+                            <strong>Perform a clean reinstallation</strong>
+                        </label>
+                        <div class="form-text small">This will permanently delete all existing data and settings for this service before deploying.</div>
+                    </div>
+                `;
+
                 tabContentHTML += '</div>';
                 isFirstItem = false;
             });
@@ -321,6 +344,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
             `;
 
+            addRealTimeValidation();
             document.getElementById('review-selection-btn').addEventListener('click', handleReviewSelection);
 
         } catch (error) {
@@ -331,57 +355,119 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const createVariableInput = (variable) => {
         let inputHTML = '';
-        const inputId = `var-${variable.id}`;
+        const inputId = `var-${variable.name}`;
+        const inputName = variable.name;
         const type = variable.type || 'string';
 
         if (type === 'select' && variable.options) {
             const optionsHTML = variable.options.map(opt => `<option value="${opt}" ${opt === variable.default ? 'selected' : ''}>${opt}</option>`).join('');
-            inputHTML = `<select class="form-select form-select-sm" id="${inputId}" name="${variable.id}">${optionsHTML}</select>`;
+            inputHTML = `<select class="form-select form-select-sm" id="${inputId}" name="${inputName}">${optionsHTML}</select>`;
         } else {
             const inputType = type === 'password' ? 'password' : 'text';
-            inputHTML = `<input type="${inputType}" class="form-control form-control-sm" id="${inputId}" name="${variable.id}" value="${variable.default || ''}">`;
+            inputHTML = `<input type="${inputType}" class="form-control form-control-sm" id="${inputId}" name="${inputName}" value="${variable.default || ''}">`;
         }
 
         return `
             <div class="mb-3">
-                <label for="${inputId}" class="form-label"><strong>${variable.name}</strong></label>
+                <label for="${inputId}" class="form-label"><strong>${variable.label}</strong></label>
                 ${inputHTML}
                 <div class="form-text small">${variable.description}</div>
             </div>
         `;
     };
 
+    const validateConfiguration = () => {
+        let isValid = true;
+        let errorMessage = '';
+
+        const allComponentTabs = document.querySelectorAll('#v-pills-tabContent .tab-pane');
+        allComponentTabs.forEach(tab => {
+            const compId = tab.id.replace('v-pills-', '');
+            const isCleanInstall = document.getElementById(`clean-install-checkbox-${compId}`).checked;
+
+            const componentData = allSoftwareCache.find(c => c.id === compId);
+            if (!componentData || !componentData.required_variables) return;
+
+            componentData.required_variables.forEach(variable => {
+                const input = document.querySelector(`#variables-form-container [name="${variable.name}"]`);
+                if (!input) return;
+
+                const isAlwaysRequired = variable.required === 'always';
+                const isRequiredOnClean = variable.required === 'clean-install' && isCleanInstall;
+
+                if ((isAlwaysRequired || isRequiredOnClean) && !input.value) {
+                    if (isValid) {
+                        isValid = false;
+                        errorMessage = `The '${variable.label}' field is required for a clean installation of ${componentData.name}.`;
+                    }
+                    input.classList.add('is-invalid');
+                } else {
+                    input.classList.remove('is-invalid');
+                }
+            });
+        });
+
+        const reviewBtn = document.getElementById('review-selection-btn');
+        reviewBtn.disabled = !isValid;
+        wizardFooter.innerHTML = `<p class="text-danger small mb-0">${isValid ? 'Provide the required values for your selected software.' : errorMessage}</p>`;
+
+        return isValid;
+    };
+
+    const addRealTimeValidation = () => {
+        document.querySelectorAll('.clean-install-checkbox').forEach(checkbox => {
+            checkbox.addEventListener('change', validateConfiguration);
+        });
+        document.querySelectorAll('#variables-form-container input').forEach(input => {
+            input.addEventListener('input', validateConfiguration);
+        });
+        validateConfiguration();
+    };
+
     const handleReviewSelection = async () => {
+        if (!validateConfiguration()) return;
+
         const reviewBtn = document.getElementById('review-selection-btn');
         reviewBtn.disabled = true;
         reviewBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin me-2"></i>Validating...`;
 
-        const final_vars = {};
+        finalVariablesCache = {};
         document.querySelectorAll('#variables-form-container [name]').forEach(input => {
-            final_vars[input.name] = input.value;
+            finalVariablesCache[input.name] = input.value;
+        });
+
+        // --- THE DEFINITIVE FIX ---
+        // The state of the "Clean Reinstallation" checkboxes MUST be captured here,
+        // before the renderStep5_Confirmation function destroys the UI elements.
+        componentsToCleanCache = [];
+        document.querySelectorAll('.clean-install-checkbox:checked').forEach(checkbox => {
+            componentsToCleanCache.push(checkbox.dataset.compId);
         });
 
         try {
             const portResponse = await fetch('/validate-ports', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ final_vars: final_vars })
+                body: JSON.stringify({ final_vars: finalVariablesCache })
             });
-            if (!portResponse.ok) throw await portResponse.json();
+            if (!portResponse.ok) {
+                throw await portResponse.json();
+            }
 
             const templateResponse = await fetch('/validate-selection', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ selected_components: selectedComponentsCache })
             });
-            if (!templateResponse.ok) throw await templateResponse.json();
+            if (!templateResponse.ok) {
+                throw await templateResponse.json();
+            }
 
             await renderStep5_Confirmation();
 
         } catch (error) {
             console.error('Validation failed:', error);
-            // --- THE IMPROVED ERROR REPORTING ---
-            const errorMessage = error.error || (error.message || 'An unknown server error occurred. Please check the backend console for details.');
+            const errorMessage = error.error || (error.message || 'An unknown server error occurred.');
             wizardFooter.innerHTML = `<p class="text-danger small mb-0">${errorMessage}</p>`;
             reviewBtn.disabled = false;
             reviewBtn.innerHTML = `<i class="fa-solid fa-clipboard-check me-2"></i> Review and Confirm`;
@@ -399,7 +485,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ devices: Object.values(managedDeviceCache) })
             });
-            if (!response.ok) throw await response.json();
+            if (!response.ok) {
+                throw await response.json();
+            }
             const softwareData = await response.json();
             const allSoftware = softwareData.available_software;
 
@@ -409,7 +497,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             let softwareHTML = selectedComponentsCache.map(compId => {
                 const component = allSoftware.find(c => c.id === compId);
-                return `<li><strong>${component.name || compId}</strong>: ${component.description || 'No description.'}</li>`;
+                return `<li><strong>${component.name || 'Unknown'}</strong>: ${component.description || 'No description.'}</li>`;
             }).join('');
 
             wizardBody.innerHTML = `
@@ -444,10 +532,8 @@ document.addEventListener('DOMContentLoaded', () => {
         installBtn.disabled = true;
         installBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin me-2"></i>Generating files...`;
 
-        const envVars = {};
-        document.querySelectorAll('#variables-form-container [name]').forEach(input => {
-            envVars[input.name] = input.value;
-        });
+        // The componentsToCleanCache is now reliably populated before this function is called.
+        // We no longer need to query the DOM here.
 
         try {
             const response = await fetch('/start-installation', {
@@ -456,11 +542,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 body: JSON.stringify({
                     selected_components: selectedComponentsCache,
                     devices: Object.values(managedDeviceCache),
-                    env_vars: envVars
+                    env_vars: finalVariablesCache,
+                    components_to_clean: componentsToCleanCache
                 })
             });
 
-            if (!response.ok) throw await response.json();
+            if (!response.ok) {
+                throw await response.json();
+            }
             const result = await response.json();
 
             wizardHeader.innerHTML = '<strong>Setup Complete</strong>';
@@ -530,11 +619,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         output_path: outputPath,
-                        devices: Object.values(managedDeviceCache)
+                        devices: Object.values(managedDeviceCache),
+                        components_to_clean: componentsToCleanCache
                     }),
                 })
                 .then(response => {
-                    if (!response.ok) { return response.json().then(err => Promise.reject(err)); }
+                    if (!response.ok) { return response.json().then(Promise.reject.bind(Promise)); }
                     return response.json();
                 })
                 .then(data => {

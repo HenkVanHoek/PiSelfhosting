@@ -9,8 +9,9 @@ services:
       - "{{ PIHOLE_WEB_PORT }}:80/tcp"
     environment:
       TZ: 'Etc/UTC'
-      WEBPASSWORD: '{{ PIHOLE_WEB_PASSWORD }}'
-      DNSMASQ_LISTENING: all
+      # We provide this for containers that behave correctly, but we will not rely on it.
+      FTLCONF_webserver_api_password: '{{ PIHOLE_WEB_PASSWORD }}'
+      FTLCONF_dns_listeningMode: 'all'
     volumes:
       - pihole_etc:/etc/pihole
       - pihole_dnsmasq:/etc/dnsmasq.d

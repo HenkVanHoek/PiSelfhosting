@@ -174,8 +174,6 @@ def create_app():
             if selected_components is None:
                 return jsonify({"error": "Missing selected_components"}), 400
 
-            # --- THE CRITICAL FIX ---
-            # Use the robust pathing logic, not the old .config attribute
             base_template_path = Path(resource_path("component_templates"))
 
             for component_id in selected_components:
@@ -203,20 +201,25 @@ def create_app():
             data = request.get_json(force=True)
             if not data:
                 return jsonify({"error": "Malformed JSON received"}), 400
+
             selected_components = data.get("selected_components")
             managed_devices = data.get("devices")
-            env_vars = data.get("env_vars", {})
+            user_variables = data.get("env_vars", {})
+
             if selected_components is None or managed_devices is None:
                 return jsonify({"error": "Missing selected_components or devices"}), 400
+
             success, errors = setup_manager.generate_all_files(
-                selected_components, env_vars, managed_devices
+                selected_components, user_variables, managed_devices
             )
+
             if not success:
                 logging.error(f"File generation failed with errors: {errors}")
                 return (
                     jsonify({"error": "File generation failed.", "details": errors}),
                     400,
                 )
+
             output_directory_path = str(setup_manager.output_dir)
             return (
                 jsonify(
@@ -236,17 +239,27 @@ def create_app():
         data = request.get_json(force=True)
         output_path = data.get("output_path")
         managed_devices = data.get("devices")
+        components_to_clean = data.get("components_to_clean", [])
+
         if not output_path or not managed_devices:
             return jsonify({"error": "Missing output_path or devices"}), 400
+
         task_id = str(uuid.uuid4())
         deployment_tasks[task_id] = {
             "status": "running",
             "logs": [],
             "last_update": time.time(),
         }
+
         thread = threading.Thread(
             target=deployment_manager.start_deployment,
-            args=(task_id, deployment_tasks, output_path, managed_devices),
+            args=(
+                task_id,
+                deployment_tasks,
+                output_path,
+                managed_devices,
+                components_to_clean,
+            ),
         )
         thread.start()
         return jsonify({"task_id": task_id}), 202
@@ -289,7 +302,7 @@ def create_app():
             for var_id, var_value in final_vars.items():
                 if var_id.endswith("_PORT"):
                     port_number = str(var_value)
-                    component_name = var_id.split("_").capitalize()
+                    component_name = var_id.split("_")[0].capitalize()
                     if port_number in port_usage:
                         conflicting_component = port_usage[port_number]
                         error_message = (

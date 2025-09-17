@@ -122,7 +122,7 @@
     "description": "A network-wide ad blocker that acts as a DNS sinkhole.",
     "uniqueness_group": "dns_blocker",
     "has_ui": true,
-    "ui_port": 8088,
+    "ui_port": 80,
     "protocol": "http",
     "has_configuration": true
   },
