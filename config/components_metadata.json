@@ -19,7 +19,7 @@
       "jellyfin",
       "sonarr",
       "radarr",
-      "qbittorrent",
+      "qbittorent",
       "sabnzbd",
       "vaultwarden",
       "unifi-controller",
@@ -34,15 +34,17 @@
   "portainer": {
     "name": "Portainer",
     "image_name": "portainer/portainer-ce",
-    "version": "latest",
+    "version": "lts",
     "project_url": "https://www.portainer.io/",
     "description": "A powerful management UI for Docker environments.",
     "uniqueness_group": null,
     "has_ui": true,
-    "ui_port": 9000,
+    "ui_port": 9443,
+    "ui_port_variable": "PORTAINER_HTTPS_PORT",
     "protocol": "https",
     "has_configuration": true,
-    "default": true
+    "default": true,
+    "post_install_restart_option": true
   },
   "heimdall": {
     "name": "Heimdall",
@@ -64,6 +66,7 @@
     "uniqueness_group": "dashboard",
     "has_ui": true,
     "ui_port": 7575,
+    "ui_port_variable": "HOMARR_HTTP_PORT",
     "protocol": "http",
     "has_configuration": true,
     "default": true
@@ -123,6 +126,7 @@
     "uniqueness_group": "dns_blocker",
     "has_ui": true,
     "ui_port": 80,
+    "ui_port_variable": "PIHOLE_WEB_PORT",
     "protocol": "http",
     "has_configuration": true
   },
@@ -332,7 +336,7 @@
     "has_ui": true,
     "ui_port": 9901,
     "protocol": "http",
-    "default": true
+    "default": false
   },
   "piselfhosting-service-maintenance": {
     "name": "Service Maintenance",
@@ -343,6 +347,6 @@
     "has_ui": true,
     "ui_port": 9999,
     "protocol": "http",
-    "default": true
+    "default": false
   }
 }

@@ -13,18 +13,16 @@ class TestDeploymentManager(unittest.TestCase):
     """Unit tests for the DeploymentManager class."""
 
     def setUp(self):
-        """Set up a mock ComponentManager and a temporary file system for each test."""
+        """Set up a mock ComponentManager and
+        a temporary file system for each test."""
         self.patcher_component_manager = patch(
             "managers.deployment_manager.ComponentManager"
         )
         self.mock_component_manager = self.patcher_component_manager.start()
-
         self.patcher_ssh_manager = patch("managers.deployment_manager.SSHManager")
         self.mock_ssh_manager_class = self.patcher_ssh_manager.start()
-
         self.mock_ssh_instance = MagicMock()
         self.mock_ssh_manager_class.return_value = self.mock_ssh_instance
-
         self.deployment_manager = DeploymentManager(
             component_manager=self.mock_component_manager
         )
@@ -40,13 +38,12 @@ class TestDeploymentManager(unittest.TestCase):
         removes it, and then removes its associated named volumes.
         """
         # --- 1. ARRANGE ---
+        self.mock_component_manager.get_docker_service_name.side_effect = (
+            lambda cid: cid.replace("-", "")
+        )
         with tempfile.TemporaryDirectory() as temp_dir:
-            remote_fs_path = Path(temp_dir)
-
-            mock_pihole_metadata = {"name": "Pi-hole", "has_configuration": True}
-            self.mock_component_manager.get_component_details.return_value = (
-                mock_pihole_metadata
-            )
+            temp_path = Path(temp_dir)
+            base_template_path_for_test = temp_path / "component_templates"
 
             compose_template_content = {
                 "services": {
@@ -63,9 +60,9 @@ class TestDeploymentManager(unittest.TestCase):
                     "pihole_dnsmasq": {"name": "piselfhosting-pihole-dnsmasq"},
                 },
             }
-            remote_template_path = remote_fs_path / "component_templates" / "pi-hole"
-            remote_template_path.mkdir(parents=True)
-            with open(remote_template_path / "docker-compose.template.yml", "w") as f:
+            component_template_dir = base_template_path_for_test / "pi-hole"
+            component_template_dir.mkdir(parents=True)
+            with open(component_template_dir / "docker-compose.template.yml", "w") as f:
                 yaml.dump(compose_template_content, f)
 
             executed_commands = []
@@ -75,18 +72,28 @@ class TestDeploymentManager(unittest.TestCase):
 
             # --- 2. ACT ---
             self.deployment_manager._perform_cleanup(
-                self.mock_ssh_instance, ["pi-hole"], MagicMock()
+                self.mock_ssh_instance,
+                ["pi-hole"],
+                MagicMock(),
+                base_template_path_for_test,
             )
 
             # --- 3. ASSERT ---
             self.assertEqual(len(executed_commands), 3)
-            self.assertIn("docker stop piselfhosting-pihole", executed_commands)
-            self.assertIn("docker rm piselfhosting-pihole", executed_commands)
-            self.assertIn(
-                "docker volume rm piselfhosting-pihole-etc "
-                "piselfhosting-pihole-dnsmasq",
-                executed_commands,
+            self.assertIn("docker stop " "piselfhosting-pihole", executed_commands)
+            self.assertIn("docker rm " "piselfhosting-pihole", executed_commands)
+
+            volume_rm_command = next(
+                (
+                    cmd
+                    for cmd in executed_commands
+                    if cmd.startswith("docker volume rm")
+                ),
+                None,
             )
+            self.assertIsNotNone(volume_rm_command)
+            self.assertIn("piselfhosting-pihole-etc", volume_rm_command)
+            self.assertIn("piselfhosting-pihole-dnsmasq", volume_rm_command)
 
 
 if __name__ == "__main__":

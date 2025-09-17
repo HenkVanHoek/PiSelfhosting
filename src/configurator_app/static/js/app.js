@@ -7,12 +7,12 @@ document.addEventListener('DOMContentLoaded', () => {
     let selectedComponentsCache = [];
     let allSoftwareCache = [];
     let finalVariablesCache = {};
-    let componentsToCleanCache = []; // The definitive cache for the cleanup list
+    let componentsToCleanCache = [];
+    let componentsToRestartCache = [];
 
     const renderStep2_ConfigureDevices = (scanData) => {
         wizardHeader.innerHTML = '<strong>Step 2 of 5: Configure Your Devices</strong>';
         wizardFooter.innerHTML = '<p class="text-muted small mb-0">Enter the SSH credentials for the devices you want to manage.</p>';
-
         wizardBody.innerHTML = `
             <div class="text-start">
                 <h2 class="h4 text-center">
@@ -45,7 +45,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
             </div>
         `;
-
         const container = document.getElementById('device-cards-container');
         scanData.hosts.forEach((host, index) => {
             const cardWrapper = document.createElement('div');
@@ -77,7 +76,6 @@ document.addEventListener('DOMContentLoaded', () => {
             cardWrapper.innerHTML = cardHTML;
             container.appendChild(cardWrapper);
         });
-
         document.getElementById('apply-to-all-btn').addEventListener('click', () => {
             document.querySelectorAll('.device-username').forEach(input => input.value = document.getElementById('master-username').value);
             document.querySelectorAll('.device-password').forEach(input => input.value = document.getElementById('master-password').value);
@@ -85,36 +83,29 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('deselect-all-btn').addEventListener('click', () => {
             document.querySelectorAll('.device-card .form-check-input').forEach(s => s.checked = false);
         });
-
         const popoverTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="popover"]'));
         popoverTriggerList.map(el => new bootstrap.Popover(el));
-
         document.getElementById('get-details-btn').addEventListener('click', handleGetDeviceDetails);
     };
-
     const handleGetDeviceDetails = async () => {
         managedDeviceCache = {};
         const actionArea = document.getElementById('step2-action-area');
         const getDetailsBtn = document.getElementById('get-details-btn');
         getDetailsBtn.disabled = true;
         getDetailsBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin me-2"></i>Connecting...`;
-
         const promises = [];
         document.querySelectorAll('.device-card').forEach(card => {
             if (!card.querySelector('[type="checkbox"]').checked) return;
-
             const ip = card.dataset.ip;
             const hostname = card.dataset.hostname;
             const username = card.querySelector('.device-username').value;
             const password = card.querySelector('.device-password').value;
             const statusEl = card.querySelector('.status-text');
             const detailsEl = card.querySelector('.hardware-details');
-
             detailsEl.style.display = 'none';
             detailsEl.innerHTML = '';
             statusEl.className = 'status-text text-primary';
             statusEl.textContent = 'Connecting...';
-
             const promise = fetch('/get-device-details', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -129,9 +120,7 @@ document.addEventListener('DOMContentLoaded', () => {
             .then(data => {
                 statusEl.className = 'status-text text-success fw-bold';
                 statusEl.textContent = `Success! (Model: ${data.details.model || 'Unknown Model'})`;
-
                 managedDeviceCache[ip] = { ...data.details, ip, username, password, hostname };
-
                 const details = data.details;
                 const diskInfo = details.disks.find(d => d.mounted_on === '/');
                 detailsEl.innerHTML = `
@@ -150,9 +139,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             promises.push(promise);
         });
-
         await Promise.allSettled(promises);
-
         if (Object.keys(managedDeviceCache).length > 0) {
             actionArea.innerHTML = `<button id="proceed-to-step3-btn" class="btn btn-success btn-lg"><i class="fa-solid fa-arrow-right-to-bracket me-2"></i> Proceed to Software Selection</button>`;
             wizardFooter.innerHTML = `<p class="text-success small mb-0">Found ${Object.keys(managedDeviceCache).length} manageable device(s). Ready to proceed.</p>`;
@@ -163,12 +150,10 @@ document.addEventListener('DOMContentLoaded', () => {
             wizardFooter.innerHTML = `<p class="text-danger small mb-0">No devices could be successfully contacted. Check credentials and click 'Try Again'.</p>`;
         }
     };
-
     const renderStep3_SelectSoftware = async () => {
         wizardHeader.innerHTML = '<strong>Step 3 of 5: Select Software</strong>';
         wizardBody.innerHTML = `<div class="text-center"><i class="fa-solid fa-spinner fa-spin fa-2x text-muted"></i><p class="mt-2">Loading available software...</p></div>`;
         wizardFooter.innerHTML = '<p class="text-muted small mb-0">Choose software to install. Selections in a category are mutually exclusive.</p>';
-
         try {
             const [softwareResponse, groupsResponse] = await Promise.all([
                 fetch('/get-available-software', {
@@ -178,22 +163,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 }),
                 fetch('/get-software-groups')
             ]);
-
             if (!softwareResponse.ok || !groupsResponse.ok) {
                 const error = !softwareResponse.ok ? await softwareResponse.json() : await groupsResponse.json();
                 throw error;
             }
-
             const softwareData = await softwareResponse.json();
             const groupsData = await groupsResponse.json();
             allSoftwareCache = softwareData.available_software;
             const groups = groupsData.groups;
             const allGroupedComponents = new Set(Object.values(groups).flat());
-
             let tabNavHTML = '<ul class="nav nav-tabs" id="softwareTabs" role="tablist">';
             let tabContentHTML = '<div class="tab-content" id="softwareTabsContent">';
             let active = 'active';
-
             Object.keys(groups).forEach((groupName) => {
                 const tabId = `tab-${groupName.replace(/\s+/g, '-')}`;
                 tabNavHTML += `<li class="nav-item" role="presentation"><button class="nav-link ${active}" id="${tabId}-tab" data-bs-toggle="tab" data-bs-target="#${tabId}" type="button" role="tab">${groupName}</button></li>`;
@@ -205,7 +186,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 tabContentHTML += `</div>`;
                 active = '';
             });
-
             tabNavHTML += `<li class="nav-item" role="presentation"><button class="nav-link ${active}" id="tab-standalone-tab" data-bs-toggle="tab" data-bs-target="#tab-standalone" type="button" role="tab">Standalone</button></li>`;
             tabContentHTML += `<div class="tab-pane fade show ${active} p-3" id="tab-standalone" role="tabpanel">`;
             allSoftwareCache.forEach(component => {
@@ -216,7 +196,6 @@ document.addEventListener('DOMContentLoaded', () => {
             tabContentHTML += `</div>`;
             tabNavHTML += '</ul>';
             tabContentHTML += '</div>';
-
             wizardBody.innerHTML = `
                 <div class="text-start">
                     <h2 class="h4 text-center">Select Software</h2>
@@ -228,15 +207,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                 </div>
             `;
-
             document.getElementById('proceed-to-step4-btn').addEventListener('click', renderStep4_ConfigureServices);
-
         } catch (error) {
             console.error('Error fetching software list:', error);
             wizardBody.innerHTML = `<p class="text-center text-danger">An error occurred while loading the software list.</p>`;
         }
     };
-
     const createComponentInput = (component, groupName, type) => {
         const inputName = type === 'radio' ? `group-${groupName}` : `component-${component.id}`;
         const isChecked = component.default ? 'checked' : '';
@@ -248,40 +224,36 @@ document.addEventListener('DOMContentLoaded', () => {
             <p class="card-text small text-muted ms-4 mb-3">${component.description}</p>
         `;
     };
-
     const renderStep4_ConfigureServices = async () => {
         const allInputs = document.querySelectorAll('#softwareTabsContent .form-check-input');
         selectedComponentsCache = Array.from(allInputs)
                                       .filter(input => input.checked)
                                       .map(input => input.value);
-
         wizardHeader.innerHTML = '<strong>Step 4 of 5: Configure Services</strong>';
         wizardFooter.innerHTML = '<p class="text-muted small mb-0">Provide the required values for your selected software.</p>';
-
         if (selectedComponentsCache.length === 0) {
             wizardBody.innerHTML = `<p class="text-center text-muted">No software was selected. Please go back and select at least one component.</p>`;
             return;
         }
-
         wizardBody.innerHTML = `<div class="text-center"><i class="fa-solid fa-spinner fa-spin fa-2x text-muted"></i><p class="mt-2">Loading configuration options...</p></div>`;
-
         try {
             const response = await fetch('/get-required-variables', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ selected_components: selectedComponentsCache })
             });
-
             if (!response.ok) {
                 throw await response.json();
             }
-
             const data = await response.json();
             const components = data.components;
-            const componentIds = Object.keys(components);
-
-            if (componentIds.length === 0) {
-                wizardBody.innerHTML = `
+            const componentIdsWithVars = Object.keys(components);
+            const componentsRequiringUi = selectedComponentsCache.filter(compId => {
+                const fullComp = allSoftwareCache.find(c => c.id === compId);
+                return (componentIdsWithVars.includes(compId)) || (fullComp && fullComp.post_install_restart_option);
+            });
+            if (componentsRequiringUi.length === 0) {
+                 wizardBody.innerHTML = `
                     <div class="text-start">
                         <h2 class="h4 text-center">Configure Services</h2>
                         <p class="text-center text-muted">The selected software requires no additional configuration.</p>
@@ -293,27 +265,28 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('review-selection-btn').addEventListener('click', handleReviewSelection);
                 return;
             }
-
             let navPillsHTML = '<div class="nav flex-column nav-pills me-3" id="v-pills-tab" role="tablist" aria-orientation="vertical">';
             let tabContentHTML = '<div class="tab-content" id="v-pills-tabContent">';
             let isFirstItem = true;
-
-            componentIds.forEach(compId => {
-                const component = components[compId];
+            selectedComponentsCache.forEach(compId => {
+                const componentWithVars = components[compId];
+                const fullComponentData = allSoftwareCache.find(c => c.id === compId);
+                if (!fullComponentData) return;
+                if (!componentWithVars && !fullComponentData.post_install_restart_option) {
+                    return;
+                }
                 const tabId = `v-pills-${compId}`;
                 const activeClass = isFirstItem ? 'active' : '';
                 const showClass = isFirstItem ? 'show active' : '';
-
-                navPillsHTML += `<button class="nav-link text-start ${activeClass}" id="${tabId}-tab" data-bs-toggle="pill" data-bs-target="#${tabId}" type="button" role="tab">${component.name}</button>`;
+                navPillsHTML += `<button class="nav-link text-start ${activeClass}" id="${tabId}-tab" data-bs-toggle="pill" data-bs-target="#${tabId}" type="button" role="tab">${fullComponentData.name}</button>`;
                 tabContentHTML += `<div class="tab-pane fade ${showClass}" id="${tabId}" role="tabpanel">`;
-                if (component.variables && component.variables.length > 0) {
-                    component.variables.forEach(v => { tabContentHTML += createVariableInput(v); });
+                if (componentWithVars && componentWithVars.variables && componentWithVars.variables.length > 0) {
+                    componentWithVars.variables.forEach(v => { tabContentHTML += createVariableInput(v); });
                 } else {
-                    tabContentHTML += '<p class="text-center text-muted pt-4">This component requires no configuration.</p>';
+                    tabContentHTML += '<p class="text-center text-muted pt-4">This component requires no variable configuration.</p>';
                 }
-
+                tabContentHTML += '<hr>';
                 tabContentHTML += `
-                    <hr>
                     <div class="form-check mt-3">
                         <input class="form-check-input clean-install-checkbox" type="checkbox" id="clean-install-checkbox-${compId}" data-comp-id="${compId}">
                         <label class="form-check-label" for="clean-install-checkbox-${compId}">
@@ -322,14 +295,22 @@ document.addEventListener('DOMContentLoaded', () => {
                         <div class="form-text small">This will permanently delete all existing data and settings for this service before deploying.</div>
                     </div>
                 `;
-
+                if (fullComponentData.post_install_restart_option) {
+                    tabContentHTML += `
+                        <div class="form-check mt-3">
+                            <input class="form-check-input restart-checkbox" type="checkbox" id="restart-checkbox-${compId}" data-comp-id="${compId}">
+                            <label class="form-check-label" for="restart-checkbox-${compId}">
+                                <strong>Restart container after installation</strong>
+                            </label>
+                            <div class="form-text small">Recommended for services that require a restart to initialize properly (e.g., Portainer).</div>
+                        </div>
+                    `;
+                }
                 tabContentHTML += '</div>';
                 isFirstItem = false;
             });
-
             navPillsHTML += '</div>';
             tabContentHTML += '</div>';
-
             wizardBody.innerHTML = `
                 <div class="text-start">
                     <h2 class="h4 text-center">Configure Services</h2>
@@ -343,22 +324,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                 </div>
             `;
-
             addRealTimeValidation();
             document.getElementById('review-selection-btn').addEventListener('click', handleReviewSelection);
-
         } catch (error) {
             console.error('Error fetching variables:', error);
             wizardBody.innerHTML = `<p class="text-center text-danger">An error occurred while loading configuration options.</p>`;
         }
     };
-
     const createVariableInput = (variable) => {
         let inputHTML = '';
-        const inputId = `var-${variable.name}`;
-        const inputName = variable.name;
+        // --- THE DEFINITIVE FIX: Use variable.id for the machine-readable name ---
+        const inputId = `var-${variable.id}`;
+        const inputName = variable.id;
         const type = variable.type || 'string';
-
         if (type === 'select' && variable.options) {
             const optionsHTML = variable.options.map(opt => `<option value="${opt}" ${opt === variable.default ? 'selected' : ''}>${opt}</option>`).join('');
             inputHTML = `<select class="form-select form-select-sm" id="${inputId}" name="${inputName}">${optionsHTML}</select>`;
@@ -366,7 +344,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const inputType = type === 'password' ? 'password' : 'text';
             inputHTML = `<input type="${inputType}" class="form-control form-control-sm" id="${inputId}" name="${inputName}" value="${variable.default || ''}">`;
         }
-
         return `
             <div class="mb-3">
                 <label for="${inputId}" class="form-label"><strong>${variable.label}</strong></label>
@@ -375,26 +352,21 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
         `;
     };
-
     const validateConfiguration = () => {
         let isValid = true;
         let errorMessage = '';
-
         const allComponentTabs = document.querySelectorAll('#v-pills-tabContent .tab-pane');
         allComponentTabs.forEach(tab => {
             const compId = tab.id.replace('v-pills-', '');
             const isCleanInstall = document.getElementById(`clean-install-checkbox-${compId}`).checked;
-
             const componentData = allSoftwareCache.find(c => c.id === compId);
             if (!componentData || !componentData.required_variables) return;
-
             componentData.required_variables.forEach(variable => {
-                const input = document.querySelector(`#variables-form-container [name="${variable.name}"]`);
+                // --- THE DEFINITIVE FIX: Find the input element by its correct, unique id ---
+                const input = document.querySelector(`#variables-form-container [name="${variable.id}"]`);
                 if (!input) return;
-
                 const isAlwaysRequired = variable.required === 'always';
                 const isRequiredOnClean = variable.required === 'clean-install' && isCleanInstall;
-
                 if ((isAlwaysRequired || isRequiredOnClean) && !input.value) {
                     if (isValid) {
                         isValid = false;
@@ -406,14 +378,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
         });
-
         const reviewBtn = document.getElementById('review-selection-btn');
         reviewBtn.disabled = !isValid;
         wizardFooter.innerHTML = `<p class="text-danger small mb-0">${isValid ? 'Provide the required values for your selected software.' : errorMessage}</p>`;
-
         return isValid;
     };
-
     const addRealTimeValidation = () => {
         document.querySelectorAll('.clean-install-checkbox').forEach(checkbox => {
             checkbox.addEventListener('change', validateConfiguration);
@@ -423,27 +392,23 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         validateConfiguration();
     };
-
     const handleReviewSelection = async () => {
         if (!validateConfiguration()) return;
-
         const reviewBtn = document.getElementById('review-selection-btn');
         reviewBtn.disabled = true;
         reviewBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin me-2"></i>Validating...`;
-
         finalVariablesCache = {};
         document.querySelectorAll('#variables-form-container [name]').forEach(input => {
             finalVariablesCache[input.name] = input.value;
         });
-
-        // --- THE DEFINITIVE FIX ---
-        // The state of the "Clean Reinstallation" checkboxes MUST be captured here,
-        // before the renderStep5_Confirmation function destroys the UI elements.
         componentsToCleanCache = [];
         document.querySelectorAll('.clean-install-checkbox:checked').forEach(checkbox => {
             componentsToCleanCache.push(checkbox.dataset.compId);
         });
-
+        componentsToRestartCache = [];
+        document.querySelectorAll('.restart-checkbox:checked').forEach(checkbox => {
+            componentsToRestartCache.push(checkbox.dataset.compId);
+        });
         try {
             const portResponse = await fetch('/validate-ports', {
                 method: 'POST',
@@ -453,7 +418,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!portResponse.ok) {
                 throw await portResponse.json();
             }
-
             const templateResponse = await fetch('/validate-selection', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -462,9 +426,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!templateResponse.ok) {
                 throw await templateResponse.json();
             }
-
             await renderStep5_Confirmation();
-
         } catch (error) {
             console.error('Validation failed:', error);
             const errorMessage = error.error || (error.message || 'An unknown server error occurred.');
@@ -473,12 +435,10 @@ document.addEventListener('DOMContentLoaded', () => {
             reviewBtn.innerHTML = `<i class="fa-solid fa-clipboard-check me-2"></i> Review and Confirm`;
         }
     };
-
     const renderStep5_Confirmation = async () => {
         wizardHeader.innerHTML = '<strong>Step 5 of 5: Confirmation</strong>';
         wizardFooter.innerHTML = '<p class="text-muted small mb-0">Please review your selections before generating files and deploying.</p>';
         wizardBody.innerHTML = `<div class="text-center"><i class="fa-solid fa-spinner fa-spin fa-2x text-muted"></i><p class="mt-2">Loading summary...</p></div>`;
-
         try {
             const response = await fetch('/get-available-software', {
                 method: 'POST',
@@ -490,16 +450,13 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             const softwareData = await response.json();
             const allSoftware = softwareData.available_software;
-
             let devicesHTML = Object.values(managedDeviceCache).map(device =>
                 `<li><strong>${device.hostname || 'Unknown Host'}</strong> (${device.ip})</li>`
             ).join('');
-
             let softwareHTML = selectedComponentsCache.map(compId => {
                 const component = allSoftware.find(c => c.id === compId);
                 return `<li><strong>${component.name || 'Unknown'}</strong>: ${component.description || 'No description.'}</li>`;
             }).join('');
-
             wizardBody.innerHTML = `
                 <div class="text-start">
                     <h2 class="h4 text-center">Confirmation Summary</h2>
@@ -519,22 +476,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                 </div>
             `;
-
             document.getElementById('final-generate-btn').addEventListener('click', handleInstallation);
-
         } catch (error) {
             wizardBody.innerHTML = `<p class="text-danger text-center">Could not load summary. Please try again.</p>`;
         }
     };
-
     const handleInstallation = async () => {
         const installBtn = document.getElementById('final-generate-btn');
         installBtn.disabled = true;
         installBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin me-2"></i>Generating files...`;
-
-        // The componentsToCleanCache is now reliably populated before this function is called.
-        // We no longer need to query the DOM here.
-
         try {
             const response = await fetch('/start-installation', {
                 method: 'POST',
@@ -543,15 +493,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     selected_components: selectedComponentsCache,
                     devices: Object.values(managedDeviceCache),
                     env_vars: finalVariablesCache,
-                    components_to_clean: componentsToCleanCache
+                    components_to_clean: componentsToCleanCache,
                 })
             });
-
             if (!response.ok) {
                 throw await response.json();
             }
             const result = await response.json();
-
             wizardHeader.innerHTML = '<strong>Setup Complete</strong>';
             wizardBody.innerHTML = `
                 <div class="text-center">
@@ -577,7 +525,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                 </div>`;
             wizardFooter.innerHTML = '<p class="text-muted small mb-0">Ready for deployment.</p>';
-
             document.getElementById('deploy-button').addEventListener('click', function() {
                 const outputPath = document.getElementById('output-path-display').textContent;
                 const deployButton = this;
@@ -587,7 +534,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 let eventSource;
                 let watchdogTimer;
                 let taskId;
-
                 const startWatchdog = () => {
                     watchdogTimer = setTimeout(() => {
                         console.error("Watchdog timeout: No message received for 30 seconds.");
@@ -597,30 +543,27 @@ document.addEventListener('DOMContentLoaded', () => {
                         lineElement.textContent = '\n[ERROR] Connection to server timed out. The process may have stalled.\n';
                         logOutput.appendChild(lineElement);
                         logOutput.parentElement.scrollTop = logOutput.parentElement.scrollHeight;
-
                         deployButton.disabled = false;
                         deployButton.innerHTML = `<i class="fa-solid fa-triangle-exclamation me-2"></i>Deployment Failed - Retry?`;
                         wizardFooter.innerHTML = `<p class="text-danger small mb-0">Connection timed out. Please check the backend console.</p>`;
                     }, 30000);
                 };
-
                 const resetWatchdog = () => {
                     clearTimeout(watchdogTimer);
                     startWatchdog();
                 };
-
                 deployButton.disabled = true;
                 deployButton.innerHTML = `<i class="fa-solid fa-spinner fa-spin me-2"></i>Deploying...`;
                 logContainer.style.display = 'block';
                 logOutput.innerHTML = '';
-
                 fetch('/deploy-configuration', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         output_path: outputPath,
                         devices: Object.values(managedDeviceCache),
-                        components_to_clean: componentsToCleanCache
+                        components_to_clean: componentsToCleanCache,
+                        components_to_restart: componentsToRestartCache
                     }),
                 })
                 .then(response => {
@@ -630,7 +573,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 .then(data => {
                     taskId = data.task_id;
                     eventSource = new EventSource(`/stream-deployment/${taskId}`);
-
                     eventSource.onopen = function() { resetWatchdog(); };
                     eventSource.onmessage = function(event) {
                         resetWatchdog();
@@ -640,25 +582,21 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (line.includes('ERROR:')) { className = 'text-danger'; hasErrors = true; }
                         if (line.includes('WARN:')) className = 'text-warning';
                         if (line.includes('---')) className = 'text-info fw-bold';
-
                         const lineElement = document.createElement('span');
                         lineElement.className = className;
                         lineElement.textContent = line + '\n';
                         logOutput.appendChild(lineElement);
                         logOutput.parentElement.scrollTop = logOutput.parentElement.scrollHeight;
                     };
-
                     eventSource.onerror = function() {
                         clearTimeout(watchdogTimer);
                         eventSource.close();
-
                         if (hasErrors) {
                             deployButton.innerHTML = `<i class="fa-solid fa-triangle-exclamation me-2"></i>Deployment Finished with Errors`;
                             wizardFooter.innerHTML = `<p class="text-warning small mb-0">Deployment completed, but some steps failed.</p>`;
                         } else {
                             deployButton.innerHTML = `<i class="fa-solid fa-circle-check me-2"></i>Deployment Finished`;
                             wizardFooter.innerHTML = `<p class="text-success small mb-0">Deployment process completed successfully.</p>`;
-
                             const finalActions = document.getElementById('final-actions-container');
                             finalActions.innerHTML = `
                                 <div class="d-grid gap-2 col-8 mx-auto my-4">
@@ -667,7 +605,6 @@ document.addEventListener('DOMContentLoaded', () => {
                                         Access Your Services
                                     </button>
                                 </div>`;
-
                             document.getElementById('show-summary-btn').addEventListener('click', () => {
                                 showServicesSummary(taskId);
                             });
@@ -685,7 +622,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     wizardFooter.innerHTML = `<p class="text-danger small mb-0">Could not start deployment process.</p>`;
                 });
             });
-
         } catch (error) {
             console.error('Installation failed:', error);
             wizardHeader.innerHTML = '<strong>Generation Failed</strong>';
@@ -696,7 +632,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const issueTitle = encodeURIComponent("Configurator UI Error Report");
             const issueBody = encodeURIComponent(`**Error Details:**\n\n[Please C/P the full error report from the previous page here.]\n\n**Context:**\n- Selected Components: ${selectedComponentsCache.join(', ')}\n- Browser: ${navigator.userAgent}\n`);
             const githubIssueURL = `${GITHUB_REPO_URL}/issues/new?title=${issueTitle}&body=${issueBody}`;
-
             wizardBody.innerHTML = `
                 <div class="text-center">
                     <i class="fa-solid fa-circle-xmark fa-3x text-danger mb-3"></i>
@@ -728,22 +663,18 @@ document.addEventListener('DOMContentLoaded', () => {
             wizardFooter.innerHTML = `<p class="text-danger small mb-0">The process could not be completed.</p>`;
         }
     };
-
     const showServicesSummary = async (taskId) => {
         const summaryBtn = document.getElementById('show-summary-btn');
         summaryBtn.disabled = true;
         summaryBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin me-2"></i>Loading...`;
-
         try {
             const response = await fetch(`/task-status/${taskId}`);
             if (!response.ok) throw new Error("Failed to fetch task status.");
             const finalData = await response.json();
-
             if (finalData.service_links && finalData.service_links.length > 0) {
                 let linksHTML = finalData.service_links.map(link =>
                     `<li><a href="${link.url}" target="_blank">${link.name}</a>: <code>${link.url}</code></li>`
                 ).join('');
-
                 const summaryBox = `
                     <div id="service-links-summary" class="card mt-4 text-start">
                         <div class="card-header fw-bold">Access Your Services</div>
@@ -754,7 +685,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 `;
                 const existingSummary = document.getElementById('service-links-summary');
                 if (existingSummary) existingSummary.remove();
-
                 document.getElementById('log-viewer-container').insertAdjacentHTML('beforebegin', summaryBox);
                 summaryBtn.innerHTML = `<i class="fa-solid fa-check me-2"></i>Summary Loaded`;
             } else {
@@ -765,13 +695,11 @@ document.addEventListener('DOMContentLoaded', () => {
             summaryBtn.innerHTML = `Error Loading Summary`;
         }
     };
-
     const setupStep1 = () => {
         const scanBtn = document.getElementById('begin-scan-btn');
         const autoRadio = document.getElementById('autoDetectRadio');
         const manualRadio = document.getElementById('manualScanRadio');
         const manualInput = document.getElementById('manualSubnetInput');
-
         autoRadio.addEventListener('change', () => { manualInput.disabled = autoRadio.checked; });
         manualRadio.addEventListener('change', () => {
             if (manualRadio.checked) {
@@ -779,7 +707,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 manualInput.focus();
             }
         });
-
         const performScan = async () => {
             scanBtn.disabled = true;
             wizardFooter.innerHTML = `<p class="text-primary small mb-0"><i class="fa-solid fa-spinner fa-spin me-2"></i>Scanning network...</p>`;
@@ -802,9 +729,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 wizardFooter.innerHTML = `<p class="text-danger small mb-0"><i class="fa-solid fa-xmark me-2"></i>An error occurred.</p>`;
             }
         };
-
         scanBtn.addEventListener('click', performScan);
     };
-
     setupStep1();
 });

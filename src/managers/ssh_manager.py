@@ -14,7 +14,10 @@ class SSHManager:
     def connect(self):
         try:
             self.client = paramiko.SSHClient()
-            self.client.set_missing_host_key_policy(paramiko.WarningPolicy())  # nosec
+            # --- MODIFIED: Use AutoAddPolicy for non-interactive connections ---
+            # This is the definitive fix for the "authenticity of host" prompt
+            # that was causing the connection to fail on the first attempt.
+            self.client.set_missing_host_key_policy(paramiko.AutoAddPolicy())  # nosec
             self.client.connect(
                 hostname=self.hostname,
                 username=self.username,

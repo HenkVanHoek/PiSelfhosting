@@ -29,7 +29,6 @@ def create_app():
     metadata_path = resource_path(str(Path("config") / "components_metadata.json"))
     app_data_dir = Path(user_data_dir("PiSelfhosting", "PiSelfhosting"))
     output_dir = app_data_dir / "output"
-
     component_manager = ComponentManager(metadata_file=metadata_path)
     setup_manager = SetupManager(component_manager, output_dir=output_dir)
     deployment_manager = DeploymentManager(component_manager=component_manager)
@@ -161,7 +160,7 @@ def create_app():
                     }
             return jsonify({"components": components_for_ui}), 200
         except Exception as e:
-            logging.error(f"Failed to get required variables: {e}", exc_info=True)
+            logging.error(f"Failed to get required " f"variables: {e}", exc_info=True)
             return jsonify({"error": str(e)}), 500
 
     @flask_app.route("/validate-selection", methods=["POST"])
@@ -173,23 +172,44 @@ def create_app():
             selected_components = data.get("selected_components")
             if selected_components is None:
                 return jsonify({"error": "Missing selected_components"}), 400
-
             base_template_path = Path(resource_path("component_templates"))
-
+            all_components_dict = {
+                comp["id"]: comp for comp in component_manager.get_all_components()
+            }
             for component_id in selected_components:
                 template_path_obj = base_template_path / component_id
                 if not template_path_obj.exists():
                     error_message = (
-                        f"Validation failed: Template "
-                        f"directory not found for "
-                        f"'{component_id}'."
+                        f"Validation failed:"
+                        f" Template directory not found for"
+                        f" '{component_id}'."
                     )
                     logging.warning(error_message)
                     return (
                         jsonify({"error": error_message, "component_id": component_id}),
                         400,
                     )
-
+                component_data = all_components_dict.get(component_id)
+                if component_data and component_data.get("has_configuration"):
+                    variables_path = (
+                        template_path_obj / "template-config" / "variables.json"
+                    )
+                    if not variables_path.is_file():
+                        error_message = (
+                            f"Configuration integrity error: "
+                            f"Component '{component_id}' "
+                            f"requires configuration, "
+                            f"but its 'variables.json' "
+                            f"file is missing from the"
+                            f" 'template-config' directory."
+                        )
+                        logging.error(error_message)
+                        return (
+                            jsonify(
+                                {"error": error_message, "component_id": component_id}
+                            ),
+                            400,
+                        )
             return jsonify({"message": "Selection is valid."}), 200
         except Exception as e:
             logging.error(f"Validation process failed: {e}", exc_info=True)
@@ -201,15 +221,14 @@ def create_app():
             data = request.get_json(force=True)
             if not data:
                 return jsonify({"error": "Malformed JSON received"}), 400
-
             selected_components = data.get("selected_components")
             managed_devices = data.get("devices")
             user_variables = data.get("env_vars", {})
-
             if selected_components is None or managed_devices is None:
                 return jsonify({"error": "Missing selected_components or devices"}), 400
 
-            success, errors = setup_manager.generate_all_files(
+            # --- MODIFIED: Call the renamed method ---
+            success, errors = setup_manager.prepare_deployment_package(
                 selected_components, user_variables, managed_devices
             )
 
@@ -219,7 +238,6 @@ def create_app():
                     jsonify({"error": "File generation failed.", "details": errors}),
                     400,
                 )
-
             output_directory_path = str(setup_manager.output_dir)
             return (
                 jsonify(
@@ -240,17 +258,15 @@ def create_app():
         output_path = data.get("output_path")
         managed_devices = data.get("devices")
         components_to_clean = data.get("components_to_clean", [])
-
+        components_to_restart = data.get("components_to_restart", [])
         if not output_path or not managed_devices:
             return jsonify({"error": "Missing output_path or devices"}), 400
-
         task_id = str(uuid.uuid4())
         deployment_tasks[task_id] = {
             "status": "running",
             "logs": [],
             "last_update": time.time(),
         }
-
         thread = threading.Thread(
             target=deployment_manager.start_deployment,
             args=(
@@ -259,6 +275,7 @@ def create_app():
                 output_path,
                 managed_devices,
                 components_to_clean,
+                components_to_restart,
             ),
         )
         thread.start()
@@ -317,7 +334,7 @@ def create_app():
                     port_usage[port_number] = component_name
             return jsonify({"message": "Port configuration is valid."}), 200
         except Exception as e:
-            logging.error(f"Port validation process failed: {e}", exc_info=True)
+            logging.error(f"Validation process failed: {e}", exc_info=True)
             return jsonify({"error": str(e)}), 500
 
     return flask_app

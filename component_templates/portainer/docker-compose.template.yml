@@ -1,13 +1,14 @@
 services:
   portainer:
-    image: portainer/portainer-ce:{{ PORTAINER_IMAGE_TAG | default('latest') }}
+    image: portainer/portainer-ce:{{ PORTAINER_IMAGE_TAG | default('lts') }}
     container_name: piselfhosting-portainer
     restart: unless-stopped
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - portainer_data:/data
     ports:
-      - "{{ PORTAINER_HTTP_PORT | default('9000') }}:9000"
+      - "{{ PORTAINER_HTTPS_PORT | default('9443') }}:9443"
+      - "{{ PORTAINER_EDGE_PORT | default('8000') }}:8000"
     networks:
       - piselfhosting_net
 

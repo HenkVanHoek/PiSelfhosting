@@ -1,85 +1,102 @@
+import json
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import yaml
 
+# Import the class we are testing
 from managers.setup_manager import SetupManager
 
 
 class TestSetupManager(unittest.TestCase):
-    """Final, correct tests for the SetupManager class."""
+    """Unit tests for the SetupManager class."""
 
     def setUp(self):
-        """Set up a mock ComponentManager and a temporary file system."""
-        # We only need to patch the direct dependency, ComponentManager.
+        """Set up a mock ComponentManager for each test."""
         self.patcher_component_manager = patch(
             "managers.setup_manager.ComponentManager"
         )
         self.mock_component_manager = self.patcher_component_manager.start()
 
-        self.temp_dir = tempfile.TemporaryDirectory()
-        self.project_root = Path(self.temp_dir.name)
-
-        # Define the locations for our temporary templates and output
-        self.template_base_dir = self.project_root / "component_templates"
-        self.output_dir = self.project_root / "output"
-
-        # Create the real, temporary template file the method needs
-        template_path = self.template_base_dir / "portainer"
-        template_path.mkdir(parents=True)
-        (template_path / "docker-compose.template.yml").write_text(
-            "services:\n  portainer:\n"
-            "    image: portainer/portainer-ce:{{ PISelfhosting_HOST_IP }}"
-        )
-
-        # Create the SetupManager, injecting both the mock manager and
-        # the real temporary template path
-        self.setup_manager = SetupManager(
-            component_manager=self.mock_component_manager,
-            output_dir=self.output_dir,
-            template_base_path=self.template_base_dir,
-        )
-
     def tearDown(self):
-        """Clean up resources after each test."""
-        self.temp_dir.cleanup()
+        """Stop all patchers after each test."""
         self.patcher_component_manager.stop()
 
-    def test_generate_all_files_with_real_template(self):
+    def test_prep_dploy_packg_isolates_list_rendering_saves_correctly(
+        self,
+    ):
         """
-        Test the successful generation of a docker-compose file using a real,
-        temporary template file.
+        Verify 'selected_components' is not rendered but saved correctly.
         """
-        # --- ARRANGE ---
-        self.setup_manager._resolve_dependencies = MagicMock(return_value=["portainer"])
-        self.mock_component_manager.get_component_details.return_value = {
-            "name": "Portainer",
-            "required_variables": [],
-        }
+        # --- 1. ARRANGE ---
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            output_dir = temp_path / "output"
+            template_base_dir = temp_path / "component_templates"
 
-        # --- ACT ---
-        # The managed_devices argument must be a LIST of dictionaries.
-        success, errors = self.setup_manager.generate_all_files(
-            selected_components=["portainer"],
-            user_variables={},
-            managed_devices=[{"ip": "192.168.1.10"}],
-        )
+            self.mock_component_manager.get_component_details.return_value = {
+                "name": "Test Component"
+            }
+            self.mock_component_manager.metadata_file = str(
+                temp_path / "config/components_metadata.json"
+            )
 
-        # --- ASSERT ---
-        self.assertTrue(success, f"generate_all_files failed with errors: {errors}")
+            component_template_dir = template_base_dir / "test-component"
+            component_template_dir.mkdir(parents=True)
+            with open(component_template_dir / "docker-compose.template.yml", "w") as f:
+                f.write(
+                    """
+services:
+  test-component:
+    image: test/image
+    ports:
+      - "{{ TEST_PORT }}:80"
+volumes:
+  test_data:
+    name: piselfhosting-test-data
+"""
+                )
 
-        expected_output_file = self.output_dir / "docker-compose.yml"
-        self.assertTrue(expected_output_file.exists())
+            # --- MODIFIED: Pass Path object to satisfy type hints ---
+            self.setup_manager = SetupManager(
+                component_manager=self.mock_component_manager, output_dir=output_dir
+            )
+            self.setup_manager.template_base_path = template_base_dir
 
-        with open(expected_output_file, "r") as f:
-            content = yaml.safe_load(f)
-        self.assertIn("portainer", content.get("services", {}))
-        self.assertEqual(
-            content["services"]["portainer"]["image"],
-            "portainer/portainer-ce:192.168.1.10",
-        )
+            selected_components = ["test-component"]
+            user_variables = {"TEST_PORT": "8080"}
+            managed_devices = [{"ip": "192.168.1.100"}]
+
+            # --- 2. ACT ---
+            success, result_path = self.setup_manager.prepare_deployment_package(
+                selected_components, user_variables, managed_devices
+            )
+
+            # --- 3. ASSERT ---
+            self.assertTrue(success)
+            self.assertEqual(str(output_dir), result_path)
+
+            context_path = output_dir / "deployment_context.json"
+            self.assertTrue(context_path.exists())
+            with open(context_path, "r") as f:
+                context_data = json.load(f)
+
+            self.assertIn("selected_components", context_data)
+            self.assertEqual(context_data["selected_components"], ["test-component"])
+            self.assertEqual(context_data["TEST_PORT"], "8080")
+
+            compose_path = output_dir / "docker-compose.yml"
+            self.assertTrue(compose_path.exists())
+            with open(compose_path, "r") as f:
+                compose_data = yaml.safe_load(f)
+
+            self.assertIn("services", compose_data)
+            self.assertIn("test-component", compose_data["services"])
+            self.assertEqual(
+                compose_data["services"]["test-component"]["ports"], ["8080:80"]
+            )
 
 
 if __name__ == "__main__":
