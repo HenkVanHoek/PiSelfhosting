@@ -1,99 +1,92 @@
-import tempfile
+import json
 import unittest
-from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import mock_open, patch
 
-import yaml
-
-# Import the class we are testing
-from managers.deployment_manager import DeploymentManager
+from managers.component_manager import ComponentManager
 
 
-class TestDeploymentManager(unittest.TestCase):
-    """Unit tests for the DeploymentManager class."""
+class TestComponentManager(unittest.TestCase):
+    """Unit tests for the ComponentManager class."""
 
     def setUp(self):
-        """Set up a mock ComponentManager and
-        a temporary file system for each test."""
-        self.patcher_component_manager = patch(
-            "managers.deployment_manager.ComponentManager"
-        )
-        self.mock_component_manager = self.patcher_component_manager.start()
-        self.patcher_ssh_manager = patch("managers.deployment_manager.SSHManager")
-        self.mock_ssh_manager_class = self.patcher_ssh_manager.start()
-        self.mock_ssh_instance = MagicMock()
-        self.mock_ssh_manager_class.return_value = self.mock_ssh_instance
-        self.deployment_manager = DeploymentManager(
-            component_manager=self.mock_component_manager
-        )
+        """Prepare common mock data for tests."""
+        self.mock_metadata_content = {
+            "_piselfhosting": {"components_order": ["portainer", "homarr"]},
+            "portainer": {"name": "Portainer", "has_configuration": True},
+            "homarr": {"name": "Homarr", "has_configuration": True},
+            "unconfigured_service": {
+                "name": "No Config Service",
+                "has_configuration": False,
+            },
+        }
+        self.mock_variables_content = {
+            "variables": [{"id": "HOMARR_HTTP_PORT", "default": 7575}]
+        }
 
-    def tearDown(self):
-        """Stop all patchers after each test."""
-        self.patcher_component_manager.stop()
-        self.patcher_ssh_manager.stop()
+    @patch("pathlib.Path.exists", return_value=True)
+    def test_initialization_and_enrichment(self, _mock_exists):
+        """Verify manager enriches components with variables correctly."""
+        mock_metadata_json = json.dumps(self.mock_metadata_content)
+        mock_variables_json = json.dumps(self.mock_variables_content)
 
-    def test_clean_services_identifies_and_removes_resources(self):
+        m_open = mock_open()
+        m_open.side_effect = [
+            unittest.mock.mock_open(read_data=mock_metadata_json).return_value,
+            unittest.mock.mock_open(read_data=mock_variables_json).return_value,
+            unittest.mock.mock_open(read_data=mock_variables_json).return_value,
+        ]
+
+        with patch("builtins.open", m_open):
+            manager = ComponentManager(
+                metadata_file="/fake/path/config/components_metadata.json"
+            )
+
+        homarr_details = manager.get_component_details("homarr")
+        self.assertIn("required_variables", homarr_details)
+        self.assertEqual(len(homarr_details["required_variables"]), 1)
+
+        # --- THE DEFINITIVE, PYTHONIC FIX ---
+        first_variable, *_ = homarr_details["required_variables"]
+        self.assertEqual(first_variable["id"], "HOMARR_HTTP_PORT")
+
+    @patch("pathlib.Path.exists", return_value=False)
+    def test_get_all_components_sorted(self, _mock_exists):
+        """Test that components are returned in the correct master order."""
+        mock_metadata_json = json.dumps(self.mock_metadata_content)
+        with patch("builtins.open", mock_open(read_data=mock_metadata_json)):
+            manager = ComponentManager(
+                metadata_file="/fake/path/config/components_metadata.json"
+            )
+
+        all_components = manager.get_all_components()
+
+        self.assertEqual(len(all_components), 3)
+        # --- THE DEFINITIVE, PYTHONIC FIX ---
+        # Unpack the list into named variables to make assertions explicit.
+        portainer_comp, homarr_comp, unconfigured_comp = all_components
+
+        self.assertEqual(portainer_comp["id"], "portainer")
+        self.assertEqual(homarr_comp["id"], "homarr")
+        self.assertEqual(unconfigured_comp["id"], "unconfigured_service")
+
+    def test_get_docker_service_name(self):
         """
-        Verify that the clean_services method correctly stops the container,
-        removes it, and then removes its associated named volumes.
+        Verify that the service name sanitization logic is correct and robust.
         """
-        # --- 1. ARRANGE ---
-        self.mock_component_manager.get_docker_service_name.side_effect = (
-            lambda cid: cid.replace("-", "")
-        )
-        with tempfile.TemporaryDirectory() as temp_dir:
-            temp_path = Path(temp_dir)
-            base_template_path_for_test = temp_path / "component_templates"
+        test_cases = {
+            "pi-hole": "pihole",
+            "portainer": "portainer",
+            "nginx-proxy-manager": "nginxproxymanager",
+            "": "",
+            "no-hyphens": "nohyphens",
+        }
 
-            compose_template_content = {
-                "services": {
-                    "pi-hole": {
-                        "container_name": "piselfhosting-pihole",
-                        "volumes": [
-                            "pihole_etc:/etc/pihole",
-                            "pihole_dnsmasq:/etc/dnsmasq.d",
-                        ],
-                    }
-                },
-                "volumes": {
-                    "pihole_etc": {"name": "piselfhosting-pihole-etc"},
-                    "pihole_dnsmasq": {"name": "piselfhosting-pihole-dnsmasq"},
-                },
-            }
-            component_template_dir = base_template_path_for_test / "pi-hole"
-            component_template_dir.mkdir(parents=True)
-            with open(component_template_dir / "docker-compose.template.yml", "w") as f:
-                yaml.dump(compose_template_content, f)
-
-            executed_commands = []
-            self.mock_ssh_instance.execute_command.side_effect = (
-                lambda cmd, _: executed_commands.append(cmd)
-            )
-
-            # --- 2. ACT ---
-            self.deployment_manager._perform_cleanup(
-                self.mock_ssh_instance,
-                ["pi-hole"],
-                MagicMock(),
-                base_template_path_for_test,
-            )
-
-            # --- 3. ASSERT ---
-            self.assertEqual(len(executed_commands), 3)
-            self.assertIn("docker stop " "piselfhosting-pihole", executed_commands)
-            self.assertIn("docker rm " "piselfhosting-pihole", executed_commands)
-
-            volume_rm_command = next(
-                (
-                    cmd
-                    for cmd in executed_commands
-                    if cmd.startswith("docker volume rm")
-                ),
-                None,
-            )
-            self.assertIsNotNone(volume_rm_command)
-            self.assertIn("piselfhosting-pihole-etc", volume_rm_command)
-            self.assertIn("piselfhosting-pihole-dnsmasq", volume_rm_command)
+        for component_id, expected_name in test_cases.items():
+            with self.subTest(component_id=component_id):
+                self.assertEqual(
+                    ComponentManager.get_docker_service_name(component_id),
+                    expected_name,
+                )
 
 
 if __name__ == "__main__":

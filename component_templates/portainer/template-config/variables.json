@@ -11,7 +11,7 @@
       "id": "PORTAINER_HTTPS_PORT",
       "label": "Portainer Web Port (HTTPS)",
       "description": "The external HTTPS port for the Portainer web UI.",
-      "type": "string",
+      "type": "port",
       "default": "9443"
     },
     {

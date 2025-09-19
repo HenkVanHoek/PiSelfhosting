@@ -227,7 +227,6 @@ def create_app():
             if selected_components is None or managed_devices is None:
                 return jsonify({"error": "Missing selected_components or devices"}), 400
 
-            # --- MODIFIED: Call the renamed method ---
             success, errors = setup_manager.prepare_deployment_package(
                 selected_components, user_variables, managed_devices
             )
@@ -258,7 +257,6 @@ def create_app():
         output_path = data.get("output_path")
         managed_devices = data.get("devices")
         components_to_clean = data.get("components_to_clean", [])
-        components_to_restart = data.get("components_to_restart", [])
         if not output_path or not managed_devices:
             return jsonify({"error": "Missing output_path or devices"}), 400
         task_id = str(uuid.uuid4())
@@ -275,7 +273,6 @@ def create_app():
                 output_path,
                 managed_devices,
                 components_to_clean,
-                components_to_restart,
             ),
         )
         thread.start()
@@ -319,7 +316,14 @@ def create_app():
             for var_id, var_value in final_vars.items():
                 if var_id.endswith("_PORT"):
                     port_number = str(var_value)
-                    component_name = var_id.split("_")[0].capitalize()
+
+                    # --- THE DEFINITIVE, ARCHITECTURALLY-ALIGNED FIX ---
+                    # This robust pattern safely unpacks the first element of the
+                    # list, preventing the AttributeError.
+                    name_parts = var_id.split("_")
+                    first_part, *_ = name_parts
+                    component_name = first_part.capitalize()
+
                     if port_number in port_usage:
                         conflicting_component = port_usage[port_number]
                         error_message = (

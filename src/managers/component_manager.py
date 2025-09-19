@@ -28,7 +28,6 @@ class ComponentManager:
     def _enrich_components_with_variables(self):
         for comp_id, comp_details in self._components_data.items():
             if not comp_id.startswith("_") and comp_details.get("has_configuration"):
-                variables_file_path = None  # Define for use in logging
                 try:
                     template_dir = (
                         Path(self.metadata_file).parent.parent
@@ -41,25 +40,13 @@ class ComponentManager:
                     if variables_file_path.exists():
                         with open(variables_file_path, "r") as f:
                             data = json.load(f)
-                            # This line can fail if `data` is not a dictionary.
                             self._components_data[comp_id]["required_variables"] = (
                                 data.get("variables", [])
                             )
                     else:
                         self._components_data[comp_id]["required_variables"] = []
-                # Catch the error that caused the crash (AttributeError) and others.
-                except (
-                    FileNotFoundError,
-                    json.JSONDecodeError,
-                    TypeError,
-                    AttributeError,
-                ) as e:
-                    logger.error(
-                        f"Component '{comp_id}' has a configuration error. "
-                        f"Could not load or parse '{variables_file_path}'. "
-                        f"This component will be treated "
-                        f"as having no variables. Error: {e}"
-                    )
+                except (FileNotFoundError, json.JSONDecodeError, TypeError) as e:
+                    logger.error(f"Error processing variables for {comp_id}: {e}")
                     self._components_data[comp_id]["required_variables"] = []
 
     def get_component_order(self) -> list[str]:

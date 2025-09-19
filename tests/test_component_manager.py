@@ -20,12 +20,12 @@ class TestComponentManager(unittest.TestCase):
             },
         }
         self.mock_variables_content = {
-            "variables": [{"name": "HOMARR_HTTP_PORT", "default": 7575}]
+            "variables": [{"id": "HOMARR_HTTP_PORT", "default": 7575}]
         }
 
     @patch("pathlib.Path.exists", return_value=True)
     def test_initialization_and_enrichment(self, _mock_exists):
-        """Verify that the manager enriches components with variables correctly."""
+        """Verify manager enriches components with variables correctly."""
         mock_metadata_json = json.dumps(self.mock_metadata_content)
         mock_variables_json = json.dumps(self.mock_variables_content)
 
@@ -44,10 +44,10 @@ class TestComponentManager(unittest.TestCase):
         homarr_details = manager.get_component_details("homarr")
         self.assertIn("required_variables", homarr_details)
         self.assertEqual(len(homarr_details["required_variables"]), 1)
-        # --- FIX: Access the first element of the list before the key ---
-        self.assertEqual(
-            homarr_details["required_variables"][0]["name"], "HOMARR_HTTP_PORT"
-        )
+
+        # --- THE DEFINITIVE, PYTHONIC FIX: Unpack the list safely ---
+        first_variable, *_ = homarr_details["required_variables"]
+        self.assertEqual(first_variable["id"], "HOMARR_HTTP_PORT")
 
     @patch("pathlib.Path.exists", return_value=False)
     def test_get_all_components_sorted(self, _mock_exists):
@@ -61,10 +61,31 @@ class TestComponentManager(unittest.TestCase):
         all_components = manager.get_all_components()
 
         self.assertEqual(len(all_components), 3)
-        # --- FIX: Access the first element of the list before the key ---
-        self.assertEqual(all_components[0]["id"], "portainer")
-        self.assertEqual(all_components[1]["id"], "homarr")
-        self.assertEqual(all_components[2]["id"], "unconfigured_service")
+        # --- THE DEFINITIVE, PYTHONIC FIX: Unpack list into variables ---
+        portainer_comp, homarr_comp, unconfigured_comp = all_components
+
+        self.assertEqual(portainer_comp["id"], "portainer")
+        self.assertEqual(homarr_comp["id"], "homarr")
+        self.assertEqual(unconfigured_comp["id"], "unconfigured_service")
+
+    def test_get_docker_service_name(self):
+        """
+        Verify that the service name sanitization logic is correct and robust.
+        """
+        test_cases = {
+            "pi-hole": "pihole",
+            "portainer": "portainer",
+            "nginx-proxy-manager": "nginxproxymanager",
+            "": "",
+            "no-hyphens": "nohyphens",
+        }
+
+        for component_id, expected_name in test_cases.items():
+            with self.subTest(component_id=component_id):
+                self.assertEqual(
+                    ComponentManager.get_docker_service_name(component_id),
+                    expected_name,
+                )
 
 
 if __name__ == "__main__":
