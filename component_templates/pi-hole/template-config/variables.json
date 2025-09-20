@@ -1,27 +1,28 @@
 {
   "variables": [
     {
+      "default": "pi",
+      "description": "A strong password for the web UI. Required for a clean installation.",
       "id": "PIHOLE_WEB_PASSWORD",
       "label": "Pi-hole Admin Password",
-      "description": "A strong password for the web UI. Required for a clean installation.",
-      "type": "password",
-      "required": "clean-install"
+      "required": "clean-install",
+      "type": "password"
     },
     {
+      "default": 8088,
+      "description": "The external HTTP port to access the Pi-hole web UI.",
       "id": "PIHOLE_WEB_PORT",
       "label": "Pi-hole Web Interface Port",
-      "description": "The external HTTP port to access the Pi-hole web UI.",
-      "type": "port",
-      "default": 8088,
-      "required": false
+      "required": false,
+      "type": "port"
     },
     {
+      "default": 53,
+      "description": "The external port for DNS queries. Must be 53 for most use cases.",
       "id": "PIHOLE_DNS_PORT",
       "label": "Pi-hole DNS Port",
-      "description": "The external port for DNS queries. Must be 53 for most use cases.",
-      "type": "port",
-      "default": 53,
-      "required": false
+      "required": false,
+      "type": "port"
     }
   ]
 }

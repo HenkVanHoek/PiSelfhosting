@@ -342,12 +342,3 @@ def create_app():
             return jsonify({"error": str(e)}), 500
 
     return flask_app
-
-
-if __name__ == "__main__":
-    app = create_app()
-    app.run(
-        host=os.environ.get("FLASK_HOST", "0.0.0.0"),  # nosec
-        port=5000,
-        threaded=True,
-    )

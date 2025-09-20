@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PiSelfhosting Component Editor</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/material-darker.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/monokai.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/dracula.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/solarized.min.css">
+
+
+    <style>
+        body, html { height: 100%; overflow: hidden; }
+        .main-container { display: flex; height: 100vh; }
+        .sidebar { width: 280px; background-color: #f8f9fa; border-right: 1px solid #dee2e6; padding: 1rem; overflow-y: auto; }
+        .content { flex-grow: 1; padding: 2rem; overflow-y: auto; display: flex; flex-direction: column; }
+        #feedback-alert { position: fixed; top: 20px; right: 20px; z-index: 1050; }
+
+        #editor-wrapper {
+            border: 1px solid #dee2e6;
+            border-radius: 0.25rem;
+            flex-grow: 1;
+            position: relative;
+        }
+    </style>
+</head>
+<body>
+
+<div id="feedback-alert" class="alert alert-dismissible fade" role="alert"></div>
+
+<div class="main-container">
+    <div class="sidebar">
+        <h4>Components</h4>
+        <hr>
+        <div class="d-grid gap-2 mb-3">
+            <button class="btn btn-primary" id="create-new-btn">Create New Component</button>
+        </div>
+        <ul class="list-group" id="component-list"></ul>
+    </div>
+    <div class="content" id="editor-pane">
+        <div class="text-center text-muted h-100 d-flex justify-content-center align-items-center" id="placeholder-text">
+            <p>Select a component from the list to begin editing, or create a new one.</p>
+        </div>
+
+        <div id="editor-content" class="d-none h-100 d-flex flex-column">
+            <div class="d-flex justify-content-between align-items-center">
+                <h3 id="editor-title"></h3>
+                <div class="d-flex align-items-center">
+                    <label for="theme-selector" class="form-label me-2 mb-0">Template Editor Theme:</label>
+                    <select class="form-select form-select-sm" id="theme-selector" style="width: auto;">
+                        <option value="material-darker">Material Darker</option>
+                        <option value="monokai">Monokai</option>
+                        <option value="dracula">Dracula</option>
+                        <option value="solarized light">Solarized Light</option>
+                    </select>
+                    <button class="btn btn-primary ms-3" id="save-changes-btn">Save All Changes</button>
+                </div>
+            </div>
+            <hr>
+            <ul class="nav nav-tabs" id="editorTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#metadata-pane" type="button">Core Metadata</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#variables-pane" type="button">User Variables</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#template-pane" type="button">Docker Compose Template Editor</button>
+                </li>
+            </ul>
+            <div class="tab-content pt-3 d-flex flex-column flex-grow-1" id="editorTabsContent">
+                <div class="tab-pane fade show active" id="metadata-pane"></div>
+                <div class="tab-pane fade" id="variables-pane"></div>
+                <div class="tab-pane fade d-flex flex-column flex-grow-1" id="template-pane">
+                    <div id="editor-wrapper">
+                        <label for="template-editor" class="visually-hidden">Docker Compose Template Editor</label>
+                        <textarea id="template-editor"></textarea>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/yaml/yaml.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+<script src="{{ url_for('static', filename='editor.js') }}" defer></script>
+
+</body>
+</html>
