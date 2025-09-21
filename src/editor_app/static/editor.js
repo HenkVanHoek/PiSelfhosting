@@ -11,6 +11,73 @@ document.addEventListener('DOMContentLoaded', () => {
     /** @type {object | null} */
     let componentData = null;
 
+    const setupResizableSidebar = () => {
+        const sidebar = document.getElementById('sidebar');
+        const handle = document.getElementById('drag-handle');
+        if (!sidebar || !handle) return;
+        const savedWidth = localStorage.getItem('sidebarWidth');
+        if (savedWidth) {
+            sidebar.style.width = `${savedWidth}px`;
+        }
+        let isResizing = false;
+        handle.addEventListener('mousedown', () => {
+            isResizing = true;
+            document.body.style.cursor = 'col-resize';
+            document.body.style.userSelect = 'none';
+            document.addEventListener('mousemove', onMouseMove);
+            document.addEventListener('mouseup', onMouseUp);
+        });
+        const onMouseMove = (e) => {
+            if (!isResizing) return;
+            const minWidth = parseInt(getComputedStyle(sidebar).minWidth, 10);
+            const maxWidth = parseInt(getComputedStyle(sidebar).maxWidth, 10);
+            let newWidth = e.clientX;
+            if (newWidth < minWidth) newWidth = minWidth;
+            if (newWidth > maxWidth) newWidth = maxWidth;
+            sidebar.style.width = newWidth.toString() + 'px';
+        };
+        const onMouseUp = () => {
+            isResizing = false;
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+            localStorage.setItem('sidebarWidth', sidebar.offsetWidth.toString());
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+        };
+    };
+
+    const setupEditorImportFeatures = () => {
+        const editorWrapper = document.getElementById('editor-wrapper');
+        const importBtn = document.getElementById('import-template-btn');
+        const fileInput = document.getElementById('template-file-input');
+        if (!editorWrapper || !importBtn || !fileInput || !codeEditor) return;
+        importBtn.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file) handleFile(file);
+        });
+        editorWrapper.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            editorWrapper.classList.add('drag-over');
+        });
+        editorWrapper.addEventListener('dragleave', () => editorWrapper.classList.remove('drag-over'));
+        editorWrapper.addEventListener('drop', (e) => {
+            e.preventDefault();
+            editorWrapper.classList.remove('drag-over');
+            const file = e.dataTransfer.files[0];
+            if (file) handleFile(file);
+        });
+        const handleFile = (file) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                codeEditor.setValue(e.target.result);
+                showAlert('Template imported successfully!');
+            };
+            reader.onerror = () => showAlert('Error reading the file.', 'danger');
+            reader.readAsText(file);
+        };
+    };
+
     async function fetchJson(url, options = {}) {
         const response = await fetch(url, options);
         if (!response.ok) {
@@ -39,33 +106,19 @@ document.addEventListener('DOMContentLoaded', () => {
         feedbackAlert.innerHTML = `${message}${closeButton}`;
         setTimeout(() => {
             const alertInstance = bootstrap.Alert.getOrCreateInstance(feedbackAlert);
-            if (alertInstance) {
-                alertInstance.close();
-            }
+            if (alertInstance) alertInstance.close();
         }, 5000);
     };
 
     const setupThemeSelector = () => {
         const themeSelector = document.getElementById('theme-selector');
         if (!themeSelector) return;
-
-        // Load the saved theme from localStorage when the page loads
         const savedTheme = localStorage.getItem('editorTheme');
-        if (savedTheme) {
-            themeSelector.value = savedTheme;
-        }
-
-        // Listen for changes on the dropdown
+        if (savedTheme) themeSelector.value = savedTheme;
         themeSelector.addEventListener('change', (event) => {
             const newTheme = event.target.value;
-
-            // Save the newly chosen theme to localStorage
             localStorage.setItem('editorTheme', newTheme);
-
-            if (codeEditor) {
-                // Tell CodeMirror to use the new theme
-                codeEditor.setOption('theme', newTheme);
-            }
+            if (codeEditor) codeEditor.setOption('theme', newTheme);
         });
     };
 
@@ -73,7 +126,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const payload = {
             name: document.getElementById('comp-name').value,
             description: document.getElementById('comp-desc').value,
-            uniqueness_group: document.getElementById('comp-group').value || null,
+            group: document.getElementById('comp-group').value || null,
             depends_on: document.getElementById('comp-deps').value.split(',').map(s => s.trim()).filter(Boolean),
             has_ui: document.getElementById('comp-has-ui').checked,
             has_configuration: document.getElementById('comp-has-config').checked
@@ -128,12 +181,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const container = document.getElementById('variables-pane');
         container.innerHTML = `<div id="variables-list"></div><button class="btn btn-secondary mt-3" id="add-variable-btn"><i class="bi bi-plus-circle"></i> Add New Variable</button>`;
         const listContainer = document.getElementById('variables-list');
-
         const renderAllRows = () => {
             listContainer.innerHTML = '';
-            if (currentVariables.length === 0) {
-                listContainer.innerHTML = '<p class="text-muted">No user variables defined.</p>';
-            }
+            if (currentVariables.length === 0) listContainer.innerHTML = '<p class="text-muted">No user variables defined.</p>';
             currentVariables.forEach((variable, index) => {
                 const variableTypes = ['string', 'port', 'path'];
                 const optionsHtml = variableTypes.map(type => `<option value="${type}" ${variable.type === type ? 'selected' : ''}>${type}</option>`).join('');
@@ -178,39 +228,36 @@ document.addEventListener('DOMContentLoaded', () => {
         currentVariables = details.required_variables || [];
         let dependsOn = Array.isArray(details.depends_on) ? details.depends_on : (details.depends_on ? [details.depends_on] : []);
         const dependsOnStr = dependsOn.join(', ');
-
         document.getElementById('editor-title').textContent = details.name || componentId;
         document.getElementById('metadata-pane').innerHTML = `
-            <div class="mb-3"><label for="comp-id" class="form-label">Component ID</label><input type="text" class="form-control" id="comp-id" value="${componentId}" readonly></div>
+            <div class="mb-3"><label class="form-label">Component ID</label><input type="text" class="form-control" value="${componentId}" readonly></div>
             <div class="mb-3"><label for="comp-name" class="form-label">Name</label><input type="text" class="form-control" id="comp-name" value="${details.name || ''}"></div>
             <div class="mb-3"><label for="comp-desc" class="form-label">Description</label><textarea class="form-control" id="comp-desc" rows="3">${details.description || ''}</textarea></div>
             <div class="row">
-                <div class="col-md-6 mb-3"><label for="comp-group" class="form-label">Uniqueness Group</label><input type="text" class="form-control" id="comp-group" list="group-datalist" value="${details.uniqueness_group || ''}"><datalist id="group-datalist"></datalist></div>
-                <div class="col-md-6 mb-3"><label for="comp-deps" class="form-label">Depends On (comma-separated)</label><input type="text" class="form-control" id="comp-deps" value="${dependsOnStr}"></div>
+                <div class="col-md-6 mb-3"><label for="comp-group" class="form-label">Group</label><input type="text" class="form-control" id="comp-group" list="group-datalist" value="${details.group || ''}"><datalist id="group-datalist"></datalist></div>
+                <div class="col-md-6 mb-3"><label for="comp-deps" class="form-label">Depends On</label><input type="text" class="form-control" id="comp-deps" value="${dependsOnStr}"></div>
             </div>
             <div class="form-check form-switch mb-2"><input class="form-check-input" type="checkbox" role="switch" id="comp-has-ui"><label class="form-check-label" for="comp-has-ui">Has Web UI</label></div>
             <div class="form-check form-switch mb-3"><input class="form-check-input" type="checkbox" role="switch" id="comp-has-config"><label class="form-check-label" for="comp-has-config">Has User Configuration</label></div>`;
-
         const datalist = document.getElementById('group-datalist');
         datalist.innerHTML = '';
         if (componentData && componentData.groups) {
             componentData.groups.forEach(group => {
                 const option = document.createElement('option');
-                option.value = group.name;
+                option.value = group.id;
+                option.textContent = group.name;
                 datalist.appendChild(option);
             });
         }
-
         document.getElementById('comp-has-ui').checked = details.has_ui || false;
         document.getElementById('comp-has-config').checked = details.has_configuration || false;
         document.getElementById('save-changes-btn').onclick = () => handleSaveChanges(componentId);
-
         if (!codeEditor) {
             const selectedTheme = document.getElementById('theme-selector').value;
             codeEditor = CodeMirror.fromTextArea(document.getElementById('template-editor'), { lineNumbers: true, mode: 'yaml', theme: selectedTheme, tabSize: 2 });
         }
-
         renderVariablesPane();
+        setupEditorImportFeatures();
         placeholder.classList.add('d-none');
         editorContent.classList.remove('d-none');
         setTimeout(() => codeEditor.setSize("100%", "100%"), 50);
@@ -232,14 +279,10 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelectorAll('.component-list-item.active').forEach(item => item.classList.remove('active'));
         const selector = `.component-list-item[data-component-id="${componentId}"]`;
         document.querySelector(selector)?.classList.add('active');
-
         placeholder.classList.add('d-none');
         editorContent.classList.add('d-none');
         const loadingIndicator = document.getElementById('loading-indicator');
-        if (!loadingIndicator) {
-            editorPane.insertAdjacentHTML('afterbegin', '<div id="loading-indicator" class="text-center text-muted"><p>Loading...</p></div>');
-        }
-
+        if (!loadingIndicator) editorPane.insertAdjacentHTML('afterbegin', '<div id="loading-indicator" class="text-center text-muted"><p>Loading...</p></div>');
         try {
             const details = await fetchJson(`/api/components/${componentId}`);
             details.id = componentId;
@@ -252,11 +295,48 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    const setupSortableGroups = () => {
+        new Sortable(componentList, {
+            animation: 150,
+            handle: '.group-header',
+            onEnd: async (evt) => {
+                const newOrder = Array.from(componentList.querySelectorAll('.group-header'))
+                    .map(header => header.dataset.groupId);
+                try {
+                    await fetchJson('/api/groups/order', {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(newOrder)
+                    });
+                    showAlert('Group order saved!');
+                } catch (error) {
+                    showAlert(`Error saving group order: ${error.message}`, 'danger');
+                }
+            }
+        });
+    };
+
+    // --- NEW: Function to save the global component order ---
+    const saveComponentOrder = async () => {
+        const allComponentItems = document.querySelectorAll('.component-list-item');
+        const newOrder = Array.from(allComponentItems).map(item => item.dataset.componentId);
+        try {
+            await fetchJson('/api/components/order', {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(newOrder)
+            });
+            showAlert('Component order saved!');
+        } catch (error) {
+            showAlert(`Error saving component order: ${error.message}`, 'danger');
+        }
+    };
+
+
     const loadComponents = async () => {
         try {
             componentData = await fetchJson('/api/components');
             const sidebar = document.querySelector('.sidebar');
-
             if (!document.getElementById('component-search')) {
                 const searchInput = document.createElement('div');
                 searchInput.className = 'mb-3';
@@ -264,21 +344,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 sidebar.querySelector('.d-grid.gap-2.mb-3').insertAdjacentElement('afterend', searchInput);
                 searchInput.addEventListener('input', (e) => {
                     const searchTerm = e.target.value.toLowerCase();
-                    document.querySelectorAll('.component-list-item, .group-header, .ungrouped-header').forEach(el => {
-                        const isHeader = el.classList.contains('group-header') || el.classList.contains('ungrouped-header');
-                        const text = (isHeader ? el.dataset.groupName : el.textContent).toLowerCase();
-                        const isVisible = text.includes(searchTerm);
-                        el.style.display = isVisible ? '' : 'none';
-                        if (isHeader && isVisible) {
-                            // noinspection JSUnresolvedReference
-                            document.querySelectorAll(el.dataset.bsTarget + ' .component-list-item').forEach(child => child.style.display = '');
-                        }
+                    document.querySelectorAll('.group-container').forEach(container => {
+                        const headerText = container.querySelector('.group-header').dataset.groupId.toLowerCase();
+                        const itemsText = Array.from(container.querySelectorAll('.component-list-item'))
+                            .map(item => item.textContent.toLowerCase())
+                            .join(' ');
+                        const isVisible = headerText.includes(searchTerm) || itemsText.includes(searchTerm);
+                        container.style.display = isVisible ? '' : 'none';
                     });
                 });
             }
-
             componentList.innerHTML = '';
-
             const createComponentLink = (component) => {
                 const link = document.createElement('a');
                 link.href = '#';
@@ -293,32 +369,37 @@ document.addEventListener('DOMContentLoaded', () => {
             };
 
             if (componentData.groups) {
-                componentData.groups.forEach((group, index) => {
-                    const groupId = `group-collapse-${index}`;
+                componentData.groups.forEach(group => {
+                    const groupContainer = document.createElement('div');
+                    groupContainer.className = 'group-container mb-2';
+                    const groupId = `group-collapse-${group.id}`;
                     const header = document.createElement('a');
                     header.className = 'list-group-item list-group-item-secondary group-header d-flex justify-content-between align-items-center';
                     header.href = `#${groupId}`;
                     header.dataset.bsToggle = 'collapse';
-                    header.dataset.groupName = group.name;
+                    header.dataset.groupId = group.id;
                     header.innerHTML = `<strong>${group.name}</strong> <i class="bi bi-chevron-down"></i>`;
-                    componentList.appendChild(header);
+                    if (group.is_exclusive) {
+                        header.classList.add('group-header-exclusive');
+                    }
+                    groupContainer.appendChild(header);
+
                     const collapseWrapper = document.createElement('div');
                     collapseWrapper.id = groupId;
-                    collapseWrapper.className = 'collapse show';
+                    collapseWrapper.className = 'collapse show component-list-wrapper'; // Add a class to target
                     group.components.forEach(comp => collapseWrapper.appendChild(createComponentLink(comp)));
-                    componentList.appendChild(collapseWrapper);
+                    groupContainer.appendChild(collapseWrapper);
+
+                    componentList.appendChild(groupContainer);
+
+                    // --- NEW: Activate SortableJS on this group's component list ---
+                    new Sortable(collapseWrapper, {
+                        group: 'shared-components', // Allow dragging between groups
+                        animation: 150,
+                        onEnd: saveComponentOrder // Call save function on drop
+                    });
                 });
             }
-
-            if (componentData.ungrouped && componentData.ungrouped.length > 0) {
-                const ungroupedHeader = document.createElement('div');
-                ungroupedHeader.className = 'list-group-item list-group-item-light ungrouped-header mt-2';
-                ungroupedHeader.dataset.groupName = 'ungrouped components';
-                ungroupedHeader.textContent = 'Ungrouped Components';
-                componentList.appendChild(ungroupedHeader);
-                componentData.ungrouped.forEach(comp => componentList.appendChild(createComponentLink(comp)));
-            }
-
         } catch (error) {
             console.error('Error loading components:', error);
             componentList.innerHTML = '<li class="list-group-item list-group-item-danger">Error loading components.</li>';
@@ -328,5 +409,7 @@ document.addEventListener('DOMContentLoaded', () => {
     (async () => {
         await loadComponents();
         setupThemeSelector();
+        setupResizableSidebar();
+        setupSortableGroups();
     })();
 });

@@ -1,93 +1,129 @@
 {
   "_piselfhosting": {
     "components_order": [
-      "portainer",
+      "pi-hole",
+      "adguard-home",
       "homarr",
       "heimdall",
       "homer",
       "organizr",
       "traefik",
       "nginx-proxy-manager",
-      "pi-hole",
-      "adguard-home",
-      "unbound",
-      "homeassistant",
+      "gitlab",
+      "conduit",
       "frigate",
-      "zigbee2mqtt",
-      "scrypted",
-      "nextcloud",
+      "homeassistant",
       "jellyfin",
-      "sonarr",
+      "nextcloud",
+      "portainer",
       "radarr",
-      "qbittorent",
       "sabnzbd",
-      "vaultwarden",
+      "scrypted",
+      "sonarr",
+      "unbound",
       "unifi-controller",
       "uptime-kuma",
+      "vaultwarden",
       "web-notepad",
-      "conduit",
-      "gitlab",
+      "zigbee2mqtt",
+      "qbittorrent",
       "piselfhosting-backup-tool",
       "piselfhosting-service-maintenance"
-    ]
+    ],
+    "default_group": "general",
+    "group_order": [
+      "dns_blocker",
+      "dashboard",
+      "reverse_proxy",
+      "git_server",
+      "general",
+      "System Tools"
+    ],
+    "group_rules": {
+      "System Tools": {
+        "is_exclusive": false,
+        "name": "System Tools"
+      },
+      "dashboard": {
+        "is_exclusive": true,
+        "name": "Dashboard"
+      },
+      "dns_blocker": {
+        "is_exclusive": true,
+        "name": "DNS Blocker"
+      },
+      "general": {
+        "is_exclusive": false,
+        "name": "General Components"
+      },
+      "git_server": {
+        "is_exclusive": true,
+        "name": "Git Server"
+      },
+      "reverse_proxy": {
+        "is_exclusive": true,
+        "name": "Reverse Proxy"
+      }
+    }
   },
   "components": {
     "adguard-home": {
       "description": "Network-wide ad & tracker blocking DNS server. An alternative to Pi-hole.",
+      "group": "dns_blocker",
       "has_ui": true,
       "image_name": "adguard/adguardhome",
       "name": "AdGuard Home",
       "project_url": "https://github.com/AdguardTeam/AdGuardHome",
       "protocol": "http",
       "ui_port": 3000,
-      "uniqueness_group": "dns_blocker",
       "version": "latest"
     },
     "conduit": {
       "description": "A lightweight, next-generation Matrix homeserver, ideal for Raspberry Pi.",
+      "group": "general",
       "has_ui": false,
       "image_name": "matrixconduit/matrix-conduit",
       "name": "Conduit (Matrix Server)",
       "project_url": "https://conduit.rs/",
-      "uniqueness_group": null,
       "version": "latest"
     },
     "frigate": {
       "description": "NVR with real-time object detection for IP cameras.",
+      "group": "general",
       "has_ui": true,
       "image_name": "blakeblackshear/frigate",
       "name": "Frigate",
       "project_url": "https://docs.frigate.video/",
       "protocol": "http",
       "ui_port": 5000,
-      "uniqueness_group": null,
       "version": "stable"
     },
     "gitlab": {
       "description": "A complete DevOps platform for project planning, source code management, CI/CD, and monitoring.",
+      "group": "git_server",
       "has_ui": true,
       "image_name": "gitlab/gitlab-ce",
       "name": "GitLab",
       "project_url": "https://about.gitlab.com/",
       "protocol": "http",
       "ui_port": 10080,
-      "uniqueness_group": "git_server",
       "version": "latest"
     },
     "heimdall": {
       "description": "A simple and elegant application dashboard.",
+      "group": "dashboard",
       "has_ui": true,
       "image_name": "lscr.io/linuxserver/heimdall",
       "name": "Heimdall",
       "project_url": "https://heimdall.site/",
       "protocol": "http",
       "ui_port": 8090,
-      "uniqueness_group": "dashboard",
       "version": "latest"
     },
     "homarr": {
       "default": true,
       "description": "A simple, yet powerful dashboard for your server.",
+      "group": "dashboard",
       "has_configuration": true,
       "has_ui": true,
       "image_name": "ghcr.io/ajnart/homarr",
@@ -114,52 +150,51 @@
       ],
       "ui_port": 7575,
       "ui_port_variable": "HOMARR_HTTP_PORT",
-      "uniqueness_group": "dashboard",
       "version": "latest"
     },
     "homeassistant": {
       "description": "Open source home automation that puts local control and privacy first.",
+      "group": "general",
       "has_ui": true,
       "image_name": "homeassistant/home-assistant",
       "name": "Home Assistant",
       "project_url": "https://www.home-assistant.io/",
       "protocol": "http",
       "ui_port": 8123,
-      "uniqueness_group": null,
       "version": "stable"
     },
     "homer": {
       "description": "A dead simple, static homepage for your server.",
+      "group": "dashboard",
       "has_ui": true,
       "image_name": "b4bz/homer",
       "name": "Homer",
       "project_url": "https://github.com/bastienwirtz/homer",
       "protocol": "http",
       "ui_port": 8085,
-      "uniqueness_group": "dashboard",
       "version": "latest"
     },
     "jellyfin": {
       "description": "A Free Software Media System that puts you in control of your media.",
+      "group": "general",
       "has_ui": true,
       "image_name": "lscr.io/linuxserver/jellyfin",
       "name": "Jellyfin",
       "project_url": "https://jellyfin.org/",
       "protocol": "http",
       "ui_port": 8096,
-      "uniqueness_group": null,
       "version": "latest"
     },
     "nextcloud": {
       "depends_on": "mariadb",
       "description": "The self-hosted productivity platform that keeps you in control.",
+      "group": "general",
       "has_ui": true,
       "image_name": "lscr.io/linuxserver/nextcloud",
       "name": "Nextcloud",
       "project_url": "https://nextcloud.com/",
       "protocol": "http",
       "ui_port": 4430,
-      "uniqueness_group": null,
       "version": "latest"
     },
     "nginx-proxy-manager": {
@@ -167,6 +202,7 @@
         "mariadb"
       ],
       "description": "User-friendly interface for managing Nginx proxy hosts and SSL certificates.",
+      "group": "reverse_proxy",
       "has_configuration": false,
       "has_ui": true,
       "image_name": "jc21/nginx-proxy-manager",
@@ -186,23 +222,23 @@
         }
       ],
       "ui_port": 81,
-      "uniqueness_group": "reverse_proxy",
       "version": "latest"
     },
     "organizr": {
       "description": "A full-featured server organizer with a tabbed interface.",
+      "group": "dashboard",
       "has_ui": true,
       "image_name": "lscr.io/linuxserver/organizr",
       "name": "Organizr",
       "project_url": "https://organizr.app/",
       "protocol": "http",
       "ui_port": 8095,
-      "uniqueness_group": "dashboard",
       "version": "latest"
     },
     "pi-hole": {
       "depends_on": [],
       "description": "A network-wide ad blocker that acts as a DNS sinkhole.Hvh",
+      "group": "dns_blocker",
       "has_configuration": true,
       "has_ui": true,
       "image_name": "pihole/pihole",
@@ -237,13 +273,13 @@
       ],
       "ui_port": 80,
       "ui_port_variable": "PIHOLE_WEB_PORT",
-      "uniqueness_group": "dns_blocker",
       "version": "latest"
     },
     "piselfhosting-backup-tool": {
       "default": false,
       "depends_on": [],
       "description": "A simple tool to back up and restore all your persistent service data.",
+      "group": "System Tools",
       "has_configuration": false,
       "has_ui": true,
       "image_name": "henkvanhoek/piselfhosting-backup-tool",
@@ -252,13 +288,13 @@
       "protocol": "http",
       "required_variables": [],
       "ui_port": 9901,
-      "uniqueness_group": "System Tools",
       "version": "0.1.0"
     },
     "piselfhosting-service-maintenance": {
       "default": false,
       "depends_on": [],
       "description": "Monitor status, updates and vulnerabilities.",
+      "group": "System Tools",
       "has_configuration": false,
       "has_ui": true,
       "image_name": "henkvanhoek/piselfhosting-service-maintenance",
@@ -266,13 +302,13 @@
       "project_url": "https://github.com/HenkVanHoek/PiSelfhosting",
       "protocol": "http",
       "ui_port": 9999,
-      "uniqueness_group": "System Tools",
       "version": "0.1.0"
     },
     "portainer": {
       "default": true,
       "depends_on": [],
       "description": "A powerful management UI for Docker environments. ",
+      "group": "general",
       "has_configuration": true,
       "has_ui": true,
       "image_name": "portainer/portainer-ce",
@@ -305,67 +341,67 @@
       ],
       "ui_port": 9443,
       "ui_port_variable": "PORTAINER_HTTPS_PORT",
-      "uniqueness_group": null,
       "version": "lts"
     },
     "qbittorrent": {
       "description": "A lightweight and powerful BitTorrent client.",
+      "group": "general",
       "has_ui": true,
       "image_name": "lscr.io/linuxserver/qbittorrent",
       "name": "qBittorrent",
       "project_url": "https://www.qbittorrent.org/",
       "protocol": "http",
       "ui_port": 8084,
-      "uniqueness_group": null,
       "version": "latest"
     },
     "radarr": {
       "description": "A fork of Sonarr to work with movies.",
+      "group": "general",
       "has_ui": true,
       "image_name": "lscr.io/linuxserver/radarr",
       "name": "Radarr",
       "project_url": "https://radarr.video/",
       "protocol": "http",
       "ui_port": 7878,
-      "uniqueness_group": null,
       "version": "latest"
     },
     "sabnzbd": {
       "description": "The popular and easy-to-use Usenet download client.",
+      "group": "general",
       "has_ui": true,
       "image_name": "lscr.io/linuxserver/sabnzbd",
       "name": "SABnzbd",
       "project_url": "https://sabnzbd.org/",
       "protocol": "http",
       "ui_port": 8086,
-      "uniqueness_group": null,
       "version": "latest"
     },
     "scrypted": {
       "description": "High-performance video integration platform for smart homes.",
+      "group": "general",
       "has_ui": true,
       "image_name": "koush/scrypted",
       "name": "Scrypted",
       "project_url": "https://www.scrypted.app/",
       "protocol": "https",
       "ui_port": 10443,
-      "uniqueness_group": null,
       "version": "latest"
     },
     "sonarr": {
       "description": "Smart PVR for newsgroup and bittorrent users to manage and download TV shows.",
+      "group": "general",
       "has_ui": true,
       "image_name": "lscr.io/linuxserver/sonarr",
       "name": "Sonarr",
       "project_url": "https://sonarr.tv/",
       "protocol": "http",
       "ui_port": 8989,
-      "uniqueness_group": null,
       "version": "latest"
     },
     "traefik": {
       "depends_on": [],
       "description": "A modern reverse proxy and load balancer.HvH",
+      "group": "reverse_proxy",
       "has_configuration": true,
       "has_ui": true,
       "image_name": "traefik",
@@ -374,72 +410,71 @@
       "protocol": "http",
       "required_variables": [],
       "ui_port": 8082,
-      "uniqueness_group": "reverse_proxy",
       "version": "v3.0"
     },
     "unbound": {
       "description": "A validating, recursive, and caching DNS resolver for maximum privacy.",
+      "group": "general",
       "has_ui": false,
       "image_name": "mvance/unbound",
       "name": "Unbound",
       "project_url": "https://www.nlnetlabs.nl/projects/unbound/about/",
-      "uniqueness_group": null,
       "version": "latest"
     },
     "unifi-controller": {
       "description": "Manage your UniFi networking devices from a central controller.",
+      "group": "general",
       "has_ui": true,
       "image_name": "lscr.io/linuxserver/unifi-controller",
       "name": "UniFi Controller",
       "project_url": "https://ui.com/wi-fi",
       "protocol": "https",
       "ui_port": 8443,
-      "uniqueness_group": null,
       "version": "latest"
     },
     "uptime-kuma": {
       "description": "A fancy, easy-to-use self-hosted monitoring tool.",
+      "group": "general",
       "has_ui": true,
       "image_name": "louislam/uptime-kuma",
       "name": "Uptime Kuma",
       "project_url": "https://github.com/louislam/uptime-kuma",
       "protocol": "http",
       "ui_port": 3001,
-      "uniqueness_group": null,
       "version": "1"
     },
     "vaultwarden": {
       "description": "Lightweight, self-hosted password manager compatible with Bitwarden clients.",
+      "group": "general",
       "has_ui": true,
       "image_name": "vaultwarden/server",
       "name": "Vaultwarden",
       "project_url": "https://github.com/dani-garcia/vaultwarden",
       "protocol": "http",
       "ui_port": 8081,
-      "uniqueness_group": null,
       "version": "latest"
     },
     "web-notepad": {
       "description": "Simple notepad to display the post-install summary.",
+      "group": "general",
       "has_ui": true,
       "image_name": "dprandzioch/docker-http-notepad",
       "name": "Web Notepad",
       "project_url": "https://github.com/pajikos/minimalist-web-notepad",
       "protocol": "http",
       "ui_port": 8083,
-      "uniqueness_group": null,
       "version": "latest"
     },
     "zigbee2mqtt": {
       "depends_on": "mosquitto",
       "description": "Bridge the gap between your Zigbee devices and your MQTT broker.",
+      "group": "general",
       "has_ui": true,
       "image_name": "koenkk/zigbee2mqtt",
       "name": "Zigbee2MQTT",
       "project_url": "https://www.zigbee2mqtt.io/",
       "protocol": "http",
       "ui_port": 8099,
-      "uniqueness_group": null,
       "version": "latest"
     }
   }
