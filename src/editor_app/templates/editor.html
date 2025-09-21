@@ -45,15 +45,9 @@
         </button>
         <div class="collapse navbar-collapse" id="navbarNav">
             <ul class="navbar-nav ms-auto">
-                <li class="nav-item">
-                    <a class="nav-link" href="#" id="help-link"><i class="bi bi-question-circle"></i> Help</a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link" href="https://github.com/HenkVanHoek/PiSelfhosting" target="_blank"><i class="bi bi-github"></i> GitHub</a>
-                </li>
-                 <li class="nav-item">
-                    <a class="nav-link" href="https://github.com/HenkVanHoek/PiSelfhosting/releases" target="_blank"><i class="bi bi-tag"></i> Releases</a>
-                </li>
+                <li class="nav-item"><a class="nav-link" href="#" id="help-link"><i class="bi bi-question-circle"></i> Help</a></li>
+                <li class="nav-item"><a class="nav-link" href="https://github.com/HenkVanHoek/PiSelfhosting" target="_blank"><i class="bi bi-github"></i> GitHub</a></li>
+                <li class="nav-item"><a class="nav-link" href="https://github.com/HenkVanHoek/PiSelfhosting/releases" target="_blank"><i class="bi bi-tag"></i> Releases</a></li>
             </ul>
         </div>
     </div>
@@ -61,26 +55,26 @@
 
 <div class="main-container">
     <div class="sidebar" id="sidebar">
-        <h4>Components</h4>
+        <div class="d-flex justify-content-between align-items-center">
+            <h4>Components</h4>
+            <button class="btn btn-sm btn-outline-secondary" id="manage-groups-btn" title="Manage Groups"><i class="bi bi-gear"></i></button>
+        </div>
         <hr>
         <div class="d-grid gap-2 mb-3">
             <button class="btn btn-primary" id="create-new-btn">Create New Component</button>
         </div>
         <div class="list-group" id="component-list"></div>
     </div>
-
     <div class="resizer" id="drag-handle"></div>
-
     <div class="content" id="editor-pane">
         <div class="text-center text-muted h-100 d-flex flex-column justify-content-center align-items-center" id="placeholder-text">
             <h4>Welcome to the Component Editor</h4>
             <p class="lead">Select a component from the list to begin editing its metadata, variables, and template.</p>
         </div>
-
         <div id="editor-content" class="d-none h-100 d-flex flex-column">
             <div class="d-flex justify-content-between align-items-center">
                 <h3 id="editor-title"></h3>
-                <div class="d-flex align-items-center">
+                <div class="d-flex align-items-center" id="editor-actions">
                     <label for="theme-selector" class="form-label me-2 mb-0">Template Editor Theme:</label>
                     <select class="form-select form-select-sm" id="theme-selector" style="width: auto;">
                         <option value="material-darker">Material Darker</option>
@@ -89,28 +83,21 @@
                         <option value="solarized light">Solarized Light</option>
                     </select>
                     <button class="btn btn-primary ms-3" id="save-changes-btn">Save All Changes</button>
+                    <button class="btn btn-danger ms-2" id="delete-component-btn"><i class="bi bi-trash"></i> Delete Component</button>
                 </div>
             </div>
             <hr>
             <ul class="nav nav-tabs" id="editorTabs" role="tablist">
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#metadata-pane" type="button">Core Metadata</button>
-                </li>
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#variables-pane" type="button">User Variables</button>
-                </li>
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#template-pane" type="button">Docker Compose Template Editor</button>
-                </li>
+                <li class="nav-item" role="presentation"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#metadata-pane">Core Metadata</button></li>
+                <li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#variables-pane">User Variables</button></li>
+                <li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#template-pane">Docker Compose Template Editor</button></li>
             </ul>
             <div class="tab-content pt-3 d-flex flex-column flex-grow-1" id="editorTabsContent">
                 <div class="tab-pane fade show active" id="metadata-pane"></div>
                 <div class="tab-pane fade" id="variables-pane"></div>
                 <div class="tab-pane fade d-flex flex-column flex-grow-1" id="template-pane">
                     <div class="d-flex justify-content-end mb-2">
-                        <button class="btn btn-sm btn-outline-secondary" id="import-template-btn">
-                            <i class="bi bi-upload"></i> Import from File
-                        </button>
+                        <button class="btn btn-sm btn-outline-secondary" id="import-template-btn"><i class="bi bi-upload"></i> Import from File</button>
                         <input type="file" id="template-file-input" accept=".yml,.yaml,.txt" style="display: none;">
                     </div>
                     <div id="editor-wrapper">
@@ -123,12 +110,57 @@
     </div>
 </div>
 
+<div class="modal fade" id="create-component-modal" tabindex="-1" aria-labelledby="createModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="createModalLabel">Create New Component</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="create-component-form">
+                    <div class="mb-3">
+                        <label for="new-component-id-input" class="form-label">Component ID</label>
+                        <input type="text" class="form-control" id="new-component-id-input" required placeholder="e.g., my-new-service">
+                        <div class="form-text">A unique identifier. Use lowercase letters, numbers, and hyphens only.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="new-component-name" class="form-label">Component Name</label>
+                        <input type="text" class="form-control" id="new-component-name" required placeholder="e.g., My New Service">
+                        <div class="form-text">A human-friendly display name.</div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        <button type="submit" class="btn btn-primary">Create Component</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="manage-groups-modal" tabindex="-1" aria-labelledby="manageGroupsLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="manageGroupsLabel">Manage Groups</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted">You can delete any group that has no components assigned to it.</p>
+                <ul class="list-group" id="manage-groups-list"></ul>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/yaml/yaml.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
-
-<script src="{{ url_for('static', filename='editor.js') }}" defer></script>
-
+<script src="{{ url_for('static', filename='editor.v2.js') }}" defer></script>
 </body>
 </html>

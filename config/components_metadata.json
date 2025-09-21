@@ -1,21 +1,21 @@
 {
   "_piselfhosting": {
     "components_order": [
-      "pi-hole",
       "adguard-home",
+      "pi-hole",
       "homarr",
       "heimdall",
       "homer",
       "organizr",
-      "traefik",
       "nginx-proxy-manager",
+      "traefik",
       "gitlab",
-      "conduit",
-      "frigate",
-      "homeassistant",
       "jellyfin",
       "nextcloud",
-      "portainer",
+      "zigbee2mqtt",
+      "homeassistant",
+      "frigate",
+      "conduit",
       "radarr",
       "sabnzbd",
       "scrypted",
@@ -25,21 +25,26 @@
       "uptime-kuma",
       "vaultwarden",
       "web-notepad",
-      "zigbee2mqtt",
       "qbittorrent",
+      "portainer",
       "piselfhosting-backup-tool",
       "piselfhosting-service-maintenance"
     ],
     "default_group": "general",
     "group_order": [
-      "dns_blocker",
       "dashboard",
+      "Home Automation",
+      "dns_blocker",
       "reverse_proxy",
       "git_server",
       "general",
       "System Tools"
     ],
     "group_rules": {
+      "Home Automation": {
+        "is_exclusive": false,
+        "name": "Home Automation"
+      },
       "System Tools": {
         "is_exclusive": false,
         "name": "System Tools"
@@ -88,8 +93,10 @@
       "version": "latest"
     },
     "frigate": {
+      "depends_on": [],
       "description": "NVR with real-time object detection for IP cameras.",
-      "group": "general",
+      "group": "Home Automation",
+      "has_configuration": false,
       "has_ui": true,
       "image_name": "blakeblackshear/frigate",
       "name": "Frigate",
@@ -153,8 +160,10 @@
       "version": "latest"
     },
     "homeassistant": {
+      "depends_on": [],
       "description": "Open source home automation that puts local control and privacy first.",
-      "group": "general",
+      "group": "Home Automation",
+      "has_configuration": false,
       "has_ui": true,
       "image_name": "homeassistant/home-assistant",
       "name": "Home Assistant",
@@ -175,8 +184,10 @@
       "version": "latest"
     },
     "jellyfin": {
+      "depends_on": [],
       "description": "A Free Software Media System that puts you in control of your media.",
-      "group": "general",
+      "group": "Home Automation",
+      "has_configuration": false,
       "has_ui": true,
       "image_name": "lscr.io/linuxserver/jellyfin",
       "name": "Jellyfin",
@@ -186,9 +197,12 @@
       "version": "latest"
     },
     "nextcloud": {
-      "depends_on": "mariadb",
+      "depends_on": [
+        "mariadb"
+      ],
       "description": "The self-hosted productivity platform that keeps you in control.",
-      "group": "general",
+      "group": "Home Automation",
+      "has_configuration": false,
       "has_ui": true,
       "image_name": "lscr.io/linuxserver/nextcloud",
       "name": "Nextcloud",
@@ -308,7 +322,7 @@
       "default": true,
       "depends_on": [],
       "description": "A powerful management UI for Docker environments. ",
-      "group": "general",
+      "group": "System Tools",
       "has_configuration": true,
       "has_ui": true,
       "image_name": "portainer/portainer-ce",
@@ -466,9 +480,12 @@
       "version": "latest"
     },
     "zigbee2mqtt": {
-      "depends_on": "mosquitto",
+      "depends_on": [
+        "mosquitto"
+      ],
       "description": "Bridge the gap between your Zigbee devices and your MQTT broker.",
-      "group": "general",
+      "group": "Home Automation",
+      "has_configuration": false,
       "has_ui": true,
       "image_name": "koenkk/zigbee2mqtt",
       "name": "Zigbee2MQTT",

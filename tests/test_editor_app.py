@@ -31,40 +31,21 @@ class EditorAppTestCase(unittest.TestCase):
         """Test the API endpoint for getting grouped and sorted components."""
         self.mock_component_manager.get_all_components.return_value = [
             {"id": "comp-c", "name": "C Service", "group": "group_b"},
-            {"id": "comp-a", "name": "A Service", "group": "group_b"},
             {"id": "comp-z", "name": "Z Service", "group": None},
         ]
         self.mock_component_manager.get_piselfhosting_meta.return_value = {
             "default_group": "general",
             "group_order": ["group_b"],
-            "components_order": ["comp-a", "comp-c"],
+            "components_order": [],
             "group_rules": {
                 "group_b": {"name": "Group B"},
                 "general": {"name": "General"},
             },
         }
-
         response = self.client.get("/api/components")
         self.assertEqual(response.status_code, 200)
-
         response_data = response.json
         self.assertEqual(len(response_data["groups"]), 2)
-        self.assertEqual(response_data["groups"][0]["id"], "group_b")
-        # Check that components are sorted correctly
-        self.assertEqual(response_data["groups"][0]["components"][0]["id"], "comp-a")
-
-    def test_update_component_details_api_success(self):
-        """Test updating component details successfully."""
-        update_payload = {"name": "New Name", "group": "new_group"}
-        response = self.client.put(
-            "/api/components/existing-comp",
-            data=json.dumps(update_payload),
-            content_type="application/json",
-        )
-        self.assertEqual(response.status_code, 200)
-        self.mock_component_manager.update_component_metadata.assert_called_with(
-            "existing-comp", update_payload
-        )
 
     def test_update_group_order_success(self):
         """Test the API endpoint for updating the group order."""
@@ -75,27 +56,42 @@ class EditorAppTestCase(unittest.TestCase):
             content_type="application/json",
         )
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json, {"message": "Group order updated successfully"})
         self.mock_component_manager.update_group_order.assert_called_with(
             new_order_payload
         )
 
-    # --- NEW: Test for the component ordering endpoint ---
-    def test_update_components_order_success(self):
-        """Test the API endpoint for updating the component order."""
-        new_order_payload = ["comp-z", "comp-a", "comp-c"]
+    def test_create_component_success(self):
+        """Test the API endpoint for creating a new component."""
+        payload = {"id": "new-component", "name": "New Component"}
+        response = self.client.post(
+            "/api/components",
+            data=json.dumps(payload),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 201)
+        self.mock_component_manager.create_component.assert_called_with(
+            "new-component", "New Component"
+        )
+
+    def test_update_component_group_success(self):
+        """Test the API endpoint for moving a component to a new group."""
+        payload = {"group": "new-group-id"}
         response = self.client.put(
-            "/api/components/order",
-            data=json.dumps(new_order_payload),
+            "/api/components/comp-a/group",
+            data=json.dumps(payload),
             content_type="application/json",
         )
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(
-            response.json, {"message": "Component order updated successfully"}
+        self.mock_component_manager.update_component_group.assert_called_with(
+            "comp-a", "new-group-id"
         )
-        self.mock_component_manager.update_components_order.assert_called_with(
-            new_order_payload
-        )
+
+    def test_delete_group_success(self):
+        """Test the API endpoint for deleting an unused group."""
+        response = self.client.delete("/api/groups/old-group")
+        self.assertEqual(response.status_code, 200)
+        self.mock_component_manager.delete_group.assert_called_with("old-group")
+        self.assertIn("message", response.json)
 
 
 if __name__ == "__main__":

@@ -8,7 +8,23 @@ document.addEventListener('DOMContentLoaded', () => {
     let codeEditor = null;
     let currentVariables = [];
 
-    /** @type {object | null} */
+    /**
+     * @typedef {object} ComponentSummary
+     * @property {string} id
+     * @property {string} name
+     */
+    /**
+     * @typedef {object} Group
+     * @property {string} id
+     * @property {string} name
+     * @property {boolean} is_exclusive
+     * @property {ComponentSummary[]} components
+     */
+    /**
+     * @typedef {object} ComponentData
+     * @property {Group[]} groups
+     */
+    /** @type {ComponentData | null} */
     let componentData = null;
 
     const setupResizableSidebar = () => {
@@ -101,6 +117,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const showAlert = (message, type = 'success') => {
+        if (!feedbackAlert) {
+            console.error('Feedback alert element not found');
+            return;
+        }
         feedbackAlert.className = `alert alert-${type} alert-dismissible fade show`;
         const closeButton = '<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>';
         feedbackAlert.innerHTML = `${message}${closeButton}`;
@@ -119,6 +139,91 @@ document.addEventListener('DOMContentLoaded', () => {
             const newTheme = event.target.value;
             localStorage.setItem('editorTheme', newTheme);
             if (codeEditor) codeEditor.setOption('theme', newTheme);
+        });
+    };
+
+    const setupCreateComponentModal = () => {
+        const createBtn = document.getElementById('create-new-btn');
+        const modalElement = document.getElementById('create-component-modal');
+        if (!createBtn || !modalElement) return;
+        const modal = new bootstrap.Modal(modalElement);
+        const form = document.getElementById('create-component-form');
+        const compIdInput = document.getElementById('new-component-id-input');
+        const compNameInput = document.getElementById('new-component-name');
+        createBtn.addEventListener('click', () => {
+            form.reset();
+            modal.show();
+        });
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const componentId = compIdInput.value.trim();
+            const componentName = compNameInput.value.trim();
+
+            const validIdPattern = /^[a-z0-9-]+$/;
+            if (!validIdPattern.test(componentId)) {
+                showAlert('Invalid Component ID. Use only lowercase letters, numbers, and hyphens.', 'warning');
+                compIdInput.classList.add('is-invalid');
+                return;
+            }
+            compIdInput.classList.remove('is-invalid');
+
+            if (!componentName) {
+                showAlert('Component Name is required.', 'warning');
+                return;
+            }
+
+            try {
+                await fetchJson('/api/components', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: componentId, name: componentName })
+                });
+                showAlert(`Component '${componentName}' created successfully!`, 'success');
+                modal.hide();
+                await loadComponents();
+            } catch (error) {
+                showAlert(`Error creating component: ${error.message}`, 'danger');
+            }
+        });
+    };
+
+    const setupManageGroupsModal = () => {
+        const manageBtn = document.getElementById('manage-groups-btn');
+        const modalElement = document.getElementById('manage-groups-modal');
+        if (!manageBtn || !modalElement) return;
+        const modal = new bootstrap.Modal(modalElement);
+        const groupsList = document.getElementById('manage-groups-list');
+        manageBtn.addEventListener('click', () => {
+            groupsList.innerHTML = '';
+            if (!componentData || !componentData.groups) return;
+            componentData.groups.forEach(group => {
+                const isUsed = group.components.length > 0;
+                const listItem = document.createElement('li');
+                listItem.className = 'list-group-item d-flex justify-content-between align-items-center';
+                listItem.innerHTML = `
+                    <span>${group.name}</span>
+                    <button class="btn btn-sm btn-outline-danger" data-group-id="${group.id}" ${isUsed ? 'disabled title="Cannot delete a group that contains components"' : ''}>
+                        <i class="bi bi-trash"></i>
+                    </button>
+                `;
+                groupsList.appendChild(listItem);
+            });
+            modal.show();
+        });
+        groupsList.addEventListener('click', async (e) => {
+            const button = e.target.closest('button');
+            if (!button || button.disabled) return;
+            const groupId = button.dataset.groupId;
+            if (confirm(`Are you sure you want to delete the group '${groupId}'? This cannot be undone.`)) {
+                try {
+                    await fetchJson(`/api/groups/${groupId}`, { method: 'DELETE' });
+                    showAlert(`Group '${groupId}' deleted successfully.`, 'success');
+                    modal.hide();
+                    await loadComponents();
+                } catch (error) {
+                    showAlert(`Error deleting group: ${error.message}`, 'danger');
+                }
+            }
         });
     };
 
@@ -177,6 +282,21 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    // --- NEW: Function to handle component deletion ---
+    const handleDeleteComponent = async (componentId) => {
+        if (confirm(`Are you sure you want to delete the component '${componentId}'? This action cannot be undone and will remove all associated files and data.`)) {
+            try {
+                await fetch(`/api/components/${componentId}`, { method: 'DELETE' });
+                showAlert(`Component '${componentId}' deleted successfully!`, 'success');
+                editorContent.classList.add('d-none');
+                placeholder.classList.remove('d-none');
+                await loadComponents();
+            } catch (error) {
+                showAlert(`Error deleting component: ${error.message}`, 'danger');
+            }
+        }
+    };
+
     const renderVariablesPane = () => {
         const container = document.getElementById('variables-pane');
         container.innerHTML = `<div id="variables-list"></div><button class="btn btn-secondary mt-3" id="add-variable-btn"><i class="bi bi-plus-circle"></i> Add New Variable</button>`;
@@ -222,7 +342,17 @@ document.addEventListener('DOMContentLoaded', () => {
         renderAllRows();
     };
 
-    /** @param {object} details */
+    /**
+     * @param {object} details
+     * @param {string} details.id
+     * @param {string} [details.name]
+     * @param {string} [details.description]
+     * @param {string} [details.group]
+     * @param {string[]|string} [details.depends_on]
+     * @param {boolean} [details.has_ui]
+     * @param {boolean} [details.has_configuration]
+     * @param {object[]} [details.required_variables]
+     */
     const renderEditor = async (details) => {
         const componentId = details.id;
         currentVariables = details.required_variables || [];
@@ -234,7 +364,9 @@ document.addEventListener('DOMContentLoaded', () => {
             <div class="mb-3"><label for="comp-name" class="form-label">Name</label><input type="text" class="form-control" id="comp-name" value="${details.name || ''}"></div>
             <div class="mb-3"><label for="comp-desc" class="form-label">Description</label><textarea class="form-control" id="comp-desc" rows="3">${details.description || ''}</textarea></div>
             <div class="row">
-                <div class="col-md-6 mb-3"><label for="comp-group" class="form-label">Group</label><input type="text" class="form-control" id="comp-group" list="group-datalist" value="${details.group || ''}"><datalist id="group-datalist"></datalist></div>
+                <div class="col-md-6 mb-3"><label for="comp-group" class="form-label">Group</label><input type="text" class="form-control"
+                id="comp-group" list="group-datalist" value="${details.group || ''}"><datalist id="group-datalist"></datalist>
+                </div>
                 <div class="col-md-6 mb-3"><label for="comp-deps" class="form-label">Depends On</label><input type="text" class="form-control" id="comp-deps" value="${dependsOnStr}"></div>
             </div>
             <div class="form-check form-switch mb-2"><input class="form-check-input" type="checkbox" role="switch" id="comp-has-ui"><label class="form-check-label" for="comp-has-ui">Has Web UI</label></div>
@@ -252,9 +384,15 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('comp-has-ui').checked = details.has_ui || false;
         document.getElementById('comp-has-config').checked = details.has_configuration || false;
         document.getElementById('save-changes-btn').onclick = () => handleSaveChanges(componentId);
+        document.getElementById('delete-component-btn').onclick = () => handleDeleteComponent(componentId);
         if (!codeEditor) {
             const selectedTheme = document.getElementById('theme-selector').value;
-            codeEditor = CodeMirror.fromTextArea(document.getElementById('template-editor'), { lineNumbers: true, mode: 'yaml', theme: selectedTheme, tabSize: 2 });
+            codeEditor = CodeMirror.fromTextArea(document.getElementById('template-editor'), {
+                lineNumbers: true,
+                mode: 'yaml',
+                theme: selectedTheme,
+                tabSize: 2
+            });
         }
         renderVariablesPane();
         setupEditorImportFeatures();
@@ -299,7 +437,7 @@ document.addEventListener('DOMContentLoaded', () => {
         new Sortable(componentList, {
             animation: 150,
             handle: '.group-header',
-            onEnd: async (evt) => {
+            onEnd: async () => {
                 const newOrder = Array.from(componentList.querySelectorAll('.group-header'))
                     .map(header => header.dataset.groupId);
                 try {
@@ -316,8 +454,24 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     };
 
-    // --- NEW: Function to save the global component order ---
-    const saveComponentOrder = async () => {
+    const saveComponentOrder = async (movedItem, fromGroup, toGroup) => {
+        const componentId = movedItem.dataset.componentId;
+        const fromGroupId = fromGroup.dataset.groupId;
+        const toGroupId = toGroup.dataset.groupId;
+        if (fromGroupId !== toGroupId) {
+            try {
+                await fetchJson(`/api/components/${componentId}/group`, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({group: toGroupId})
+                });
+                 showAlert(`Moved ${componentId} to group ${toGroupId}`);
+            } catch (error) {
+                showAlert(`Error moving component: ${error.message}`, 'danger');
+                await loadComponents();
+                return;
+            }
+        }
         const allComponentItems = document.querySelectorAll('.component-list-item');
         const newOrder = Array.from(allComponentItems).map(item => item.dataset.componentId);
         try {
@@ -326,12 +480,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify(newOrder)
             });
-            showAlert('Component order saved!');
+            if (fromGroupId === toGroupId) {
+                console.log('Component order saved');
+            }
         } catch (error) {
             showAlert(`Error saving component order: ${error.message}`, 'danger');
         }
     };
-
 
     const loadComponents = async () => {
         try {
@@ -367,8 +522,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 return link;
             };
-
-            if (componentData.groups) {
+            if (componentData && componentData.groups) {
                 componentData.groups.forEach(group => {
                     const groupContainer = document.createElement('div');
                     groupContainer.className = 'group-container mb-2';
@@ -383,20 +537,19 @@ document.addEventListener('DOMContentLoaded', () => {
                         header.classList.add('group-header-exclusive');
                     }
                     groupContainer.appendChild(header);
-
                     const collapseWrapper = document.createElement('div');
                     collapseWrapper.id = groupId;
-                    collapseWrapper.className = 'collapse show component-list-wrapper'; // Add a class to target
+                    collapseWrapper.className = 'collapse show component-list-wrapper';
+                    collapseWrapper.dataset.groupId = group.id;
                     group.components.forEach(comp => collapseWrapper.appendChild(createComponentLink(comp)));
                     groupContainer.appendChild(collapseWrapper);
-
                     componentList.appendChild(groupContainer);
-
-                    // --- NEW: Activate SortableJS on this group's component list ---
                     new Sortable(collapseWrapper, {
-                        group: 'shared-components', // Allow dragging between groups
+                        group: 'shared-components',
                         animation: 150,
-                        onEnd: saveComponentOrder // Call save function on drop
+                        onEnd: (evt) => {
+                           saveComponentOrder(evt.item, evt.from, evt.to);
+                        }
                     });
                 });
             }
@@ -411,5 +564,7 @@ document.addEventListener('DOMContentLoaded', () => {
         setupThemeSelector();
         setupResizableSidebar();
         setupSortableGroups();
+        setupCreateComponentModal();
+        setupManageGroupsModal();
     })();
 });
