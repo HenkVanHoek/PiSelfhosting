@@ -1,7 +1,7 @@
 PiSelfhosting
-<div style="background-color: white; width: 100%; text-align: center; padding: 1rem;">
+<table><tr><td align="center" style="background-color: white; padding: 20px;">
 <img src="images/piselfhosting-icon512x512.png" width="150" alt="PiSelfhosting Logo">
-</div>
+</td></tr></table>
 
 Welcome to PiSelfhosting! This project provides a user-friendly system to deploy and manage a suite of self-hosted services on a Raspberry Pi (or any Linux-based system) using Docker. Our goal is to make self-hosting powerful, accessible, and easy to maintain.
 
