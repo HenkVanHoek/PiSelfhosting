@@ -16,6 +16,50 @@ class TestComponentManager:
         )
         assert len(manager.get_all_components()) == 1
 
+    # --- DEFINITIVE FIX: Add test coverage for the new method ---
+    def test_get_uniqueness_groups(self, tmp_path: Path):
+        """
+        Verify that the get_uniqueness_groups method correctly extracts the
+        group_rules dictionary from the metadata.
+        """
+        metadata_file = tmp_path / "components_metadata.json"
+        mock_group_rules = {
+            "dashboard": {"name": "Dashboard", "is_exclusive": True},
+            "dns_blocker": {"name": "DNS Blocker", "is_exclusive": True},
+        }
+        initial_content = {
+            "_piselfhosting": {"group_rules": mock_group_rules},
+            "components": {},
+        }
+        metadata_file.write_text(json.dumps(initial_content))
+        manager = ComponentManager(
+            templates_path=str(tmp_path), metadata_file_path=str(metadata_file)
+        )
+
+        result = manager.get_uniqueness_groups()
+        assert result == mock_group_rules
+
+    # --- DEFINITIVE FIX: Add test coverage for the new method ---
+    def test_sort_components_by_master_order(self, tmp_path: Path):
+        """
+        Verify that the sorting method correctly orders a list of component IDs
+        according to the master order defined in the metadata.
+        """
+        metadata_file = tmp_path / "components_metadata.json"
+        master_order = ["portainer", "homarr", "pi-hole"]
+        initial_content = {
+            "_piselfhosting": {"components_order": master_order},
+            "components": {},
+        }
+        metadata_file.write_text(json.dumps(initial_content))
+        manager = ComponentManager(
+            templates_path=str(tmp_path), metadata_file_path=str(metadata_file)
+        )
+
+        unsorted_list = ["pi-hole", "portainer"]
+        sorted_list = manager.sort_components_by_master_order(unsorted_list)
+        assert sorted_list == ["portainer", "pi-hole"]
+
     def test_update_components_order(self, tmp_path: Path):
         """Test that the component order can be updated and saved."""
         metadata_file = tmp_path / "components_metadata.json"
