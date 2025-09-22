@@ -150,6 +150,7 @@ document.addEventListener('DOMContentLoaded', () => {
             wizardFooter.innerHTML = `<p class="text-danger small mb-0">No devices could be successfully contacted. Check credentials and click 'Try Again'.</p>`;
         }
     };
+    // --- MODIFIED FOR DIAGNOSTICS ---
     const renderStep3_SelectSoftware = async () => {
         wizardHeader.innerHTML = '<strong>Step 3 of 5: Select Software</strong>';
         wizardBody.innerHTML = `<div class="text-center"><i class="fa-solid fa-spinner fa-spin fa-2x text-muted"></i><p class="mt-2">Loading available software...</p></div>`;
@@ -170,30 +171,46 @@ document.addEventListener('DOMContentLoaded', () => {
             const softwareData = await softwareResponse.json();
             const groupsData = await groupsResponse.json();
             allSoftwareCache = softwareData.available_software;
+            // --- DIAGNOSTIC ---
+            console.log("Data received from server:", allSoftwareCache);
             const groups = groupsData.groups;
-            const allGroupedComponents = new Set(Object.values(groups).flat());
+            const allGroupedComponents = new Set();
+            Object.values(groups).forEach(arr => arr.forEach(id => allGroupedComponents.add(id)));
             let tabNavHTML = '<ul class="nav nav-tabs" id="softwareTabs" role="tablist">';
             let tabContentHTML = '<div class="tab-content" id="softwareTabsContent">';
             let active = 'active';
-            Object.keys(groups).forEach((groupName) => {
-                const tabId = `tab-${groupName.replace(/\s+/g, '-')}`;
-                tabNavHTML += `<li class="nav-item" role="presentation"><button class="nav-link ${active}" id="${tabId}-tab" data-bs-toggle="tab" data-bs-target="#${tabId}" type="button" role="tab">${groupName}</button></li>`;
-                tabContentHTML += `<div class="tab-pane fade show ${active} p-3" id="${tabId}" role="tabpanel">`;
-                groups[groupName].forEach(compId => {
-                    const component = allSoftwareCache.find(c => c.id === compId);
-                    if (component) tabContentHTML += createComponentInput(component, groupName, 'radio');
+            // --- DIAGNOSTIC ---
+            try {
+                Object.keys(groups).forEach((groupName) => {
+                    const tabId = `tab-${groupName.replace(/\s+/g, '-')}`;
+                    tabNavHTML += `<li class="nav-item" role="presentation"><button class="nav-link ${active}" id="${tabId}-tab" data-bs-toggle="tab" data-bs-target="#${tabId}" type="button" role="tab">${groupName}</button></li>`;
+                    tabContentHTML += `<div class="tab-pane fade show ${active} p-3" id="${tabId}" role="tabpanel">`;
+                    groups[groupName].forEach(compId => {
+                        console.log(`Processing grouped component ID: '${compId}'`);
+                        const component = allSoftwareCache.find(c => c.id === compId);
+                        if (component) {
+                            tabContentHTML += createComponentInput(component, groupName, 'radio');
+                        } else {
+                            console.warn(`Component ID '${compId}' found in groups but not in software list.`);
+                        }
+                    });
+                    tabContentHTML += `</div>`;
+                    active = '';
+                });
+                tabNavHTML += `<li class="nav-item" role="presentation"><button class="nav-link ${active}" id="tab-standalone-tab" data-bs-toggle="tab" data-bs-target="#tab-standalone" type="button" role="tab">Standalone</button></li>`;
+                tabContentHTML += `<div class="tab-pane fade show ${active} p-3" id="tab-standalone" role="tabpanel">`;
+                allSoftwareCache.forEach(component => {
+                    if (!allGroupedComponents.has(component.id)) {
+                        console.log(`Processing standalone component: '${component.id}'`);
+                        tabContentHTML += createComponentInput(component, 'standalone', 'checkbox');
+                    }
                 });
                 tabContentHTML += `</div>`;
-                active = '';
-            });
-            tabNavHTML += `<li class="nav-item" role="presentation"><button class="nav-link ${active}" id="tab-standalone-tab" data-bs-toggle="tab" data-bs-target="#tab-standalone" type="button" role="tab">Standalone</button></li>`;
-            tabContentHTML += `<div class="tab-pane fade show ${active} p-3" id="tab-standalone" role="tabpanel">`;
-            allSoftwareCache.forEach(component => {
-                if (!allGroupedComponents.has(component.id)) {
-                    tabContentHTML += createComponentInput(component, 'standalone', 'checkbox');
-                }
-            });
-            tabContentHTML += `</div>`;
+            } catch (renderError) {
+                // --- DIAGNOSTIC ---
+                console.error("CRITICAL: An error occurred during HTML rendering.", renderError);
+                throw new Error("Failed to render component list. Check console for details.");
+            }
             tabNavHTML += '</ul>';
             tabContentHTML += '</div>';
             wizardBody.innerHTML = `

@@ -100,6 +100,26 @@ class ComponentManager:
     def get_piselfhosting_meta(self) -> Dict[str, Any]:
         return self._components_data.get("_piselfhosting", {})
 
+    def get_uniqueness_groups(self) -> Dict[str, Any]:
+        """
+        Retrieves the group rules from the _piselfhosting metadata.
+        This is required by the configurator_app frontend.
+        """
+        piselfhosting_meta = self.get_piselfhosting_meta()
+        return piselfhosting_meta.get("group_rules", {})
+
+    # --- DEFINITIVE FIX: Add the missing method back for the SetupManager ---
+    # This implementation is designed for the new metadata structure.
+    def sort_components_by_master_order(self, component_ids: List[str]) -> List[str]:
+        """
+        Sorts a list of component IDs based on the master components_order.
+        """
+        master_order = self.get_piselfhosting_meta().get("components_order", [])
+        order_map = {comp_id: i for i, comp_id in enumerate(master_order)}
+        return sorted(
+            component_ids, key=lambda cid: order_map.get(cid, len(master_order))
+        )
+
     def update_group_order(self, new_order: List[str]):
         piselfhosting_meta = self._components_data.setdefault("_piselfhosting", {})
         piselfhosting_meta["group_order"] = new_order

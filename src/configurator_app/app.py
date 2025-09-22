@@ -26,10 +26,16 @@ def create_app():
         "FLASK_SECRET_KEY", "a-default-secret-key-for-development"
     )
 
-    metadata_path = resource_path(str(Path("config") / "components_metadata.json"))
+    # --- DEFINITIVE FIX: Use the correct, two-parameter constructor ---
+    # This uses the resource_utils to ensure cross-platform compatibility.
+    metadata_path = resource_path("config/components_metadata.json")
+    templates_path = resource_path("component_templates")
+    component_manager = ComponentManager(
+        metadata_file_path=metadata_path, templates_path=templates_path
+    )
+
     app_data_dir = Path(user_data_dir("PiSelfhosting", "PiSelfhosting"))
     output_dir = app_data_dir / "output"
-    component_manager = ComponentManager(metadata_file=metadata_path)
     setup_manager = SetupManager(component_manager, output_dir=output_dir)
     deployment_manager = DeploymentManager(component_manager=component_manager)
     deployment_tasks = {}
@@ -125,7 +131,21 @@ def create_app():
             return jsonify({"error": "No devices provided"}), 400
         try:
             all_components = component_manager.get_all_components()
-            return jsonify({"available_software": all_components}), 200
+
+            # --- DEFINITIVE FIX: Guarantee the API data contract ---
+            # The frontend expects certain keys to always be present. We will
+            # iterate through the components and ensure they exist, providing
+            # safe defaults if they are missing from the metadata file.
+            sanitized_components = []
+            for component in all_components:
+                component["default"] = component.get("default", False)
+                component["depends_on"] = component.get("depends_on", [])
+                component["required_variables"] = component.get(
+                    "required_variables", []
+                )
+                sanitized_components.append(component)
+
+            return jsonify({"available_software": sanitized_components}), 200
         except Exception as e:
             logging.error(f"Failed to get available software: {e}")
             return jsonify({"error": str(e)}), 500
@@ -133,8 +153,24 @@ def create_app():
     @flask_app.route("/get-software-groups", methods=["GET"])
     def get_software_groups():
         try:
-            groups = component_manager.get_uniqueness_groups()
-            return jsonify({"groups": groups}), 200
+            # --- DEFINITIVE FIX: Reshape backend data to match frontend contract ---
+            # 1. Get the full list of components, which now contains the
+            #    group information for each one.
+            all_components = component_manager.get_all_components()
+
+            # 2. Build the data structure the frontend expects: a dictionary
+            #    mapping each group name to a list of component IDs.
+            groups_to_components = {}
+            for component in all_components:
+                group_name = component.get("group")
+                component_id = component.get("id")
+
+                if group_name and component_id:
+                    if group_name not in groups_to_components:
+                        groups_to_components[group_name] = []
+                    groups_to_components[group_name].append(component_id)
+
+            return jsonify({"groups": groups_to_components}), 200
         except Exception as e:
             logging.error(f"Failed to get software groups: {e}", exc_info=True)
             return jsonify({"error": str(e)}), 500
