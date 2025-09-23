@@ -18,19 +18,20 @@
         .main-container { display: flex; height: 100vh; padding-top: 56px; }
         .sidebar { background-color: #f8f9fa; border-right: 1px solid #dee2e6; padding: 1rem; overflow-y: auto; width: 280px; min-width: 200px; max-width: 600px; }
         .content { flex-grow: 1; padding: 2rem; overflow-y: auto; display: flex; flex-direction: column; }
-        /* noinspection CssUnusedSymbol */
-        #feedback-alert { position: fixed; top: 20px; right: 20px; z-index: 1050; }
+        #feedback-alert { position: fixed; top: 70px; right: 20px; z-index: 1050; }
         #editor-wrapper { border: 1px solid #dee2e6; border-radius: 0.25rem; flex-grow: 1; position: relative; }
-        /* noinspection CssUnusedSymbol */
         #editor-wrapper.drag-over { border: 2px dashed #0d6efd; background-color: rgba(13, 110, 253, 0.05); }
         .resizer { flex-shrink: 0; width: 5px; background-color: #f1f1f1; cursor: col-resize; border-right: 1px solid #dee2e6; }
         .resizer:hover { background-color: #0d6efd; }
-        /* noinspection CssUnusedSymbol */
         .group-header-exclusive { background-color: #fdf8e3; border-left: 4px solid #f0ad4e; }
-        /* noinspection CssUnusedSymbol */
         .group-header { cursor: grab; }
-        /* noinspection CssUnusedSymbol */
         .group-header:active { cursor: grabbing; }
+        /* --- DEFINITIVE FIX: Style for visually marking dirty tabs --- */
+        .nav-link.tab-dirty {
+            background-color: #f8d7da !important;
+            color: #58151c !important;
+            transition: background-color 0.2s ease-in-out;
+        }
     </style>
 </head>
 <body>
@@ -52,6 +53,8 @@
         </div>
     </div>
 </nav>
+
+<div id="feedback-alert" role="alert"></div>
 
 <div class="main-container">
     <div class="sidebar" id="sidebar">
@@ -75,14 +78,16 @@
             <div class="d-flex justify-content-between align-items-center">
                 <h3 id="editor-title"></h3>
                 <div class="d-flex align-items-center" id="editor-actions">
-                    <label for="theme-selector" class="form-label me-2 mb-0">Template Editor Theme:</label>
+                    <label for="theme-selector" class="form-label me-2 mb-0">Theme:</label>
                     <select class="form-select form-select-sm" id="theme-selector" style="width: auto;">
                         <option value="material-darker">Material Darker</option>
                         <option value="monokai">Monokai</option>
                         <option value="dracula">Dracula</option>
                         <option value="solarized light">Solarized Light</option>
                     </select>
-                    <button class="btn btn-primary ms-3" id="save-changes-btn">Save All Changes</button>
+                    <!-- --- DEFINITIVE FIX: Add Discard button and icons --- -->
+                    <button class="btn btn-outline-secondary ms-3 d-none" id="discard-changes-btn"><i class="bi bi-arrow-counterclockwise"></i> Discard Changes</button>
+                    <button class="btn btn-primary ms-2" id="save-changes-btn"><i class="bi bi-save"></i> Save All Changes</button>
                     <button class="btn btn-danger ms-2" id="delete-component-btn"><i class="bi bi-trash"></i> Delete Component</button>
                 </div>
             </div>
@@ -110,57 +115,35 @@
     </div>
 </div>
 
-<div class="modal fade" id="create-component-modal" tabindex="-1" aria-labelledby="createModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
+<!-- Modals -->
+<div class="modal fade" id="create-component-modal" tabindex="-1">...</div>
+<div class="modal fade" id="manage-groups-modal" tabindex="-1">...</div>
+
+<!-- --- DEFINITIVE FIX: Add the Unsaved Changes confirmation modal --- -->
+<div class="modal fade" id="unsavedChangesModal" tabindex="-1" aria-labelledby="unsavedChangesModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="createModalLabel">Create New Component</h5>
+                <h5 class="modal-title" id="unsavedChangesModalLabel"><i class="bi bi-exclamation-triangle-fill text-warning"></i> Unsaved Changes</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                <form id="create-component-form">
-                    <div class="mb-3">
-                        <label for="new-component-id-input" class="form-label">Component ID</label>
-                        <input type="text" class="form-control" id="new-component-id-input" required placeholder="e.g., my-new-service">
-                        <div class="form-text">A unique identifier. Use lowercase letters, numbers, and hyphens only.</div>
-                    </div>
-                    <div class="mb-3">
-                        <label for="new-component-name" class="form-label">Component Name</label>
-                        <input type="text" class="form-control" id="new-component-name" required placeholder="e.g., My New Service">
-                        <div class="form-text">A human-friendly display name.</div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                        <button type="submit" class="btn btn-primary">Create Component</button>
-                    </div>
-                </form>
+                <p>You have unsaved changes. How would you like to proceed?</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel Navigation</button>
+                <button type="button" class="btn btn-outline-danger" id="discard-and-continue-btn">Discard and Continue</button>
+                <button type="button" class="btn btn-primary" id="save-and-continue-btn">Save and Continue</button>
             </div>
         </div>
     </div>
 </div>
 
-<div class="modal fade" id="manage-groups-modal" tabindex="-1" aria-labelledby="manageGroupsLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="manageGroupsLabel">Manage Groups</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <p class="text-muted">You can delete any group that has no components assigned to it.</p>
-                <ul class="list-group" id="manage-groups-list"></ul>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-            </div>
-        </div>
-    </div>
-</div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/yaml/yaml.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
-<script src="{{ url_for('static', filename='editor.v2.js') }}" defer></script>
+<script src="{{ url_for('editor.static', filename='editor.v2.js') }}" defer></script>
 </body>
 </html>

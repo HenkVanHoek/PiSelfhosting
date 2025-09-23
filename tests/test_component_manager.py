@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from typing import Any, Dict, List
 
 import pytest
 
@@ -16,7 +17,49 @@ class TestComponentManager:
         )
         assert len(manager.get_all_components()) == 1
 
-    # --- DEFINITIVE FIX: Add test coverage for the new method ---
+    def test_initialization_with_variable_enrichment(self, tmp_path: Path):
+        """
+        Verify that on startup, the manager loads variables from a component's
+        variables.json file, overwriting any stale data in the main metadata.
+        """
+        # 1. Set up the main metadata file
+        metadata_file = tmp_path / "components_metadata.json"
+        initial_content = {
+            "components": {
+                "comp-with-vars": {
+                    "name": "Component With Variables",
+                    "has_configuration": True,
+                    "required_variables": [],  # Stale/empty data
+                },
+                "comp-no-vars": {
+                    "name": "Component Without Variables",
+                    "has_configuration": False,
+                },
+            }
+        }
+        metadata_file.write_text(json.dumps(initial_content))
+
+        # 2. Set up the templates directory and the variables.json file
+        templates_dir = tmp_path
+        comp_config_path = templates_dir / "comp-with-vars" / "template-config"
+        comp_config_path.mkdir(parents=True)
+        variables_content = {
+            "variables": [{"id": "TEST_VAR", "label": "Test Variable"}]
+        }
+        (comp_config_path / "variables.json").write_text(json.dumps(variables_content))
+
+        # 3. Initialize the manager
+        manager = ComponentManager(
+            templates_path=str(templates_dir), metadata_file_path=str(metadata_file)
+        )
+
+        # 4. Assert that the variables were loaded correctly
+        details = manager.get_component_details("comp-with-vars")
+        assert details is not None
+        assert "required_variables" in details
+        assert len(details["required_variables"]) == 1
+        assert details["required_variables"][0]["id"] == "TEST_VAR"
+
     def test_get_uniqueness_groups(self, tmp_path: Path):
         """
         Verify that the get_uniqueness_groups method correctly extracts the
@@ -35,11 +78,9 @@ class TestComponentManager:
         manager = ComponentManager(
             templates_path=str(tmp_path), metadata_file_path=str(metadata_file)
         )
-
         result = manager.get_uniqueness_groups()
         assert result == mock_group_rules
 
-    # --- DEFINITIVE FIX: Add test coverage for the new method ---
     def test_sort_components_by_master_order(self, tmp_path: Path):
         """
         Verify that the sorting method correctly orders a list of component IDs
@@ -55,7 +96,6 @@ class TestComponentManager:
         manager = ComponentManager(
             templates_path=str(tmp_path), metadata_file_path=str(metadata_file)
         )
-
         unsorted_list = ["pi-hole", "portainer"]
         sorted_list = manager.sort_components_by_master_order(unsorted_list)
         assert sorted_list == ["portainer", "pi-hole"]
@@ -106,9 +146,7 @@ class TestComponentManager:
         manager = ComponentManager(
             templates_path=str(tmp_path), metadata_file_path=str(metadata_file)
         )
-
         manager.delete_group("group-to-delete")
-
         saved_data = json.loads(metadata_file.read_text())
         assert "group-to-delete" not in saved_data["_piselfhosting"]["group_order"]
         assert "group-to-delete" not in saved_data["_piselfhosting"]["group_rules"]
@@ -124,7 +162,6 @@ class TestComponentManager:
         manager = ComponentManager(
             templates_path=str(tmp_path), metadata_file_path=str(metadata_file)
         )
-
         with pytest.raises(ValueError, match="Group 'group-in-use' is still in use"):
             manager.delete_group("group-in-use")
 
@@ -133,10 +170,7 @@ class TestComponentManager:
         metadata_file = tmp_path / "components_metadata.json"
         comp_dir = tmp_path / "comp-to-delete"
         comp_dir.mkdir()
-
-        # Create a dummy template file to verify deletion
         (comp_dir / "docker-compose.template.yml").touch()
-
         initial_content = {
             "_piselfhosting": {"components_order": ["comp-to-delete"]},
             "components": {
@@ -145,19 +179,13 @@ class TestComponentManager:
             },
         }
         metadata_file.write_text(json.dumps(initial_content))
-
         manager = ComponentManager(
             templates_path=str(tmp_path), metadata_file_path=str(metadata_file)
         )
-
         manager.delete_component("comp-to-delete")
-
-        # Verify metadata is updated
         saved_data = json.loads(metadata_file.read_text())
         assert "comp-to-delete" not in saved_data["components"]
         assert "comp-to-delete" not in saved_data["_piselfhosting"]["components_order"]
-
-        # Verify component directory is deleted
         assert not comp_dir.exists()
 
     def test_delete_non_existent_component_raises_error(self, tmp_path: Path):
@@ -167,6 +195,68 @@ class TestComponentManager:
         manager = ComponentManager(
             templates_path=str(tmp_path), metadata_file_path=str(metadata_file)
         )
-
         with pytest.raises(KeyError, match="Component 'non-existent-comp' not found."):
             manager.delete_component("non-existent-comp")
+
+    def test_validate_template_rejects_obsolete_version_key(self, tmp_path: Path):
+        """
+        Verify the validator raises a ValueError if the template contains
+        the obsolete top-level 'version' key.
+        """
+        metadata_file = tmp_path / "components_metadata.json"
+        metadata_file.write_text('{"components": {"test-comp": {}}}')
+        manager = ComponentManager(
+            templates_path=str(tmp_path), metadata_file_path=str(metadata_file)
+        )
+
+        invalid_template = "version: '3.8'\nservices:\n  app:\n    image: a:b"
+        variables: List[Dict[str, Any]] = []
+
+        with pytest.raises(ValueError, match="obsolete top-level 'version' key"):
+            manager.validate_component_configuration(
+                "test-comp", invalid_template, variables
+            )
+
+    def test_validate_template_rejects_undefined_variable(self, tmp_path: Path):
+        """
+        Verify the validator raises a ValueError if the template uses a
+        variable that is not defined in the variables list.
+        """
+        metadata_file = tmp_path / "components_metadata.json"
+        metadata_file.write_text('{"components": {"test-comp": {}}}')
+        manager = ComponentManager(
+            templates_path=str(tmp_path), metadata_file_path=str(metadata_file)
+        )
+
+        invalid_template = "services:\n  app:\n    image: my-app:{{ UNDEFINED_VAR }}"
+        defined_variables: List[Dict[str, Any]] = []
+
+        with pytest.raises(
+            ValueError, match="Template uses undefined variable: 'UNDEFINED_VAR'"
+        ):
+            manager.validate_component_configuration(
+                "test-comp", invalid_template, defined_variables
+            )
+
+    def test_validate_template_rejects_unused_variable(self, tmp_path: Path):
+        """
+        Verify the validator raises a ValueError if a variable is defined
+        but is not used in the template.
+        """
+        metadata_file = tmp_path / "components_metadata.json"
+        metadata_file.write_text('{"components": {"test-comp": {}}}')
+        manager = ComponentManager(
+            templates_path=str(tmp_path), metadata_file_path=str(metadata_file)
+        )
+
+        template = "services:\n  app:\n    image: my-app:latest"
+        defined_variables: List[Dict[str, Any]] = [
+            {"id": "UNUSED_VAR", "label": "Unused Variable"}
+        ]
+
+        with pytest.raises(
+            ValueError, match="Variable 'UNUSED_VAR' is defined but not used"
+        ):
+            manager.validate_component_configuration(
+                "test-comp", template, defined_variables
+            )

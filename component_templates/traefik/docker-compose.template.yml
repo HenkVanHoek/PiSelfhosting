@@ -1,52 +1,81 @@
-# templates/traefik/docker-compose.template.yml
 services:
   traefik:
-    image: traefik:{{ component_version }} # Use a specific Traefik v3 version
+    image: traefik:{{ component_version }}
     container_name: piselfhosting-traefik
     restart: unless-stopped
     security_opt:
       - no-new-privileges:true
+
     command:
-      # Entrypoints for HTTP (web) and HTTPS (websecure)
-      - --entrypoints.web.address=:80
-      - --entrypoints.websecure.address=:443
-      - --entrypoints.traefik.address=:8080 # Traefik Dashboard/API port (internal)
+      # --- Core & API Settings ---
+      # Enables the web dashboard and API
+      - "--api.dashboard=true"
+      # Sets the logging level from the user variable, defaults to INFO
+      - "--log.level={{ TRAEFIK_LOG_LEVEL | default('INFO') }}"
 
-      # Enable Docker provider for service discovery
-      - --providers.docker=true
-      - --providers.docker.exposedbydefault=false # Only expose services with traefik.enable=true label
+      # --- Docker Provider Configuration ---
+      # Enable the Docker provider to watch for container labels
+      - "--providers.docker=true"
+      # Do not expose all containers by default for security
+      - "--providers.docker.exposedbydefault=false"
 
-      # Enable API and Dashboard (access via :8080 or dedicated domain via NPM/Traefik rule)
-      - --api.dashboard=true
-      - --api.insecure=false # Set to true for local development only, otherwise access via router
+      # --- EntryPoint Definitions (Ports) ---
+      # Define the entry point for standard HTTP traffic on port 80
+      - "--entrypoints.web.address=:80"
+      # Define the entry point for secure HTTPS traffic on port 443
+      - "--entrypoints.websecure.address=:443"
 
-      # Enable ACME (Let's Encrypt) for automatic SSL certificate generation
-      - "--certificatesresolvers.letsencrypt.acme.email={{ ADMIN_EMAIL | default('admin@yourdomain.com') }}" # Your email for Let's Encrypt
-      - "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json" # Path to store certs
-      - "--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web" # For HTTP-01 challenge
+      # --- Automatic HTTP to HTTPS Redirection ---
+      # Create a router that redirects all traffic from http (web) to https (websecure)
+      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
 
-      # Log settings (optional)
-      - --log.level=INFO # DEBUG, INFO, WARN, ERROR
-      - --accesslog=true # Enable access logs
+      # --- Let's Encrypt (ACME) Configuration ---
+      # Define a certificate resolver named 'letsencrypt'
+      # Use the admin email address provided by the user
+      - "--certificatesresolvers.letsencrypt.acme.email={{ TRAEFIK_ADMIN_EMAIL }}"
+      # Specify the path inside the container for storing SSL certificates
+      - "--certificatesresolvers.letsencrypt.acme.storage=/etc/traefik/acme.json"
+      # Use the HTTP challenge on the 'web' entrypoint (port 80)
+      - "--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web"
 
     ports:
-      - "80:80"   # The HTTP port Traefik listens on
-      - "443:443" # The HTTPS port Traefik listens on
-      # - "8080:8080" # Only expose Traefik dashboard if needed directly, generally proxy via NPM/Traefik rule
+      # Expose the HTTP port
+      - "80:80"
+      # Expose the HTTPS port
+      - "443:443"
+      # Expose the dashboard/API port, mapped from the user variable
+      - "{{ TRAEFIK_DASHBOARD_PORT | default('8080') }}:8080"
 
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro # Mount Docker socket for Traefik to discover services
-      - "{{DATA_ROOT}}/traefik/config:/etc/traefik" # Mount configuration directory for Traefik
-      - "{{DATA_ROOT}}/traefik/acme:/letsencrypt" # Mount directory for Let's Encrypt certificates
+      # Mount the Docker socket (read-only) so Traefik can listen to Docker events
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      # Mount the host path for storing Let's Encrypt certificates
+      - "{{ TRAEFIK_ACME_STORAGE_PATH }}:/etc/traefik/acme.json"
+      # Mount the host path for dynamic configuration files (e.g., middlewares)
+      - "{{ TRAEFIK_CONFIG_PATH }}:/etc/traefik/dynamic/"
+
     networks:
       - piselfhosting_net
 
-# Define global volumes needed by Traefik
-volumes:
-  traefik_config:
-    name: piselfhosting-traefik-config # Optional: if you need a specific named volume
-  traefik_acme:
-    name: piselfhosting-traefik-acme # Optional: for ACME cert storage
+    labels:
+      # --- Enable Traefik to manage itself ---
+      - "traefik.enable=true"
+
+      # --- HTTP Router (for redirection) ---
+      # Create a router for HTTP traffic to the dashboard domain
+      - "traefik.http.routers.traefik-dashboard-http.rule=Host(`{{ DOMAIN_NAME }}`)"
+      - "traefik.http.routers.traefik-dashboard-http.entrypoints=web"
+      # This router's only job is to be caught by the global redirection
+
+      # --- HTTPS Router (for the dashboard) ---
+      # Create a secure router for the dashboard domain
+      - "traefik.http.routers.traefik-dashboard-secure.rule=Host(`{{ DOMAIN_NAME }}`)"
+      - "traefik.http.routers.traefik-dashboard-secure.entrypoints=websecure"
+      # Tell this router to use the special 'api@internal' service to show the dashboard
+      - "traefik.http.routers.traefik-dashboard-secure.service=api@internal"
+      # Tell this router to get its SSL certificate from our Let's Encrypt resolver
+      - "traefik.http.routers.traefik-dashboard-secure.tls.certresolver=letsencrypt"
 
 networks:
   piselfhosting_net:

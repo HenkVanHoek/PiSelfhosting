@@ -88,6 +88,33 @@ def get_or_create_components():
         return jsonify({"error": "An unexpected server error occurred"}), 500
 
 
+# --- DEFINITIVE FIX: Add the new validation endpoint ---
+@editor_bp.route("/api/components/<string:component_id>/validate", methods=["POST"])
+def validate_component_configuration(component_id: str):
+    """API endpoint to validate a component's configuration."""
+    component_manager = current_app.config["COMPONENT_MANAGER"]
+    try:
+        data = request.get_json(silent=True)
+        if not data:
+            return jsonify({"error": "Invalid or missing JSON payload"}), 400
+
+        template_content = data.get("template_content", "")
+        variables = data.get("variables", [])
+
+        component_manager.validate_component_configuration(
+            component_id, template_content, variables
+        )
+        return jsonify({"message": "Validation successful!"})
+    except ValueError as e:
+        # This catches validation rule failures and returns them as a user error.
+        return jsonify({"error": f"Validation Failed: {e}"}), 400
+    except Exception as e:
+        logging.error(
+            f"Failed to validate component {component_id}: {e}", exc_info=True
+        )
+        return jsonify({"error": "An unexpected server error occurred"}), 500
+
+
 @editor_bp.route("/api/groups/<string:group_id>", methods=["DELETE"])
 def delete_group(group_id: str):
     component_manager = current_app.config["COMPONENT_MANAGER"]

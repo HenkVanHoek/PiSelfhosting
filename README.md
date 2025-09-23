@@ -1,103 +1,50 @@
-
-<div align="center"dir="auto"><img width="150" height="150" style="max-width: 100%; height: auto; max-height: 150px;" alt="piselfhosting-icon512x512" src="https://github.com/user-attachments/assets/63ed723a-578f-47f9-b40b-e241c4c5935b" />
-</div>
+<div align="center" dir="auto"><img width="150" height="150" style="max-width: 100%; height: auto; max-height: 150px;" alt="piselfhosting-icon512x512" src="https://github.com/user-attachments/assets/63ed723a-578f-47f9-b40b-e241c4c5935b" /></div>
 
 # PiSelfhosting
 
-Welcome to PiSelfhosting! This project provides a user-friendly system to deploy and manage a suite of self-hosted services on a Raspberry Pi
-(or any Linux-based system) using Docker. Our goal is to make self-hosting powerful, accessible, and easy to maintain.
+Welcome to PiSelfhosting! This project provides a user-friendly system to deploy and manage a suite of self-hosted services on a Raspberry Pi (or any Linux-based system) using Docker. Our goal is to make self-hosting powerful, accessible, and easy to maintain.
 
-# 🌟 Key Features
-Fully Browser-Based Installer: A simple, local web application guides you through every step, from device discovery to watching the live installation log, all without leaving your browser.
+## 🌟 Key Features
 
-Modular & Flexible: Choose only the services you want from a curated list of popular applications.
+- **Fully Browser-Based Installer**: A simple, local web application guides you through every step, from device discovery to watching the live installation log.
+- **Modular & Flexible**: Choose only the services you want from a curated list of popular applications.
+- **Dockerized & Isolated**: Every service runs in its own Docker container, making the system clean, secure, and easy to manage.
+- **Component Editor**: A powerful web-based tool for developers to add, manage, and configure all components in the PiSelfhosting ecosystem.
 
-Dockerized & Isolated: Every service runs in its own Docker container, making the system clean, secure, and easy to manage.
+## 🏛️ How It Works
 
-Secure by Design: Your sensitive information (like passwords) is handled securely and is not stored in plain text in the main configuration files.
+A user downloads a single installer package from GitHub Releases. The installer runs a local web-based "Configurator" for device discovery and component selection, which then generates the necessary Docker Compose files and streams the installation process directly into the browser for the user.
 
-Integrated Configuration Tools: Component-specific configuration tools are planned to be accessible directly from your dashboard.
+## 📋 System Requirements
 
-# 🏛️ How It Works
-The project is split into two main workflows: the Development & Build Cycle (how the software is packaged) and the User Deployment Cycle (how you install it).
+**On Your Main Computer (where you run the installer):**
+- Windows, macOS, or Linux.
+- **Linux Users**: The **nmap** utility must be installed (`sudo apt install nmap`).
 
-In short, a user downloads a single installer package from GitHub. The installer runs a local web-based "Configurator" for device discovery and component selection, which then streams the installation process directly into the browser.
+**On Your Target Server (e.g., Raspberry Pi):**
+- A Raspberry Pi 4 or newer is recommended.
+- A Debian/Ubuntu-based OS (like Raspberry Pi OS).
+- Docker and Docker Compose must be installed.
+- SSH access must be enabled.
 
-# 📋 System Requirements
-Before you begin, please ensure your system meets the following requirements.
+## 🚀 Quick Start Guide
 
-On Your Main Computer (where you run the installer):
-Windows, macOS, or Linux.
+1.  **Download the Installer**: Go to the [GitHub Releases page](https://github.com/HenkVanHoek/PiSelfhosting/releases) and download the latest installer for your operating system.
+2.  **Run the Installer**: Unzip the file and run the **PiSelfhosting-Configurator** executable.
+3.  **Configure**: Your web browser will open to the configurator UI. Follow the on-screen steps to discover your device, select software, and provide any required configuration.
+4.  **Deploy**: After confirming your selections, the system will generate the necessary files and allow you to deploy them to your target device, with a live log of the entire process.
 
-For Linux Users: The nmap utility must be installed. You can install it with sudo apt update && sudo apt install nmap.
+### One-Time Setup for Linux Users
 
-On Your Raspberry Pi (or other Linux Server):
-A Raspberry Pi 4 or newer is recommended.
+If you are running the installer on a **Linux desktop**, you must perform a one-time setup to grant the scanner the necessary network permissions. Replace **your_username** with your actual Linux username.
 
-Raspberry Pi OS (or another Debian/Ubuntu-based distribution).
+    echo "your_username ALL=(ALL) NOPASSWD: /usr/bin/nmap" | sudo tee /etc/sudoers.d/99-piselfhosting
+    sudo chmod 0440 /etc/sudoers.d/99-piselfhosting
 
-Docker and Docker Compose must be installed.
+## 🤝 Contributing
 
-SSH access must be enabled.
+We welcome contributions! For guidelines on how to get started with development, please see our **CONTRIBUTING.md** file. To understand the core design principles of the project, please review the **ARCHITECTURE.md** file.
 
-# 🚀 Quick Start Guide
-Getting your self-hosted environment running is simple:
+## 📄 License
 
-Visit our Website: Go to piselfhosting.com to learn more.
-
-Download the Installer: Use the download link on the website to get the latest installer package from our GitHub Releases page.
-
-Linux Users - One-Time Setup: If you are running the installer on Linux, you must perform a one-time setup step to grant the necessary network permissions. See the "One-Time Setup for Linux Users" section below for instructions.
-
-Unzip & Run: Unzip the file on your main computer and run the single executable file (e.g., PiSelfhosting-Configurator.exe).
-
-Configure: The executable will launch the Configurator in your web browser. Use this graphical interface to find your Pi, select the components you want to install, and enter your server details.
-
-Deploy & Watch: After you confirm your selection, you will be taken to a new page in your browser where you can follow the installation progress live.
-
-One-Time Setup for Linux Users
-To allow the PiSelfhosting scanner to discover devices on your network, you need to grant it special permission. This is a standard security procedure on Linux.
-
-Please run the following two commands in your terminal. You will be asked for your password. Make sure to replace your_username with your actual Linux username.
-
-Grant Permission:
-
-echo 'your_username ALL=(ALL) NOPASSWD: /usr/bin/nmap' | sudo tee /etc/sudoers.d/99-piselfhosting
-
-Set File Permissions:
-
-sudo chmod 0440 /etc/sudoers.d/99-piselfhosting
-
-This setup is secure and only allows the nmap command used by PiSelfhosting to run with the necessary permissions.
-
-# 🧩 Supported Components
-PiSelfhosting supports a curated list of popular and powerful self-hosted services. The installer allows you to select any combination of the following components.
-
-For an up-to-date list of all supported components and their details, please see the automatically generated table here:
-
-# ➡️ Supported Components List
-
-## 🔧 Component Specific Notes
-After installation, some components require additional setup or have important considerations.
-
-### Matrix (Conduit)
-Domain Name Required: For your Matrix server to communicate with other servers (federation), it must be accessible on the internet via a domain name.
-
-Reverse Proxy: You must configure your reverse proxy (like Traefik) to correctly route traffic to the Conduit container.
-
-Reverse Proxies (Traefik / Nginx Proxy Manager)
-Choose One: You should only run one reverse proxy at a time as they both need to use the standard web ports (80 and 443).
-
-DNS Ad-Blockers (Pi-hole / AdGuard Home)
-Router Configuration: After installation, you must log in to your router and change its LAN/DHCP DNS server setting to the IP address of your Raspberry Pi.
-
-### Jellyfin
-Hardware Acceleration: The installer will attempt to select the correct hardware acceleration settings for your Pi model.
-
-Media Libraries: You will need to configure your media libraries inside the Jellyfin web UI after installation.
-
-# 🤝 Contributing
-We welcome contributions! For guidelines on how to contribute, please see our CONTRIBUTING.md file.
-
-# 📄 License
 This project is open-source and available under the MIT License.

@@ -4,6 +4,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const feedbackAlert = document.getElementById('feedback-alert');
     const placeholder = document.getElementById('placeholder-text');
     const editorContent = document.getElementById('editor-content');
+    const saveChangesBtn = document.getElementById('save-changes-btn');
+    const discardChangesBtn = document.getElementById('discard-changes-btn');
+    const editorTabs = document.querySelectorAll('#editorTabs button[data-bs-toggle="tab"]');
 
     let codeEditor = null;
     let currentVariables = [];
@@ -26,6 +29,69 @@ document.addEventListener('DOMContentLoaded', () => {
      */
     /** @type {ComponentData | null} */
     let componentData = null;
+
+    const dirtyTabs = new Set();
+    let nextTabTarget = null;
+    const unsavedChangesModal = new bootstrap.Modal(document.getElementById('unsavedChangesModal'));
+
+    const updateUiForDirtyState = () => {
+        const isDirty = dirtyTabs.size > 0;
+        saveChangesBtn.disabled = !isDirty;
+        if (isDirty) {
+            discardChangesBtn.classList.remove('d-none');
+        } else {
+            discardChangesBtn.classList.add('d-none');
+        }
+        editorTabs.forEach(tabButton => {
+            const paneId = tabButton.getAttribute('data-bs-target').substring(1);
+            if (dirtyTabs.has(paneId)) {
+                tabButton.classList.add('tab-dirty');
+            } else {
+                tabButton.classList.remove('tab-dirty');
+            }
+        });
+    };
+
+    const markTabAsDirty = (paneId) => {
+        dirtyTabs.add(paneId);
+        updateUiForDirtyState();
+    };
+
+    const clearAllDirtyState = () => {
+        dirtyTabs.clear();
+        updateUiForDirtyState();
+    };
+
+    const runValidation = async (componentId) => {
+        const validateBtn = document.getElementById('validate-template-btn');
+        if (validateBtn) {
+            validateBtn.disabled = true;
+            validateBtn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span> Validating...`;
+        }
+
+        const payload = {
+            template_content: codeEditor ? codeEditor.getValue() : "",
+            variables: currentVariables
+        };
+
+        try {
+            const response = await fetchJson(`/api/components/${componentId}/validate`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            showAlert(response.message, 'success');
+            return true;
+        } catch (error) {
+            showAlert(error.message, 'danger');
+            return false;
+        } finally {
+            if (validateBtn) {
+                validateBtn.disabled = false;
+                validateBtn.innerHTML = `<i class="bi bi-check-circle"></i> Validate Template`;
+            }
+        }
+    };
 
     const setupResizableSidebar = () => {
         const sidebar = document.getElementById('sidebar');
@@ -87,6 +153,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const reader = new FileReader();
             reader.onload = (e) => {
                 codeEditor.setValue(e.target.result);
+                markTabAsDirty('template-pane');
                 showAlert('Template imported successfully!');
             };
             reader.onerror = () => showAlert('Error reading the file.', 'danger');
@@ -148,6 +215,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!createBtn || !modalElement) return;
         const modal = new bootstrap.Modal(modalElement);
         const form = document.getElementById('create-component-form');
+
+        if (!form) {
+            console.error('Create component form not found in the DOM.');
+            return;
+        }
+
         const compIdInput = document.getElementById('new-component-id-input');
         const compNameInput = document.getElementById('new-component-name');
         createBtn.addEventListener('click', () => {
@@ -158,7 +231,6 @@ document.addEventListener('DOMContentLoaded', () => {
             e.preventDefault();
             const componentId = compIdInput.value.trim();
             const componentName = compNameInput.value.trim();
-
             const validIdPattern = /^[a-z0-9-]+$/;
             if (!validIdPattern.test(componentId)) {
                 showAlert('Invalid Component ID. Use only lowercase letters, numbers, and hyphens.', 'warning');
@@ -166,12 +238,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
             compIdInput.classList.remove('is-invalid');
-
             if (!componentName) {
                 showAlert('Component Name is required.', 'warning');
                 return;
             }
-
             try {
                 await fetchJson('/api/components', {
                     method: 'POST',
@@ -193,6 +263,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!manageBtn || !modalElement) return;
         const modal = new bootstrap.Modal(modalElement);
         const groupsList = document.getElementById('manage-groups-list');
+        if (!groupsList) {
+            console.error('Manage groups list not found in the DOM.');
+            return;
+        }
         manageBtn.addEventListener('click', () => {
             groupsList.innerHTML = '';
             if (!componentData || !componentData.groups) return;
@@ -236,53 +310,60 @@ document.addEventListener('DOMContentLoaded', () => {
             has_ui: document.getElementById('comp-has-ui').checked,
             has_configuration: document.getElementById('comp-has-config').checked
         };
-        const response = await fetch(`/api/components/${componentId}`, {
+        await fetchJson(`/api/components/${componentId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         });
-        if (!response.ok) throw new Error('Failed to save Core Metadata.');
     };
 
     const saveVariables = async (componentId) => {
         const payload = { variables: currentVariables };
-        const response = await fetch(`/api/components/${componentId}/variables`, {
+        await fetchJson(`/api/components/${componentId}/variables`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         });
-        if (!response.ok) throw new Error('Failed to save User Variables.');
     };
 
     const saveTemplate = async (componentId) => {
         if (!codeEditor) return;
         const content = codeEditor.getValue();
-        const response = await fetch(`/api/components/${componentId}/template`, {
+        await fetchText(`/api/components/${componentId}/template`, {
             method: 'PUT',
             headers: { 'Content-Type': 'text/plain' },
             body: content
         });
-        if (!response.ok) throw new Error('Failed to save Template Content.');
     };
 
     const handleSaveChanges = async (componentId) => {
-        const saveButton = document.getElementById('save-changes-btn');
-        saveButton.disabled = true;
-        saveButton.innerHTML = `<span class="spinner-border spinner-border-sm"></span> Saving...`;
+        saveChangesBtn.disabled = true;
+        saveChangesBtn.innerHTML = `<span class="spinner-border spinner-border-sm"></span> Validating...`;
+
+        const isValid = await runValidation(componentId);
+        if (!isValid) {
+            saveChangesBtn.innerHTML = '<i class="bi bi-save"></i> Save All Changes';
+            updateUiForDirtyState();
+            return;
+        }
+
+        saveChangesBtn.innerHTML = `<span class="spinner-border spinner-border-sm"></span> Saving...`;
         try {
             await Promise.all([saveMetadata(componentId), saveVariables(componentId), saveTemplate(componentId)]);
-            showAlert('All changes saved successfully!');
+            showAlert('All changes saved successfully!', 'success');
+            clearAllDirtyState();
             await loadComponents();
+            const selector = `.component-list-item[data-component-id="${componentId}"]`;
+            document.querySelector(selector)?.classList.add('active');
         } catch (error) {
             console.error('Error saving changes:', error);
             showAlert(`Error: ${error.message}`, 'danger');
         } finally {
-            saveButton.disabled = false;
-            saveButton.innerHTML = 'Save All Changes';
+            saveChangesBtn.innerHTML = '<i class="bi bi-save"></i> Save All Changes';
+            updateUiForDirtyState();
         }
     };
 
-    // --- NEW: Function to handle component deletion ---
     const handleDeleteComponent = async (componentId) => {
         if (confirm(`Are you sure you want to delete the component '${componentId}'? This action cannot be undone and will remove all associated files and data.`)) {
             try {
@@ -322,22 +403,25 @@ document.addEventListener('DOMContentLoaded', () => {
                 listContainer.appendChild(row);
             });
         };
-        listContainer.addEventListener('change', e => {
+        listContainer.addEventListener('input', e => {
             if (e.target.matches('input') || e.target.matches('select')) {
                 const { index, field } = e.target.dataset;
                 currentVariables[index][field] = e.target.value;
+                markTabAsDirty('variables-pane');
             }
         });
         listContainer.addEventListener('click', e => {
-            if (e.target.matches('.btn-outline-danger, .btn-outline-danger *')) {
-                const button = e.target.closest('button');
-                currentVariables.splice(parseInt(button.dataset.index, 10), 1);
+            const removeButton = e.target.closest('button');
+            if (removeButton && removeButton.dataset.index) {
+                currentVariables.splice(parseInt(removeButton.dataset.index, 10), 1);
                 renderAllRows();
+                markTabAsDirty('variables-pane');
             }
         });
         document.getElementById('add-variable-btn').addEventListener('click', () => {
             currentVariables.push({ id: '', description: '', type: 'string', default: '' });
             renderAllRows();
+            markTabAsDirty('variables-pane');
         });
         renderAllRows();
     };
@@ -359,8 +443,9 @@ document.addEventListener('DOMContentLoaded', () => {
         let dependsOn = Array.isArray(details.depends_on) ? details.depends_on : (details.depends_on ? [details.depends_on] : []);
         const dependsOnStr = dependsOn.join(', ');
         document.getElementById('editor-title').textContent = details.name || componentId;
-        document.getElementById('metadata-pane').innerHTML = `
-            <div class="mb-3"><label class="form-label">Component ID</label><input type="text" class="form-control" value="${componentId}" readonly></div>
+        const metadataPane = document.getElementById('metadata-pane');
+        metadataPane.innerHTML = `
+            <div class="mb-3"><label class="form-label">Component ID</label><input type="text" class="form-control" id="comp-id" value="${componentId}" readonly></div>
             <div class="mb-3"><label for="comp-name" class="form-label">Name</label><input type="text" class="form-control" id="comp-name" value="${details.name || ''}"></div>
             <div class="mb-3"><label for="comp-desc" class="form-label">Description</label><textarea class="form-control" id="comp-desc" rows="3">${details.description || ''}</textarea></div>
             <div class="row">
@@ -371,6 +456,8 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
             <div class="form-check form-switch mb-2"><input class="form-check-input" type="checkbox" role="switch" id="comp-has-ui"><label class="form-check-label" for="comp-has-ui">Has Web UI</label></div>
             <div class="form-check form-switch mb-3"><input class="form-check-input" type="checkbox" role="switch" id="comp-has-config"><label class="form-check-label" for="comp-has-config">Has User Configuration</label></div>`;
+        metadataPane.addEventListener('input', () => markTabAsDirty('metadata-pane'));
+
         const datalist = document.getElementById('group-datalist');
         datalist.innerHTML = '';
         if (componentData && componentData.groups) {
@@ -388,14 +475,22 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!codeEditor) {
             const selectedTheme = document.getElementById('theme-selector').value;
             codeEditor = CodeMirror.fromTextArea(document.getElementById('template-editor'), {
-                lineNumbers: true,
-                mode: 'yaml',
-                theme: selectedTheme,
-                tabSize: 2
+                lineNumbers: true, mode: 'yaml', theme: selectedTheme, tabSize: 2
             });
         }
+        if (codeEditor.dirtyMarker) codeEditor.off('change', codeEditor.dirtyMarker);
+        const dirtyMarker = () => markTabAsDirty('template-pane');
+        codeEditor.on('change', dirtyMarker);
+        codeEditor.dirtyMarker = dirtyMarker;
+
         renderVariablesPane();
         setupEditorImportFeatures();
+
+        const validateBtn = document.getElementById('validate-template-btn');
+        if (validateBtn) {
+            validateBtn.onclick = () => runValidation(componentId);
+        }
+
         placeholder.classList.add('d-none');
         editorContent.classList.remove('d-none');
         setTimeout(() => codeEditor.setSize("100%", "100%"), 50);
@@ -404,23 +499,36 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const loadTemplateContent = async (componentId) => {
         if (!codeEditor) return;
+
+        if (codeEditor.dirtyMarker) codeEditor.off('change', codeEditor.dirtyMarker);
+
         try {
             const templateText = await fetchText(`/api/components/${componentId}/template`);
             codeEditor.setValue(templateText);
         } catch (error) {
             console.error(`Failed to load template for ${componentId}:`, error);
             codeEditor.setValue(`# Error: Failed to load template.\n# ${error.message}`);
+        } finally {
+            if (codeEditor.dirtyMarker) codeEditor.on('change', codeEditor.dirtyMarker);
         }
     };
 
-    const loadComponentDetails = async (componentId) => {
+    const loadComponentDetails = async (componentId, force = false) => {
+        if (dirtyTabs.size > 0 && !force) {
+            if (!confirm('You have unsaved changes that will be lost. Are you sure you want to load a new component?')) {
+                return;
+            }
+        }
+        clearAllDirtyState();
+
         document.querySelectorAll('.component-list-item.active').forEach(item => item.classList.remove('active'));
         const selector = `.component-list-item[data-component-id="${componentId}"]`;
         document.querySelector(selector)?.classList.add('active');
         placeholder.classList.add('d-none');
         editorContent.classList.add('d-none');
-        const loadingIndicator = document.getElementById('loading-indicator');
-        if (!loadingIndicator) editorPane.insertAdjacentHTML('afterbegin', '<div id="loading-indicator" class="text-center text-muted"><p>Loading...</p></div>');
+        if (!document.getElementById('loading-indicator')) {
+            editorPane.insertAdjacentHTML('afterbegin', '<div id="loading-indicator" class="text-center text-muted"><p>Loading...</p></div>');
+        }
         try {
             const details = await fetchJson(`/api/components/${componentId}`);
             details.id = componentId;
@@ -430,6 +538,7 @@ document.addEventListener('DOMContentLoaded', () => {
             editorPane.innerHTML = `<p class="text-center text-danger">Failed to load details: ${error.message}</p>`;
         } finally {
             document.getElementById('loading-indicator')?.remove();
+            clearAllDirtyState();
         }
     };
 
@@ -518,7 +627,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 link.dataset.componentId = component.id;
                 link.addEventListener('click', (e) => {
                     e.preventDefault();
-                    loadComponentDetails(component.id);
+                    void loadComponentDetails(component.id, false);
                 });
                 return link;
             };
@@ -533,9 +642,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     header.dataset.bsToggle = 'collapse';
                     header.dataset.groupId = group.id;
                     header.innerHTML = `<strong>${group.name}</strong> <i class="bi bi-chevron-down"></i>`;
-                    if (group.is_exclusive) {
-                        header.classList.add('group-header-exclusive');
-                    }
+                    if (group.is_exclusive) header.classList.add('group-header-exclusive');
                     groupContainer.appendChild(header);
                     const collapseWrapper = document.createElement('div');
                     collapseWrapper.id = groupId;
@@ -559,6 +666,44 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    const setupDirtyFormHandling = () => {
+        editorTabs.forEach(tab => {
+            tab.addEventListener('show.bs.tab', (event) => {
+                if (dirtyTabs.size > 0) {
+                    event.preventDefault();
+                    nextTabTarget = event.target;
+                    unsavedChangesModal.show();
+                }
+            });
+        });
+
+        document.getElementById('discard-and-continue-btn').addEventListener('click', () => {
+            clearAllDirtyState();
+            unsavedChangesModal.hide();
+            if (nextTabTarget) {
+                new bootstrap.Tab(nextTabTarget).show();
+                nextTabTarget = null;
+            }
+        });
+
+        document.getElementById('save-and-continue-btn').addEventListener('click', async () => {
+            const componentId = document.getElementById('comp-id').value;
+            await handleSaveChanges(componentId);
+            unsavedChangesModal.hide();
+            if (dirtyTabs.size === 0 && nextTabTarget) {
+                new bootstrap.Tab(nextTabTarget).show();
+                nextTabTarget = null;
+            }
+        });
+
+        discardChangesBtn.addEventListener('click', () => {
+            const componentId = document.getElementById('comp-id').value;
+            if (componentId) {
+                void loadComponentDetails(componentId, true);
+            }
+        });
+    };
+
     (async () => {
         await loadComponents();
         setupThemeSelector();
@@ -566,5 +711,7 @@ document.addEventListener('DOMContentLoaded', () => {
         setupSortableGroups();
         setupCreateComponentModal();
         setupManageGroupsModal();
+        setupDirtyFormHandling();
+        updateUiForDirtyState();
     })();
 });
