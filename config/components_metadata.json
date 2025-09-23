@@ -1,20 +1,20 @@
 {
   "_piselfhosting": {
     "components_order": [
-      "adguard-home",
-      "pi-hole",
       "homarr",
       "heimdall",
       "homer",
       "organizr",
-      "nginx-proxy-manager",
-      "traefik",
-      "gitlab",
       "jellyfin",
       "nextcloud",
       "zigbee2mqtt",
       "homeassistant",
       "frigate",
+      "pi-hole",
+      "adguard-home",
+      "nginx-proxy-manager",
+      "traefik",
+      "gitlab",
       "conduit",
       "radarr",
       "sabnzbd",
@@ -137,24 +137,6 @@
       "name": "Homarr",
       "project_url": "https://homarr.dev/",
       "protocol": "http",
-      "required_variables": [
-        {
-          "default": 7575,
-          "description": "The external port to access the Homarr web UI.",
-          "id": "HOMARR_HTTP_PORT",
-          "label": "Homarr HTTP Port",
-          "required": true,
-          "type": "port"
-        },
-        {
-          "default": "{{ CONFIG_BASE_PATH }}/homarr",
-          "description": "The path to the Homarr configuration files.",
-          "id": "HOMARR_CONFIG_PATH",
-          "label": "Homarr Config Path",
-          "required": true,
-          "type": "hidden"
-        }
-      ],
       "ui_port": 7575,
       "ui_port_variable": "HOMARR_HTTP_PORT",
       "version": "latest"
@@ -217,24 +199,12 @@
       ],
       "description": "User-friendly interface for managing Nginx proxy hosts and SSL certificates.",
       "group": "reverse_proxy",
-      "has_configuration": false,
+      "has_configuration": true,
       "has_ui": true,
       "image_name": "jc21/nginx-proxy-manager",
       "name": "Nginx Proxy Manager",
       "project_url": "https://nginxproxymanager.com/",
       "protocol": "http",
-      "required_variables": [
-        {
-          "id": "NEW_VARIABLE",
-          "label": "New Variable",
-          "type": "string"
-        },
-        {
-          "id": "NEW_VARIABLE2",
-          "label": "New Variable",
-          "type": "string"
-        }
-      ],
       "ui_port": 81,
       "version": "latest"
     },
@@ -259,32 +229,6 @@
       "name": "Pi-hole",
       "project_url": "https://pi-hole.net/",
       "protocol": "http",
-      "required_variables": [
-        {
-          "default": "pi",
-          "description": "A strong password for the web UI. Required for a clean installation.",
-          "id": "PIHOLE_WEB_PASSWORD",
-          "label": "Pi-hole Admin Password",
-          "required": "clean-install",
-          "type": "password"
-        },
-        {
-          "default": 8088,
-          "description": "The external HTTP port to access the Pi-hole web UI.",
-          "id": "PIHOLE_WEB_PORT",
-          "label": "Pi-hole Web Interface Port",
-          "required": false,
-          "type": "port"
-        },
-        {
-          "default": 53,
-          "description": "The external port for DNS queries. Must be 53 for most use cases.",
-          "id": "PIHOLE_DNS_PORT",
-          "label": "Pi-hole DNS Port",
-          "required": false,
-          "type": "port"
-        }
-      ],
       "ui_port": 80,
       "ui_port_variable": "PIHOLE_WEB_PORT",
       "version": "latest"
@@ -300,7 +244,6 @@
       "name": "Backup & Restore Tool",
       "project_url": "https://github.com/HenkVanHoek/PiSelfhosting",
       "protocol": "http",
-      "required_variables": [],
       "ui_port": 9901,
       "version": "0.1.0"
     },
@@ -330,29 +273,6 @@
       "post_install_restart_option": true,
       "project_url": "https://www.portainer.io/",
       "protocol": "https",
-      "required_variables": [
-        {
-          "default": "lts",
-          "description": "The Docker image tag for Portainer CE. 'lts' (Long-Term Support) is recommended for stability.",
-          "id": "PORTAINER_IMAGE_TAG",
-          "label": "Portainer Version Tag",
-          "type": "string"
-        },
-        {
-          "default": "9443",
-          "description": "The external HTTPS port for the Portainer web UI.",
-          "id": "PORTAINER_HTTPS_PORT",
-          "label": "Portainer Web Port (HTTPS)",
-          "type": "port"
-        },
-        {
-          "default": "8000",
-          "description": "The external port for the Portainer Edge Agent tunnel server. HvH",
-          "id": "PORTAINER_EDGE_PORT",
-          "label": "Portainer Edge Agent Port",
-          "type": "string"
-        }
-      ],
       "ui_port": 9443,
       "ui_port_variable": "PORTAINER_HTTPS_PORT",
       "version": "lts"
@@ -414,7 +334,7 @@
     },
     "traefik": {
       "depends_on": [],
-      "description": "A modern reverse proxy and load balancer.HvH",
+      "description": "A modern reverse proxy and load balancer with Let's Encrypt support",
       "group": "reverse_proxy",
       "has_configuration": true,
       "has_ui": true,
@@ -422,7 +342,6 @@
       "name": "Traefik",
       "project_url": "https://traefik.io/traefik/",
       "protocol": "http",
-      "required_variables": [],
       "ui_port": 8082,
       "version": "v3.0"
     },
