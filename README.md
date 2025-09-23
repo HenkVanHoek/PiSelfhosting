@@ -1,10 +1,13 @@
+
 <div align="center"dir="auto"><img width="150" height="150" style="max-width: 100%; height: auto; max-height: 150px;" alt="piselfhosting-icon512x512" src="https://github.com/user-attachments/assets/63ed723a-578f-47f9-b40b-e241c4c5935b" />
 </div>
-PiSelfhosting
 
-Welcome to PiSelfhosting! This project provides a user-friendly system to deploy and manage a suite of self-hosted services on a Raspberry Pi (or any Linux-based system) using Docker. Our goal is to make self-hosting powerful, accessible, and easy to maintain.
+# PiSelfhosting
 
-🌟 Key Features
+Welcome to PiSelfhosting! This project provides a user-friendly system to deploy and manage a suite of self-hosted services on a Raspberry Pi
+(or any Linux-based system) using Docker. Our goal is to make self-hosting powerful, accessible, and easy to maintain.
+
+# 🌟 Key Features
 Fully Browser-Based Installer: A simple, local web application guides you through every step, from device discovery to watching the live installation log, all without leaving your browser.
 
 Modular & Flexible: Choose only the services you want from a curated list of popular applications.
@@ -15,12 +18,12 @@ Secure by Design: Your sensitive information (like passwords) is handled securel
 
 Integrated Configuration Tools: Component-specific configuration tools are planned to be accessible directly from your dashboard.
 
-🏛️ How It Works
+# 🏛️ How It Works
 The project is split into two main workflows: the Development & Build Cycle (how the software is packaged) and the User Deployment Cycle (how you install it).
 
 In short, a user downloads a single installer package from GitHub. The installer runs a local web-based "Configurator" for device discovery and component selection, which then streams the installation process directly into the browser.
 
-📋 System Requirements
+# 📋 System Requirements
 Before you begin, please ensure your system meets the following requirements.
 
 On Your Main Computer (where you run the installer):
@@ -37,7 +40,7 @@ Docker and Docker Compose must be installed.
 
 SSH access must be enabled.
 
-🚀 Quick Start Guide
+# 🚀 Quick Start Guide
 Getting your self-hosted environment running is simple:
 
 Visit our Website: Go to piselfhosting.com to learn more.
@@ -67,17 +70,17 @@ sudo chmod 0440 /etc/sudoers.d/99-piselfhosting
 
 This setup is secure and only allows the nmap command used by PiSelfhosting to run with the necessary permissions.
 
-🧩 Supported Components
+# 🧩 Supported Components
 PiSelfhosting supports a curated list of popular and powerful self-hosted services. The installer allows you to select any combination of the following components.
 
 For an up-to-date list of all supported components and their details, please see the automatically generated table here:
 
-➡️ Supported Components List
+# ➡️ Supported Components List
 
-🔧 Component Specific Notes
+## 🔧 Component Specific Notes
 After installation, some components require additional setup or have important considerations.
 
-Matrix (Conduit)
+### Matrix (Conduit)
 Domain Name Required: For your Matrix server to communicate with other servers (federation), it must be accessible on the internet via a domain name.
 
 Reverse Proxy: You must configure your reverse proxy (like Traefik) to correctly route traffic to the Conduit container.
@@ -88,13 +91,13 @@ Choose One: You should only run one reverse proxy at a time as they both need to
 DNS Ad-Blockers (Pi-hole / AdGuard Home)
 Router Configuration: After installation, you must log in to your router and change its LAN/DHCP DNS server setting to the IP address of your Raspberry Pi.
 
-Jellyfin
+### Jellyfin
 Hardware Acceleration: The installer will attempt to select the correct hardware acceleration settings for your Pi model.
 
 Media Libraries: You will need to configure your media libraries inside the Jellyfin web UI after installation.
 
-🤝 Contributing
+# 🤝 Contributing
 We welcome contributions! For guidelines on how to contribute, please see our CONTRIBUTING.md file.
 
-📄 License
+# 📄 License
 This project is open-source and available under the MIT License.
