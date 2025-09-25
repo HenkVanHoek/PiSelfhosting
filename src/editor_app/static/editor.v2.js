@@ -62,6 +62,23 @@ document.addEventListener('DOMContentLoaded', () => {
         updateUiForDirtyState();
     };
 
+    const collectVariablesFromDOM = () => {
+        const newVariables = [];
+        const rows = document.querySelectorAll('#variables-list .card');
+        rows.forEach(row => {
+            const idEl = row.querySelector('[data-field="id"]');
+            if (idEl) {
+                newVariables.push({
+                    id: idEl.value,
+                    description: row.querySelector('[data-field="description"]').value,
+                    type: row.querySelector('[data-field="type"]').value,
+                    default: row.querySelector('[data-field="default"]').value
+                });
+            }
+        });
+        return newVariables;
+    };
+
     const runValidation = async (componentId) => {
         const validateBtn = document.getElementById('validate-template-btn');
         if (validateBtn) {
@@ -69,9 +86,12 @@ document.addEventListener('DOMContentLoaded', () => {
             validateBtn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span> Validating...`;
         }
 
+        const variablesFromDOM = collectVariablesFromDOM();
+        const validVariables = variablesFromDOM.filter(v => v.id && v.id.trim() !== '');
+
         const payload = {
             template_content: codeEditor ? codeEditor.getValue() : "",
-            variables: currentVariables
+            variables: validVariables
         };
 
         try {
@@ -135,7 +155,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!editorWrapper || !importBtn || !fileInput || !codeEditor) return;
         importBtn.addEventListener('click', () => fileInput.click());
         fileInput.addEventListener('change', (event) => {
-            const file = event.target.files[0];
+            const file = event.target.files;
             if (file) handleFile(file);
         });
         editorWrapper.addEventListener('dragover', (e) => {
@@ -146,7 +166,7 @@ document.addEventListener('DOMContentLoaded', () => {
         editorWrapper.addEventListener('drop', (e) => {
             e.preventDefault();
             editorWrapper.classList.remove('drag-over');
-            const file = e.dataTransfer.files[0];
+            const file = e.dataTransfer.files;
             if (file) handleFile(file);
         });
         const handleFile = (file) => {
@@ -338,16 +358,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const handleSaveChanges = async (componentId) => {
         saveChangesBtn.disabled = true;
-        saveChangesBtn.innerHTML = `<span class="spinner-border spinner-border-sm"></span> Validating...`;
-
-        const isValid = await runValidation(componentId);
-        if (!isValid) {
-            saveChangesBtn.innerHTML = '<i class="bi bi-save"></i> Save All Changes';
-            updateUiForDirtyState();
-            return;
-        }
-
         saveChangesBtn.innerHTML = `<span class="spinner-border spinner-border-sm"></span> Saving...`;
+
+        // START OF FIX:
+        // The state of `currentVariables` is updated by reading directly from the DOM.
+        // The blocking validation call has been removed.
+        currentVariables = collectVariablesFromDOM();
+        // END OF FIX
+
         try {
             await Promise.all([saveMetadata(componentId), saveVariables(componentId), saveTemplate(componentId)]);
             showAlert('All changes saved successfully!', 'success');
