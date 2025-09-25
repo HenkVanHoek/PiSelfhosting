@@ -9,7 +9,7 @@ line_length = 88
 
 [tool.pytest.ini_options]
 pythonpath = [
-  "src"
+  "."
 ]
 norecursedirs = ["scripts", "test_scanner.py"]
 

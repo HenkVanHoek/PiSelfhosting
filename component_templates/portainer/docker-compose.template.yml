@@ -1,14 +1,16 @@
 services:
   portainer:
-    image: portainer/portainer-ce:{{ PORTAINER_IMAGE_TAG | default('lts') }}
+    # --- DEFINITIVE FIX: Rely on the context for the version tag ---
+    image: portainer/portainer-ce:{{ PORTAINER_IMAGE_TAG }}
     container_name: piselfhosting-portainer
     restart: unless-stopped
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - portainer_data:/data
     ports:
-      - "{{ PORTAINER_HTTPS_PORT | default('9443') }}:9443"
-      - "{{ PORTAINER_EDGE_PORT | default('8000') }}:8000"
+      # --- DEFINITIVE FIX: Remove redundant defaults; rely on the context ---
+      - "{{ PORTAINER_WEB_PORT }}:9443"
+      - "{{ PORTAINER_EDGE_PORT }}:8000"
     networks:
       - piselfhosting_net
 

@@ -1,8 +1,8 @@
 {
   "variables": [
     {
-      "id": "HOMARR_HTTP_PORT",
-      "label": "Homarr HTTP Port",
+      "id": "HOMARR_WEB_PORT",
+      "label": "Homarr access Port",
       "description": "The external port to access the Homarr web UI.",
       "type": "port",
       "default": 7575,

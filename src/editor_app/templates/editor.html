@@ -20,13 +20,17 @@
         .content { flex-grow: 1; padding: 2rem; overflow-y: auto; display: flex; flex-direction: column; }
         #feedback-alert { position: fixed; top: 70px; right: 20px; z-index: 1050; }
         #editor-wrapper { border: 1px solid #dee2e6; border-radius: 0.25rem; flex-grow: 1; position: relative; }
+        /*noinspection CssUnusedSymbol*/
         #editor-wrapper.drag-over { border: 2px dashed #0d6efd; background-color: rgba(13, 110, 253, 0.05); }
         .resizer { flex-shrink: 0; width: 5px; background-color: #f1f1f1; cursor: col-resize; border-right: 1px solid #dee2e6; }
         .resizer:hover { background-color: #0d6efd; }
+        /*noinspection CssUnusedSymbol*/
         .group-header-exclusive { background-color: #fdf8e3; border-left: 4px solid #f0ad4e; }
+        /*noinspection CssUnusedSymbol*/
         .group-header { cursor: grab; }
+        /*noinspection CssUnusedSymbol*/
         .group-header:active { cursor: grabbing; }
-        /* --- DEFINITIVE FIX: Style for visually marking dirty tabs --- */
+        /*noinspection CssUnusedSymbol*/
         .nav-link.tab-dirty {
             background-color: #f8d7da !important;
             color: #58151c !important;
@@ -85,7 +89,6 @@
                         <option value="dracula">Dracula</option>
                         <option value="solarized light">Solarized Light</option>
                     </select>
-                    <!-- --- DEFINITIVE FIX: Add Discard button and icons --- -->
                     <button class="btn btn-outline-secondary ms-3 d-none" id="discard-changes-btn"><i class="bi bi-arrow-counterclockwise"></i> Discard Changes</button>
                     <button class="btn btn-primary ms-2" id="save-changes-btn"><i class="bi bi-save"></i> Save All Changes</button>
                     <button class="btn btn-danger ms-2" id="delete-component-btn"><i class="bi bi-trash"></i> Delete Component</button>
@@ -99,9 +102,22 @@
             </ul>
             <div class="tab-content pt-3 d-flex flex-column flex-grow-1" id="editorTabsContent">
                 <div class="tab-pane fade show active" id="metadata-pane"></div>
-                <div class="tab-pane fade" id="variables-pane"></div>
+                <div class="tab-pane fade" id="variables-pane">
+                    <div class="alert alert-info small">
+                        <i class="bi bi-info-circle-fill"></i>
+                        <strong>Hint:</strong> The <strong>Default Value</strong> field supports special macros.
+                        {% raw %}
+                        Use <code>{{ CONFIG_BASE_PATH }}/your-path</code> for portable data paths, and
+                        <code>{{ DOTENV.YOUR_GLOBAL_VAR }}</code> to bind the value to the user <strong>.env</strong> file.
+                        {% endraw %}
+                        <a href="https://github.com/HenkVanHoek/PiSelfhosting/blob/main/ARCHITECTURE.md#25-the-variable-and-macro-system" target="_blank" class="alert-link">Learn More</a>.
+                    </div>
+                    <div id="variables-list" class="mt-3"></div>
+                    <button class="btn btn-secondary mt-3" id="add-variable-btn"><i class="bi bi-plus-circle"></i> Add New Variable</button>
+                </div>
                 <div class="tab-pane fade d-flex flex-column flex-grow-1" id="template-pane">
                     <div class="d-flex justify-content-end mb-2">
+                        <button class="btn btn-sm btn-outline-info me-2" id="validate-template-btn"><i class="bi bi-check-circle"></i> Validate Template</button>
                         <button class="btn btn-sm btn-outline-secondary" id="import-template-btn"><i class="bi bi-upload"></i> Import from File</button>
                         <input type="file" id="template-file-input" accept=".yml,.yaml,.txt" style="display: none;">
                     </div>
@@ -115,11 +131,53 @@
     </div>
 </div>
 
-<!-- Modals -->
-<div class="modal fade" id="create-component-modal" tabindex="-1">...</div>
-<div class="modal fade" id="manage-groups-modal" tabindex="-1">...</div>
+<div class="modal fade" id="create-component-modal" tabindex="-1" aria-labelledby="createModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="createModalLabel">Create New Component</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="create-component-form">
+                    <div class="mb-3">
+                        <label for="new-component-id-input" class="form-label">Component ID</label>
+                        <input type="text" class="form-control" id="new-component-id-input" required placeholder="e.g., my-new-service">
+                        <div class="form-text">A unique identifier. Use lowercase letters, numbers, and hyphens only.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="new-component-name" class="form-label">Component Name</label>
+                        <input type="text" class="form-control" id="new-component-name" required placeholder="e.g., My New Service">
+                        <div class="form-text">A human-friendly display name.</div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        <button type="submit" class="btn btn-primary">Create Component</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
 
-<!-- --- DEFINITIVE FIX: Add the Unsaved Changes confirmation modal --- -->
+<div class="modal fade" id="manage-groups-modal" tabindex="-1" aria-labelledby="manageGroupsLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="manageGroupsLabel">Manage Groups</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted">You can delete any group that has no components assigned to it.</p>
+                <ul class="list-group" id="manage-groups-list"></ul>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="modal fade" id="unsavedChangesModal" tabindex="-1" aria-labelledby="unsavedChangesModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -138,7 +196,6 @@
         </div>
     </div>
 </div>
-
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/yaml/yaml.min.js"></script>

@@ -5,7 +5,8 @@ from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
 import yaml
-from jinja2 import Environment, FileSystemLoader
+from dotenv import dotenv_values
+from jinja2 import Environment, FileSystemLoader, StrictUndefined
 
 from managers.component_manager import ComponentManager
 from utils.generation_logger import GenerationLogger
@@ -58,6 +59,11 @@ class SetupManager:
 
         log.log_list("Initial Components Selected by User", selected_components)
 
+        project_root = self.template_base_path.parent
+        dotenv_path = project_root / ".env"
+        global_vars = dotenv_values(dotenv_path)
+        log.log_dict("Global Variables Loaded from .env", global_vars)
+
         auto_vars = {}
         if managed_devices:
             first_device, *_ = managed_devices
@@ -69,7 +75,8 @@ class SetupManager:
         try:
             full_component_list = self._resolve_dependencies(selected_components)
             log.log_list(
-                "Full Component List (after dependency resolution)", full_component_list
+                "Full Component List (after dependency resolution)",
+                full_component_list,
             )
         except ValueError as e:
             errors.append(str(e))
@@ -81,8 +88,30 @@ class SetupManager:
             details = self.component_manager.get_component_details(component_id)
             if details and details.get("required_variables"):
                 for var in details["required_variables"]:
-                    if "name" in var and "default" in var:
-                        default_vars[var["name"]] = var["default"]
+                    if "id" in var and "default" in var:
+                        default_value = var["default"]
+                        if isinstance(default_value, str) and default_value.startswith(
+                            "{{ DOTENV."
+                        ):
+                            var_name_match = re.search(
+                                r"{{\s*DOTENV\.(\w+)\s*}}", default_value
+                            )
+                            if var_name_match:
+                                var_name = var_name_match.group(1)
+                                if var_name in global_vars:
+                                    default_vars[var["id"]] = global_vars[var_name]
+                                else:
+                                    errors.append(
+                                        f"Error in {component_id}: Global variable "
+                                        f"'{var_name}' is required but not found in "
+                                        f"your .env file."
+                                    )
+                        else:
+                            default_vars[var["id"]] = default_value
+
+        if errors:
+            log.write_log()
+            return False, errors
 
         final_context = default_vars.copy()
         final_context.update(user_variables)
@@ -94,7 +123,9 @@ class SetupManager:
             second_pass_context = final_context.copy()
             config_base_path = f"{auto_vars['PISelfhosting_DATA_PATH']}/config"
             second_pass_context["CONFIG_BASE_PATH"] = config_base_path
-            jinja_env_pass2 = Environment(autoescape=True)
+            # --- DEFINITIVE FIX: Make DOTENV variables available to 2nd pass ---
+            second_pass_context["DOTENV"] = global_vars
+            jinja_env_pass2 = Environment(autoescape=True, undefined=StrictUndefined)
             for key, value in final_context.items():
                 if isinstance(value, str) and "{{" in value and "}}" in value:
                     template = jinja_env_pass2.from_string(value)
@@ -135,7 +166,9 @@ class SetupManager:
                         f"Template directory not found at {template_path}"
                     )
                 jinja_env = Environment(
-                    loader=FileSystemLoader(str(template_path)), autoescape=True
+                    loader=FileSystemLoader(str(template_path)),
+                    autoescape=True,
+                    undefined=StrictUndefined,
                 )
                 self._merge_docker_compose_template(
                     component_id,

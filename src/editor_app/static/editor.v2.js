@@ -380,11 +380,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const renderVariablesPane = () => {
         const container = document.getElementById('variables-pane');
-        container.innerHTML = `<div id="variables-list"></div><button class="btn btn-secondary mt-3" id="add-variable-btn"><i class="bi bi-plus-circle"></i> Add New Variable</button>`;
+        container.innerHTML = `
+            <div class="alert alert-info small">
+                <i class="bi bi-info-circle-fill"></i>
+                <strong>Hint:</strong> The <strong>Default Value</strong> field supports special macros.
+                Use <code>{{ CONFIG_BASE_PATH }}/your-path</code> for portable data paths, and
+                <code>{{ DOTENV.YOUR_GLOBAL_VAR }}</code> to bind the value to the user <strong>.env</strong> file.
+                <a href="https://github.com/HenkVanHoek/PiSelfhosting/blob/main/docs/ARCHITECTURE.md#25-the-variable-and-macro-system" target="_blank" class="alert-link">Learn More</a>.
+            </div>
+            <div id="variables-list" class="mt-3"></div>
+            <button class="btn btn-secondary mt-3" id="add-variable-btn"><i class="bi bi-plus-circle"></i> Add New Variable</button>
+        `;
+
         const listContainer = document.getElementById('variables-list');
         const renderAllRows = () => {
             listContainer.innerHTML = '';
-            if (currentVariables.length === 0) listContainer.innerHTML = '<p class="text-muted">No user variables defined.</p>';
+            if (currentVariables.length === 0) {
+                listContainer.innerHTML = '<p class="text-muted">No user variables defined.</p>';
+            }
             currentVariables.forEach((variable, index) => {
                 const variableTypes = ['string', 'port', 'path'];
                 const optionsHtml = variableTypes.map(type => `<option value="${type}" ${variable.type === type ? 'selected' : ''}>${type}</option>`).join('');

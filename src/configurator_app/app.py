@@ -26,8 +26,6 @@ def create_app():
         "FLASK_SECRET_KEY", "a-default-secret-key-for-development"
     )
 
-    # --- DEFINITIVE FIX: Use the correct, two-parameter constructor ---
-    # This uses the resource_utils to ensure cross-platform compatibility.
     metadata_path = resource_path("config/components_metadata.json")
     templates_path = resource_path("component_templates")
     component_manager = ComponentManager(
@@ -43,6 +41,14 @@ def create_app():
     @flask_app.route("/", methods=["GET"])
     def index():
         return render_template("index.html")
+
+    @flask_app.route("/summary", methods=["GET"])
+    def summary():
+        """
+        Renders the final summary page. Note: The frontend is now responsible
+        for passing the discovered service links to this page.
+        """
+        return render_template("summary.html")
 
     @flask_app.route("/scan-pis", methods=["POST"])
     def scan_pis():
@@ -119,7 +125,7 @@ def create_app():
                 return jsonify({"error": "No device details retrieved"}), 400
         except Exception as e:
             logging.error(
-                f"Error in get_device_details for IP " f"{ip_address}: {e}",
+                f"Error in get_device_details for IP {ip_address}: {e}",
                 exc_info=True,
             )
             return jsonify({"error": str(e)}), 500
@@ -131,11 +137,6 @@ def create_app():
             return jsonify({"error": "No devices provided"}), 400
         try:
             all_components = component_manager.get_all_components()
-
-            # --- DEFINITIVE FIX: Guarantee the API data contract ---
-            # The frontend expects certain keys to always be present. We will
-            # iterate through the components and ensure they exist, providing
-            # safe defaults if they are missing from the metadata file.
             sanitized_components = []
             for component in all_components:
                 component["default"] = component.get("default", False)
@@ -144,7 +145,6 @@ def create_app():
                     "required_variables", []
                 )
                 sanitized_components.append(component)
-
             return jsonify({"available_software": sanitized_components}), 200
         except Exception as e:
             logging.error(f"Failed to get available software: {e}")
@@ -153,23 +153,15 @@ def create_app():
     @flask_app.route("/get-software-groups", methods=["GET"])
     def get_software_groups():
         try:
-            # --- DEFINITIVE FIX: Reshape backend data to match frontend contract ---
-            # 1. Get the full list of components, which now contains the
-            #    group information for each one.
             all_components = component_manager.get_all_components()
-
-            # 2. Build the data structure the frontend expects: a dictionary
-            #    mapping each group name to a list of component IDs.
             groups_to_components = {}
             for component in all_components:
                 group_name = component.get("group")
                 component_id = component.get("id")
-
                 if group_name and component_id:
                     if group_name not in groups_to_components:
                         groups_to_components[group_name] = []
                     groups_to_components[group_name].append(component_id)
-
             return jsonify({"groups": groups_to_components}), 200
         except Exception as e:
             logging.error(f"Failed to get software groups: {e}", exc_info=True)
@@ -196,7 +188,7 @@ def create_app():
                     }
             return jsonify({"components": components_for_ui}), 200
         except Exception as e:
-            logging.error(f"Failed to get required " f"variables: {e}", exc_info=True)
+            logging.error(f"Failed to get required variables: {e}", exc_info=True)
             return jsonify({"error": str(e)}), 500
 
     @flask_app.route("/validate-selection", methods=["POST"])
@@ -216,8 +208,7 @@ def create_app():
                 template_path_obj = base_template_path / component_id
                 if not template_path_obj.exists():
                     error_message = (
-                        f"Validation failed:"
-                        f" Template directory not found for"
+                        f"Validation failed: Template directory not found for"
                         f" '{component_id}'."
                     )
                     logging.warning(error_message)
@@ -233,10 +224,8 @@ def create_app():
                     if not variables_path.is_file():
                         error_message = (
                             f"Configuration integrity error: "
-                            f"Component '{component_id}' "
-                            f"requires configuration, "
-                            f"but its 'variables.json' "
-                            f"file is missing from the"
+                            f"Component '{component_id}' requires configuration, "
+                            f"but its 'variables.json' file is missing from the"
                             f" 'template-config' directory."
                         )
                         logging.error(error_message)
@@ -273,6 +262,7 @@ def create_app():
                     jsonify({"error": "File generation failed.", "details": errors}),
                     400,
                 )
+
             output_directory_path = str(setup_manager.output_dir)
             return (
                 jsonify(
@@ -295,6 +285,7 @@ def create_app():
         components_to_clean = data.get("components_to_clean", [])
         if not output_path or not managed_devices:
             return jsonify({"error": "Missing output_path or devices"}), 400
+
         task_id = str(uuid.uuid4())
         deployment_tasks[task_id] = {
             "status": "running",
@@ -352,10 +343,6 @@ def create_app():
             for var_id, var_value in final_vars.items():
                 if var_id.endswith("_PORT"):
                     port_number = str(var_value)
-
-                    # --- THE DEFINITIVE, ARCHITECTURALLY-ALIGNED FIX ---
-                    # This robust pattern safely unpacks the first element of the
-                    # list, preventing the AttributeError.
                     name_parts = var_id.split("_")
                     first_part, *_ = name_parts
                     component_name = first_part.capitalize()

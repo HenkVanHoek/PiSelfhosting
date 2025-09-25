@@ -39,7 +39,10 @@ class DeploymentManager:
         components_to_clean: List[str],
         log_callback: Callable[..., None],
     ) -> None:
-        """Stops, removes containers and deletes associated named volumes."""
+        """
+        Stops and removes containers for the given components, ignoring
+        errors if they do not exist.
+        """
         if not components_to_clean:
             return
 
@@ -48,16 +51,14 @@ class DeploymentManager:
             log_callback(f"Cleaning resources for '{component_id}'...")
             service_name = self.component_manager.get_docker_service_name(component_id)
             container_name = f"piselfhosting-{service_name}"
-            ssh.execute_command(f"docker stop {container_name}", log_callback)
-            ssh.execute_command(f"docker rm {container_name}", log_callback)
 
-            volume_name_etc = f"piselfhosting-{service_name}-etc"
-            volume_name_dnsmasq = f"piselfhosting-{service_name}-dnsmasq"
             ssh.execute_command(
-                f"docker volume rm {volume_name_etc} {volume_name_dnsmasq}",
-                log_callback,
-                check_exit_code=False,  # Ignore errors if volumes do not exist
+                f"docker stop {container_name}", log_callback, check_exit_code=False
             )
+            ssh.execute_command(
+                f"docker rm {container_name}", log_callback, check_exit_code=False
+            )
+
         log_callback("--- Pre-Flight Cleanup Finished ---", is_step=True)
 
     def _discover_service_links(
@@ -66,7 +67,10 @@ class DeploymentManager:
         local_output_path: Path,
         log_callback: Callable[..., None],
     ) -> List[Dict[str, str]]:
-        """Reads deployment artifacts to discover and construct web UI links."""
+        """
+        Reads deployment artifacts to discover and construct web UI links
+        using the architecturally correct 'ui_port_variable' pointer.
+        """
         log_callback("Discovering web interfaces for services...", is_step=True)
         try:
             context_path = local_output_path / "deployment_context.json"
@@ -77,11 +81,12 @@ class DeploymentManager:
             with open(compose_path, "r", encoding="utf-8") as f:
                 compose_data = yaml.safe_load(f)
 
-            all_components_list = self.component_manager.get_all_components()
-            all_components_map = {c["id"]: c for c in all_components_list}
+            all_components_map = {
+                c["id"]: c for c in self.component_manager.get_all_components()
+            }
 
             service_links = []
-            for s_def in compose_data.get("services", {}).values():
+            for service_name, s_def in compose_data.get("services", {}).items():
                 component_id = next(
                     (
                         label.split("=", 1)[1]
@@ -98,20 +103,31 @@ class DeploymentManager:
                 ):
                     continue
 
-                port_var = next(
-                    (
-                        var
-                        for var in comp_meta.get("required_variables", [])
-                        if var.get("type") == "port"
-                        and ("WEB" in var.get("id", "") or "HTTP" in var.get("id", ""))
-                    ),
-                    None,
-                )
+                primary_service = comp_meta.get("docker_service_name")
+                if primary_service and primary_service != service_name:
+                    continue
 
-                if port_var and (port := deployment_context.get(port_var["id"])):
+                port_variable_name = comp_meta.get("ui_port_variable")
+                port = None
+
+                if port_variable_name:
+                    port = deployment_context.get(port_variable_name)
+                elif "ui_port" in comp_meta:
+                    port = comp_meta.get("ui_port")
+
+                if port:
                     protocol = comp_meta.get("protocol", "http")
                     url = f"{protocol}://{ip}:{port}"
                     service_links.append({"name": comp_meta.get("name"), "url": url})
+
+            # --- DEFINITIVE FIX: De-duplicate the list to solve the user's issue ---
+            unique_links = []
+            seen_urls = set()
+            for link in service_links:
+                if link["url"] not in seen_urls:
+                    unique_links.append(link)
+                    seen_urls.add(link["url"])
+            service_links = unique_links
 
             log_text = (
                 f"SUCCESS: Found {len(service_links)} web UIs."
@@ -167,18 +183,22 @@ class DeploymentManager:
     ) -> None:
         """Main entry point to orchestrate the deployment process."""
 
-        # --- FIX: Converted lambda to a nested def to fix flake8 E731 ---
         def log_callback(text: str, is_step: bool = False) -> None:
             self._log_update(tasks_dict, task_id, text, is_step)
 
         log_callback("Deployment process initiated...", is_step=True)
 
-        if not managed_devices or not (device := managed_devices[0]):
+        if not managed_devices:
             log_callback("ERROR: No valid devices for deployment.", is_step=True)
             tasks_dict[task_id]["status"] = "failed"
             return
 
-        ip, user, pwd = device.get("ip"), device.get("username"), device.get("password")
+        device = managed_devices
+        ip, user, pwd = (
+            device[0].get("ip"),
+            device[0].get("username"),
+            device[0].get("password"),
+        )
         if not all([ip, user, pwd]):
             log_callback("ERROR: Device details are incomplete.", is_step=True)
             tasks_dict[task_id]["status"] = "failed"
@@ -215,10 +235,9 @@ class DeploymentManager:
                 log_callback("ERROR: Deployment command failed.", is_step=True)
                 return
 
-            # --- FIX: Added check for ip to satisfy mypy [arg-type] ---
             if not ip:
                 log_callback(
-                    "FATAL: IP address is missing, " "cannot discover links.",
+                    "FATAL: IP address is missing, cannot discover links.",
                     is_step=True,
                 )
                 return

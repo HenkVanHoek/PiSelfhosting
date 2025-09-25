@@ -39,3 +39,4 @@ docker/
 # sensitive data like passwords and API keys.
 #-----------------------------------------
 /docs/Chats/
+/config/components_metadata.oud.json

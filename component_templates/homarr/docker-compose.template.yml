@@ -4,7 +4,7 @@ services:
     image: ghcr.io/ajnart/homarr:latest
     restart: unless-stopped
     ports:
-      - "{{ HOMARR_HTTP_PORT }}:7575"
+      - "{{ HOMARR_WEB_PORT }}:7575"
     volumes:
       - "{{ HOMARR_CONFIG_PATH }}/configs:/app/data/configs"
       - "{{ HOMARR_CONFIG_PATH }}/icons:/app/public/icons"

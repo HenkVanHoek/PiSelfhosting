@@ -1,6 +1,6 @@
 import json
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from src.editor_app import create_app
 
@@ -46,6 +46,53 @@ class EditorAppTestCase(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         response_data = response.json
         self.assertEqual(len(response_data["groups"]), 2)
+
+    def test_validate_component_configuration_success(self):
+        """Test the component validation endpoint with a valid payload."""
+        payload = {
+            "template_content": "services: {}",
+            "variables": [{"id": "VAR1"}],
+        }
+        self.mock_component_manager.validate_component_configuration = MagicMock()
+
+        response = self.client.post(
+            "/api/components/some-component/validate",
+            data=json.dumps(payload),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Validation successful", response.json["message"])
+        self.mock_component_manager.validate_component_configuration.assert_called_with(
+            "some-component", "services: {}", [{"id": "VAR1"}]
+        )
+
+    def test_validate_component_configuration_failure(self):
+        """Test validation endpoint when component manager raises ValueError."""
+        self.mock_component_manager.validate_component_configuration.side_effect = (
+            ValueError("Missing required variable: FOO")
+        )
+        payload = {"template_content": "...", "variables": []}
+
+        response = self.client.post(
+            "/api/components/some-component/validate",
+            data=json.dumps(payload),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Validation Failed", response.json["error"])
+        self.assertIn("Missing required variable: FOO", response.json["error"])
+
+    def test_validate_component_configuration_bad_payload(self):
+        """Test validation endpoint with a missing or invalid JSON payload."""
+        response = self.client.post(
+            "/api/components/some-component/validate",
+            data="this is not json",
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Invalid or missing JSON payload", response.json["error"])
 
     def test_update_group_order_success(self):
         """Test the API endpoint for updating the group order."""
