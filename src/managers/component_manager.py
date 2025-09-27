@@ -185,6 +185,20 @@ class ComponentManager:
             piselfhosting_meta["group_order"].remove(group_id)
         self._save_metadata()
 
+    # START OF FIX:
+    def rename_group(self, group_id: str, new_name: str):
+        """Renames the display name of an existing group."""
+        piselfhosting_meta = self._components_data.setdefault("_piselfhosting", {})
+        group_rules = piselfhosting_meta.setdefault("group_rules", {})
+
+        if group_id not in group_rules:
+            raise ValueError(f"Group '{group_id}' not found.")
+
+        group_rules[group_id]["name"] = new_name
+        self._save_metadata()
+
+    # END OF FIX:
+
     def _get_component_config_path(self, component_id: str) -> Path:
         return self.templates_path / component_id / "template-config"
 

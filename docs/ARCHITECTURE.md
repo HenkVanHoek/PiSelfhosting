@@ -21,6 +21,8 @@ This document records the foundational patterns and "lessons learned" that ensur
         - **"docker_service_name"**: For components with multiple services (e.g., an init container), this is a pointer to the name of the primary, user-facing service in the `docker-compose.template.yml`. This allows the system to generate links correctly.
     - **component_templates/.../variables.json**: The SST for the configurable *parameters* for a component, including their default values. The `required_variables` key is strictly forbidden in `components_metadata.json`.
 
+For a detailed schema of these and other core data files, please refer to the **[DATA_CONTRACTS.md](DATA_CONTRACTS.md)** file.
+
 ### 1.3 The "Tarball" Deployment Pattern
 
 - **Principle**: The preferred method for deploying multiple configuration files is to create a single, compressed archive, upload it, and then execute a remote command to extract it.

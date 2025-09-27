@@ -123,8 +123,9 @@ class SetupManager:
             second_pass_context = final_context.copy()
             config_base_path = f"{auto_vars['PISelfhosting_DATA_PATH']}/config"
             second_pass_context["CONFIG_BASE_PATH"] = config_base_path
-            # --- DEFINITIVE FIX: Make DOTENV variables available to 2nd pass ---
             second_pass_context["DOTENV"] = global_vars
+            final_context["CONFIG_BASE_PATH"] = config_base_path
+            final_context["DOTENV"] = global_vars
             jinja_env_pass2 = Environment(autoescape=True, undefined=StrictUndefined)
             for key, value in final_context.items():
                 if isinstance(value, str) and "{{" in value and "}}" in value:

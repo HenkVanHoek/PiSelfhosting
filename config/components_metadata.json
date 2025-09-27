@@ -6,49 +6,65 @@
       "homer",
       "organizr",
       "jellyfin",
+      "radarr",
+      "sabnzbd",
+      "sonarr",
+      "qbittorrent",
+      "pi-hole",
+      "adguard-home",
+      "traefik",
+      "nginx-proxy-manager",
+      "gitlab",
+      "conduit",
+      "unbound",
+      "vaultwarden",
+      "web-notepad",
+      "uptime-kuma",
+      "portainer",
+      "piselfhosting-backup-tool",
+      "piselfhosting-service-maintenance",
       "nextcloud",
       "zigbee2mqtt",
       "homeassistant",
       "frigate",
-      "pi-hole",
-      "adguard-home",
-      "nginx-proxy-manager",
-      "traefik",
-      "gitlab",
-      "conduit",
-      "radarr",
-      "sabnzbd",
       "scrypted",
-      "sonarr",
-      "unbound",
-      "unifi-controller",
-      "vaultwarden",
-      "web-notepad",
-      "qbittorrent",
-      "portainer",
-      "piselfhosting-backup-tool",
-      "piselfhosting-service-maintenance"
+      "unifi-controller"
     ],
     "default_group": "general",
     "global_variables": [
       "PISelfhosting_HOST_IP",
       "PISelfhosting_DATA_PATH",
       "CONFIG_BASE_PATH",
-      "service_name"
+      "service_name",
+      "DOTENV"
     ],
     "group_order": [
-      "dashboard",
-      "Home Automation",
+      "dashboard & Homepages",
+      "Media Stack",
       "dns_blocker",
       "reverse_proxy",
       "git_server",
       "general",
+      "Smart Home & IoT",
+      "Security & Utilities",
       "System Tools"
     ],
     "group_rules": {
       "Home Automation": {
         "is_exclusive": false,
         "name": "Home Automation"
+      },
+      "Media Stack": {
+        "is_exclusive": false,
+        "name": "Media Stack"
+      },
+      "Security & Utilities": {
+        "is_exclusive": false,
+        "name": "Security & Utilities"
+      },
+      "Smart Home & IoT": {
+        "is_exclusive": false,
+        "name": "Smart Home & Iot"
       },
       "System Tools": {
         "is_exclusive": false,
@@ -57,6 +73,10 @@
       "dashboard": {
         "is_exclusive": true,
         "name": "Dashboard"
+      },
+      "dashboard & Homepages": {
+        "is_exclusive": false,
+        "name": "Dashboard & Homepages"
       },
       "dns_blocker": {
         "is_exclusive": true,
@@ -68,7 +88,7 @@
       },
       "git_server": {
         "is_exclusive": true,
-        "name": "Git Server"
+        "name": "Development Tools"
       },
       "reverse_proxy": {
         "is_exclusive": true,
@@ -100,7 +120,7 @@
       "component_version": "stable",
       "depends_on": [],
       "description": "NVR with real-time object detection for IP cameras.",
-      "group": "Home Automation",
+      "group": "Smart Home & IoT",
       "has_configuration": false,
       "has_ui": true,
       "image_name": "blakeblackshear/frigate",
@@ -120,8 +140,10 @@
     },
     "heimdall": {
       "component_version": "latest",
+      "depends_on": [],
       "description": "A simple and elegant application dashboard.",
-      "group": "dashboard",
+      "group": "dashboard & Homepages",
+      "has_configuration": false,
       "has_ui": true,
       "image_name": "lscr.io/linuxserver/heimdall",
       "name": "Heimdall",
@@ -131,8 +153,9 @@
     "homarr": {
       "component_version": "latest",
       "default": true,
+      "depends_on": [],
       "description": "A simple, yet powerful dashboard for your server.",
-      "group": "dashboard",
+      "group": "dashboard & Homepages",
       "has_configuration": true,
       "has_ui": true,
       "image_name": "ghcr.io/ajnart/homarr",
@@ -145,7 +168,7 @@
       "component_version": "stable",
       "depends_on": [],
       "description": "Open source home automation that puts local control and privacy first.",
-      "group": "Home Automation",
+      "group": "Smart Home & IoT",
       "has_configuration": false,
       "has_ui": true,
       "image_name": "homeassistant/home-assistant",
@@ -155,8 +178,10 @@
     },
     "homer": {
       "component_version": "latest",
+      "depends_on": [],
       "description": "A dead simple, static homepage for your server.",
-      "group": "dashboard",
+      "group": "dashboard & Homepages",
+      "has_configuration": false,
       "has_ui": true,
       "image_name": "b4bz/homer",
       "name": "Homer",
@@ -167,7 +192,7 @@
       "component_version": "latest",
       "depends_on": [],
       "description": "A Free Software Media System that puts you in control of your media.",
-      "group": "Home Automation",
+      "group": "Media Stack",
       "has_configuration": false,
       "has_ui": true,
       "image_name": "lscr.io/linuxserver/jellyfin",
@@ -181,7 +206,7 @@
         "mariadb"
       ],
       "description": "The self-hosted productivity platform that keeps you in control.",
-      "group": "Home Automation",
+      "group": "Smart Home & IoT",
       "has_configuration": false,
       "has_ui": true,
       "image_name": "lscr.io/linuxserver/nextcloud",
@@ -199,14 +224,16 @@
       "has_configuration": true,
       "has_ui": true,
       "image_name": "jc21/nginx-proxy-manager",
-      "name": "Nginx Proxy Manager",
+      "name": "Nginx Proxy Manager (Not Maintained by PiSelfhosting",
       "project_url": "https://nginxproxymanager.com/",
       "protocol": "http"
     },
     "organizr": {
       "component_version": "latest",
+      "depends_on": [],
       "description": "A full-featured server organizer with a tabbed interface.",
-      "group": "dashboard",
+      "group": "dashboard & Homepages",
+      "has_configuration": false,
       "has_ui": true,
       "image_name": "lscr.io/linuxserver/organizr",
       "name": "Organizr",
@@ -271,8 +298,10 @@
     },
     "qbittorrent": {
       "component_version": "latest",
+      "depends_on": [],
       "description": "A lightweight and powerful BitTorrent client.",
-      "group": "general",
+      "group": "Media Stack",
+      "has_configuration": false,
       "has_ui": true,
       "image_name": "lscr.io/linuxserver/qbittorrent",
       "name": "qBittorrent",
@@ -281,8 +310,10 @@
     },
     "radarr": {
       "component_version": "latest",
+      "depends_on": [],
       "description": "A fork of Sonarr to work with movies.",
-      "group": "general",
+      "group": "Media Stack",
+      "has_configuration": false,
       "has_ui": true,
       "image_name": "lscr.io/linuxserver/radarr",
       "name": "Radarr",
@@ -291,8 +322,10 @@
     },
     "sabnzbd": {
       "component_version": "latest",
+      "depends_on": [],
       "description": "The popular and easy-to-use Usenet download client.",
-      "group": "general",
+      "group": "Media Stack",
+      "has_configuration": false,
       "has_ui": true,
       "image_name": "lscr.io/linuxserver/sabnzbd",
       "name": "SABnzbd",
@@ -301,8 +334,10 @@
     },
     "scrypted": {
       "component_version": "latest",
+      "depends_on": [],
       "description": "High-performance video integration platform for smart homes.",
-      "group": "general",
+      "group": "Smart Home & IoT",
+      "has_configuration": false,
       "has_ui": true,
       "image_name": "koush/scrypted",
       "name": "Scrypted",
@@ -311,13 +346,23 @@
     },
     "sonarr": {
       "component_version": "latest",
+      "depends_on": [],
       "description": "Smart PVR for newsgroup and bittorrent users to manage and download TV shows.",
-      "group": "general",
+      "group": "Media Stack",
+      "has_configuration": false,
       "has_ui": true,
       "image_name": "lscr.io/linuxserver/sonarr",
       "name": "Sonarr",
       "project_url": "https://sonarr.tv/",
       "protocol": "http"
+    },
+    "test-playwright": {
+      "depends_on": [],
+      "description": "My first test of playwright",
+      "group": "general",
+      "has_configuration": true,
+      "has_ui": false,
+      "name": "Test Playwright"
     },
     "traefik": {
       "component_version": "v3.0",
@@ -334,8 +379,10 @@
     },
     "unbound": {
       "component_version": "latest",
+      "depends_on": [],
       "description": "A validating, recursive, and caching DNS resolver for maximum privacy.",
-      "group": "general",
+      "group": "Security & Utilities",
+      "has_configuration": false,
       "has_ui": false,
       "image_name": "mvance/unbound",
       "name": "Unbound",
@@ -343,8 +390,10 @@
     },
     "unifi-controller": {
       "component_version": "latest",
+      "depends_on": [],
       "description": "Manage your UniFi networking devices from a central controller.",
-      "group": "general",
+      "group": "Smart Home & IoT",
+      "has_configuration": false,
       "has_ui": true,
       "image_name": "lscr.io/linuxserver/unifi-controller",
       "name": "UniFi Controller",
@@ -354,7 +403,7 @@
     "uptime-kuma": {
       "depends_on": [],
       "description": " A self-hosted monitoring tool for proactive health checks and notifications via email, Telegram, and more",
-      "group": "general",
+      "group": "System Tools",
       "has_configuration": true,
       "has_ui": true,
       "name": "Uptime Kuma",
@@ -362,8 +411,10 @@
     },
     "vaultwarden": {
       "component_version": "latest",
-      "description": "Lightweight, self-hosted password manager compatible with Bitwarden clients.",
-      "group": "general",
+      "depends_on": [],
+      "description": "A lightweight, self-hosted password manager compatible with Bitwarden clients. It provides almost all of the features of the official server without the resource-heavy footprint.",
+      "group": "Security & Utilities",
+      "has_configuration": true,
       "has_ui": true,
       "image_name": "vaultwarden/server",
       "name": "Vaultwarden",
@@ -372,8 +423,10 @@
     },
     "web-notepad": {
       "component_version": "latest",
+      "depends_on": [],
       "description": "Simple notepad to display the post-install summary.",
-      "group": "general",
+      "group": "Security & Utilities",
+      "has_configuration": false,
       "has_ui": true,
       "image_name": "dprandzioch/docker-http-notepad",
       "name": "Web Notepad",
@@ -387,7 +440,7 @@
         "mosquitto"
       ],
       "description": "Bridge the gap between your Zigbee devices and your MQTT broker.",
-      "group": "Home Automation",
+      "group": "Smart Home & IoT",
       "has_configuration": false,
       "has_ui": true,
       "image_name": "koenkk/zigbee2mqtt",

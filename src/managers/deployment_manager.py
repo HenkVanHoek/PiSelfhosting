@@ -173,6 +173,9 @@ class DeploymentManager:
         ssh.execute_command(f"rm {remote_tmp_tarball}", log_callback)
         return exit_code == 0
 
+    # START OF FIX:
+    # Added the 'components_to_restart' parameter to the method signature
+    # to match the arguments being passed by the caller in the app.py.
     def start_deployment(
         self,
         task_id: str,
@@ -180,13 +183,21 @@ class DeploymentManager:
         output_path: str,
         managed_devices: List[Dict[str, Any]],
         components_to_clean: List[str],
+        components_to_restart: List[str],
     ) -> None:
+        # END OF FIX
         """Main entry point to orchestrate the deployment process."""
 
         def log_callback(text: str, is_step: bool = False) -> None:
             self._log_update(tasks_dict, task_id, text, is_step)
 
         log_callback("Deployment process initiated...", is_step=True)
+        if components_to_restart:
+            log_callback(
+                f"INFO: Restart requested for: {', '.join(components_to_restart)} "
+                f"(logic not yet implemented).",
+                is_step=False,
+            )
 
         if not managed_devices:
             log_callback("ERROR: No valid devices for deployment.", is_step=True)

@@ -1,7 +1,8 @@
 import json
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import ANY, MagicMock, patch
 
+import pytest
 import yaml
 
 from src.managers.component_manager import ComponentManager
@@ -38,6 +39,7 @@ class TestDeploymentManager:
         metadata_content = {
             "components": {
                 "traefik": {
+                    "id": "traefik",
                     "name": "Traefik Proxy",
                     "has_ui": True,
                     "docker_service_name": "traefik-main",
@@ -86,8 +88,92 @@ class TestDeploymentManager:
 
         # --- ASSERT ---
         assert service_links is not None
-        # The core assertion: only ONE link should have been created
         assert len(service_links) == 1
-        link = service_links
-        assert link[0]["name"] == "Traefik Proxy"
-        assert link[0]["url"] == "http://192.168.1.100:8080"
+        link = service_links[0]
+        assert link["name"] == "Traefik Proxy"
+        assert link["url"] == "http://192.168.1.100:8080"
+
+
+@pytest.fixture
+def mock_ssh_manager():
+    """Fixture to provide a mocked SSHManager instance."""
+    mock_ssh = MagicMock()
+    mock_ssh.connect.return_value = (True, "Connected")
+    # Simulate the 'echo $HOME' command returning a path
+    mock_ssh.execute_command.side_effect = [
+        (0, ""),  # docker stop
+        (0, ""),  # docker rm
+        (0, "/home/pi"),  # echo $HOME
+        (0, ""),  # mkdir
+        (0, ""),  # tar
+        (0, ""),  # rm tarball
+        (0, ""),  # docker compose
+    ]
+    return mock_ssh
+
+
+def test_start_deployment_happy_path(tmp_path: Path, mock_ssh_manager: MagicMock):
+    """
+    Tests the successful orchestration logic of the start_deployment method.
+    """
+    # --- ARRANGE ---
+    # 1. Patch the SSHManager to be replaced by our mock
+    with patch(
+        "src.managers.deployment_manager.SSHManager", return_value=mock_ssh_manager
+    ):
+        # 2. Set up the component and deployment managers
+        metadata_file = tmp_path / "components_metadata.json"
+        metadata_file.write_text('{"components": {"homarr": {"id": "homarr"}}}')
+        component_manager = ComponentManager(
+            templates_path=str(tmp_path), metadata_file_path=str(metadata_file)
+        )
+        deployment_manager = DeploymentManager(component_manager=component_manager)
+
+        # 3. Prepare the input arguments for start_deployment
+        task_id = "test-task-123"
+        tasks_dict = {task_id: {"status": "running", "logs": [], "service_links": []}}
+        output_path = tmp_path / "output"
+        output_path.mkdir()
+        (output_path / "deployment_context.json").write_text("{}")
+        (output_path / "docker-compose.yml").write_text("services: {}")
+
+        managed_devices = [
+            {"ip": "192.168.1.100", "username": "pi", "password": "raspberry"}
+        ]
+        components_to_clean = ["homarr"]
+        components_to_restart = ["portainer"]
+
+        # --- ACT ---
+        deployment_manager.start_deployment(
+            task_id,
+            tasks_dict,
+            str(output_path),
+            managed_devices,
+            components_to_clean,
+            components_to_restart,
+        )
+
+        # --- ASSERT ---
+        # Verify the orchestration flow by checking calls to the mock
+        mock_ssh_manager.connect.assert_called_once()
+
+        # START OF FIX: Replaced MagicMock() with ANY to correctly assert the call.
+        # Check that the cleanup command for 'homarr' was called
+        mock_ssh_manager.execute_command.assert_any_call(
+            "docker stop piselfhosting-homarr", ANY, check_exit_code=False
+        )
+        mock_ssh_manager.execute_command.assert_any_call(
+            "docker rm piselfhosting-homarr", ANY, check_exit_code=False
+        )
+
+        # Check that the core deployment commands were executed
+        mock_ssh_manager.execute_command.assert_any_call("echo $HOME", ANY)
+        remote_dir = "/home/pi/piselfhosting_deployment"
+        mock_ssh_manager.execute_command.assert_any_call(
+            f"cd {remote_dir} && docker compose up -d", ANY
+        )
+        # END OF FIX
+
+        # Verify the process completes successfully
+        assert tasks_dict[task_id]["status"] == "completed"
+        mock_ssh_manager.close.assert_called_once()

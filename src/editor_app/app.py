@@ -88,7 +88,6 @@ def get_or_create_components():
         return jsonify({"error": "An unexpected server error occurred"}), 500
 
 
-# --- DEFINITIVE FIX: Add the new validation endpoint ---
 @editor_bp.route("/api/components/<string:component_id>/validate", methods=["POST"])
 def validate_component_configuration(component_id: str):
     """API endpoint to validate a component's configuration."""
@@ -106,12 +105,30 @@ def validate_component_configuration(component_id: str):
         )
         return jsonify({"message": "Validation successful!"})
     except ValueError as e:
-        # This catches validation rule failures and returns them as a user error.
         return jsonify({"error": f"Validation Failed: {e}"}), 400
     except Exception as e:
         logging.error(
             f"Failed to validate component {component_id}: {e}", exc_info=True
         )
+        return jsonify({"error": "An unexpected server error occurred"}), 500
+
+
+@editor_bp.route("/api/groups/<string:group_id>/rename", methods=["PUT"])
+def rename_group(group_id: str):
+    component_manager = current_app.config["COMPONENT_MANAGER"]
+    try:
+        data = request.get_json()
+        new_name = data.get("name")
+        if not new_name:
+            return jsonify({"error": "New name is required"}), 400
+        component_manager.rename_group(group_id, new_name)
+        return jsonify(
+            {"message": f"Group '{group_id}' renamed to '{new_name}' successfully"}
+        )
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        logging.error(f"Failed to rename group {group_id}: {e}", exc_info=True)
         return jsonify({"error": "An unexpected server error occurred"}), 500
 
 
@@ -231,10 +248,23 @@ def component_details(component_id: str):
 def update_component_variables(component_id: str):
     component_manager = current_app.config["COMPONENT_MANAGER"]
     try:
-        variables_data = request.get_json(silent=True)
-        if variables_data is None:
+        payload = request.get_json(silent=True)
+        if payload is None:
             return jsonify({"error": "Invalid payload"}), 400
-        component_manager.update_component_variables(component_id, variables_data)
+
+        # START OF FIX:
+        # To keep the final variables.json file clean, we iterate through the
+        # received variables and remove the 'required' key if its value is
+        # empty or null. This prevents storing unnecessary keys.
+        variables_data = payload.get("variables", [])
+        for var in variables_data:
+            if "required" in var and not var["required"]:
+                del var["required"]
+        # END OF FIX:
+
+        component_manager.update_component_variables(
+            component_id, {"variables": variables_data}
+        )
         return jsonify({"message": "Variables updated successfully"})
     except KeyError:
         return jsonify({"error": "Component not found"}), 404

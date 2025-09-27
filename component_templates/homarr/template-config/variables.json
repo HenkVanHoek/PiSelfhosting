@@ -1,20 +1,18 @@
 {
   "variables": [
     {
-      "id": "HOMARR_WEB_PORT",
-      "label": "Homarr access Port",
+      "default": "7575",
       "description": "The external port to access the Homarr web UI.",
-      "type": "port",
-      "default": 7575,
-      "required": true
+      "id": "HOMARR_WEB_PORT",
+      "label": "Homar web port",
+      "type": "port"
     },
     {
-      "id": "HOMARR_CONFIG_PATH",
-      "label": "Homarr Config Path",
-      "description": "The path to the Homarr configuration files.",
-      "type": "hidden",
       "default": "{{ CONFIG_BASE_PATH }}/homarr",
-      "required": true
+      "description": "The path to the Homarr configuration files.",
+      "id": "HOMARR_CONFIG_PATH",
+      "label": "Homar Configuration path",
+      "type": "string"
     }
   ]
 }

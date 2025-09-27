@@ -42,8 +42,8 @@ If you are running the installer on a **Linux desktop**, you must perform a one-
     sudo chmod 0440 /etc/sudoers.d/99-piselfhosting
 
 ## 🤝 Contributing
-
-We welcome contributions! For guidelines on how to get started with development, please see our **CONTRIBUTING.md** file. To understand the core design principles of the project, please review the **ARCHITECTURE.md** file.
+# Updated the text to make the architectural documentation more prominent.
+We welcome contributions! For guidelines on how to get started with development, please see our **CONTRIBUTING.md** file. To understand the core design principles and data contracts of the project, please review the **ARCHITECTURE.md** file.
 
 ## 📄 License
 

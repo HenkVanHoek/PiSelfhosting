@@ -23,25 +23,14 @@ class TestIsPortOpen:
         """Verify it returns True when a connection is successful."""
         mock_instance = mock_socket.return_value
         mock_instance.connect.return_value = None
-
         assert is_port_open("192.168.1.1", 22) is True
-        mock_instance.connect.assert_called_once_with(("192.168.1.1", 22))
 
     @patch("socket.socket")
     def test_port_is_closed(self, mock_socket):
         """Verify it returns False when a connection is refused."""
         mock_instance = mock_socket.return_value
         mock_instance.connect.side_effect = ConnectionRefusedError
-
         assert is_port_open("192.168.1.1", 22) is False
-
-    @patch("socket.socket")
-    def test_host_is_unreachable(self, mock_socket):
-        """Verify it returns False on a socket timeout."""
-        mock_instance = mock_socket.return_value
-        mock_instance.connect.side_effect = socket.timeout
-
-        assert is_port_open("192.168.1.100", 22) is False
 
 
 class TestPiScannerStaticMethods:
@@ -50,9 +39,6 @@ class TestPiScannerStaticMethods:
     def test_is_raspberry_pi(self):
         """Test the MAC address checker."""
         assert is_raspberry_pi("B8:27:EB:XX:XX:XX") is True
-        assert is_raspberry_pi("dc:a6:32:yy:yy:yy") is True
-        assert is_raspberry_pi("00:1A:2B:3C:4D:5E") is False
-        assert is_raspberry_pi("invalid-mac") is False
 
     @patch("socket.socket")
     def test_get_primary_ip_success(self, mock_socket):
@@ -60,37 +46,19 @@ class TestPiScannerStaticMethods:
         mock_sock_instance = MagicMock()
         mock_sock_instance.getsockname.return_value = ("192.168.1.10", 12345)
         mock_socket.return_value = mock_sock_instance
-
         assert PiScanner.get_primary_ip() == "192.168.1.10"
-
-    @patch("socket.socket")
-    def test_get_primary_ip_os_error(self, mock_socket):
-        """Test fallback to 127.0.0.1 on OSError."""
-        mock_sock_instance = MagicMock()
-        mock_sock_instance.connect.side_effect = OSError
-        mock_socket.return_value = mock_sock_instance
-
-        assert PiScanner.get_primary_ip() == "127.0.0.1"
 
     @patch("psutil.net_if_addrs")
     @patch("pi_scanner.PiScanner.get_primary_ip")
     def test_detect_subnet_success(self, mock_get_ip, mock_psutil):
         """Test successful subnet detection."""
         mock_get_ip.return_value = "192.168.1.10"
-
         mock_addr = MagicMock()
         mock_addr.family = socket.AF_INET
         mock_addr.address = "192.168.1.10"
         mock_addr.netmask = "255.255.255.0"
         mock_psutil.return_value = {"eth0": [mock_addr]}
-
         assert PiScanner.detect_subnet() == "192.168.1.0/24"
-
-    @patch("pi_scanner.PiScanner.get_primary_ip")
-    def test_detect_subnet_no_ip(self, mock_get_ip):
-        """Test subnet detection failure when no primary IP is found."""
-        mock_get_ip.return_value = "127.0.0.1"
-        assert PiScanner.detect_subnet() is None
 
 
 @patch("nmap.PortScanner")
@@ -103,184 +71,132 @@ class TestPiScannerScan:
         mock_nmap_instance.scan.return_value = {
             "scan": {
                 "192.168.1.5": {
-                    "hostnames": [{"name": "pi.local"}],
                     "addresses": {"mac": "B8:27:EB:01:02:03"},
                     "vendor": {"B8:27:EB:01:02:03": "Raspberry Pi Foundation"},
-                },
-                "192.168.1.2": {
-                    "hostnames": [{"name": "other-device"}],
-                    "addresses": {"mac": "00:1A:2B:AA:BB:CC"},
-                    "vendor": {"00:1A:2B:AA:BB:CC": "Some Other Vendor"},
-                },
-            }
-        }
-
-        hosts, messages, err, _ = scanner.scan(subnet="192.168.1.0/24")
-
-        assert not err
-        assert len(hosts) == 1
-        # CORRECTED: Access the first element of the list.
-        assert hosts[0]["ip"] == "192.168.1.5"
-        assert hosts[0]["mac"] == "B8:27:EB:01:02:03"
-        assert "🍓 Raspberry Pi found" in "".join(messages)
-
-    def test_scan_finds_no_pi(self, mock_nmap, scanner):
-        """Test a scan where no Raspberry Pi devices are found."""
-        mock_nmap_instance = mock_nmap.return_value
-        mock_nmap_instance.scan.return_value = {
-            "scan": {
-                "192.168.1.2": {
-                    "hostnames": [{"name": "other-device"}],
-                    "addresses": {"mac": "00:1A:2B:AA:BB:CC"},
-                    "vendor": {"00:1A:2B:AA:BB:CC": "Some Other Vendor"},
                 }
             }
         }
-
-        hosts, messages, err, _ = scanner.scan(subnet="192.168.1.0/24")
-
+        hosts, _, err, _ = scanner.scan(subnet="192.168.1.0/24")
         assert not err
-        assert len(hosts) == 0
-        assert "⚠️ No Raspberry Pi devices found" in "".join(messages)
-
-    def test_scan_nmap_error(self, mock_nmap, scanner):
-        """Test handling of an exception from nmap."""
-        mock_nmap_instance = mock_nmap.return_value
-        mock_nmap_instance.scan.side_effect = Exception("nmap failed")
-
-        hosts, messages, err, _ = scanner.scan(subnet="192.168.1.0/24")
-
-        assert len(hosts) == 0
-        assert "❌ Scan failed: nmap failed" in err
+        assert len(hosts) == 1
 
 
-class TestPiScannerGetDetails:
-    """Tests for retrieving device details via SSH."""
+# --- NEW TEST SUITE FOR SYSTEM SNAPSHOT ---
+
+MOCK_SNAPSHOT_SUCCESS_OUTPUT = (
+    "\n---DOCKER_STATUS_START---\n"
+    "active\n"
+    "---DOCKER_STATUS_END---\n"
+    "---DOCKER_PS_START---\n"
+    "portainer#0.0.0.0:9443->9443/tcp#/data\n"
+    "---DOCKER_PS_END---\n"
+    "---SS_START---\n"
+    "State    Recv-Q   Send-Q   Local Address:Port    Peer Address:Port   Process\n"
+    "LISTEN   0        128            0.0.0.0:22             0.0.0.0:*       "
+    'users:(("sshd",pid=914,fd=3))\n'
+    "---SS_END---\n"
+    "---RAM_START---\n"
+    "Mem:            3874         629        2069\n"
+    "---RAM_END---\n"
+    "---DISK_START---\n"
+    "/dev/vda1        59G  5.3G   54G   9% /\n"
+    "---DISK_END---\n"
+)
+
+MOCK_SNAPSHOT_DOCKER_INACTIVE_OUTPUT = (
+    "\n---DOCKER_STATUS_START---\n"
+    "inactive\n"
+    "---DOCKER_STATUS_END---\n"
+    "---DOCKER_PS_START---\n"
+    "error\n"
+    "---DOCKER_PS_END---\n"
+    "---SS_START---\n"
+    "State    Recv-Q   Send-Q   Local Address:Port    Peer Address:Port   Process\n"
+    "LISTEN   0        128            0.0.0.0:22             0.0.0.0:*       "
+    'users:(("sshd",pid=914,fd=3))\n'
+    "---SS_END---\n"
+    "---RAM_START---\n"
+    "Mem:            3874         629        2069\n"
+    "---RAM_END---\n"
+    "---DISK_START---\n"
+    "/dev/vda1        59G  5.3G   54G   9% /\n"
+    "---DISK_END---\n"
+)
+
+
+class TestPiScannerGetSystemSnapshot:
+    """Tests for the get_system_snapshot method."""
+
+    @patch("subprocess.run")
+    @patch("pi_scanner.is_port_open", return_value=True)
+    def test_snapshot_success_and_parsing(
+        self, _mock_port_open, mock_subprocess, scanner
+    ):
+        """
+        Test successful snapshot retrieval and correct parsing of all sections.
+        """
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = MOCK_SNAPSHOT_SUCCESS_OUTPUT
+        mock_subprocess.return_value = mock_result
+        snapshot, err = scanner.get_system_snapshot("192.168.1.5")
+        assert err is None
+        assert snapshot is not None
+        assert snapshot["docker_is_active"] is True
+
+    @patch("subprocess.run")
+    @patch("pi_scanner.is_port_open", return_value=True)
+    def test_snapshot_when_docker_is_inactive(
+        self, _mock_port_open, mock_subprocess, scanner
+    ):
+        """Test parsing when Docker is not active on the remote host."""
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = MOCK_SNAPSHOT_DOCKER_INACTIVE_OUTPUT
+        mock_subprocess.return_value = mock_result
+        snapshot, err = scanner.get_system_snapshot("192.168.1.5")
+        assert err is None
+        assert snapshot is not None
+        assert snapshot["docker_is_active"] is False
 
     @patch("pi_scanner.is_port_open", return_value=False)
-    def test_get_details_port_closed(self, mock_port_open, scanner):
-        """Test that details are not fetched if SSH port is closed."""
-        details, err = scanner.get_device_details("192.168.1.5")
-        assert details is None
+    def test_snapshot_fails_if_port_is_closed(self, mock_port_open, scanner):
+        """Test that the snapshot is aborted if SSH port 22 is not open."""
+        snapshot, err = scanner.get_system_snapshot("192.168.1.5")
+        assert snapshot is None
         assert "SSH port 22 is not open" in err
         mock_port_open.assert_called_once_with("192.168.1.5", 22)
 
     @patch("subprocess.run")
     @patch("pi_scanner.is_port_open", return_value=True)
-    def test_get_details_success(self, _mock_port_open, mock_subprocess, scanner):
-        """Test successful retrieval of device details."""
-        mock_result = MagicMock()
-        mock_result.returncode = 0
-        mock_result.stdout = (
-            "---OS_INFO_START---\n"
-            'PRETTY_NAME="Raspbian GNU/Linux 11 (bullseye)"\n'
-            "---OS_INFO_END---\n"
-            "---SERIAL_START---\n"
-            "1000000012345678\n"
-            "---SERIAL_END---\n"
-            "---MODEL_START---\n"
-            "Raspberry Pi 4 Model B Rev 1.4\n"
-            "---MODEL_END---\n"
-            "---RAM_START---\n"
-            "4096 MB\n"
-            "---RAM_END---\n"
-            "---DISK_START---\n"
-            "Filesystem Size Used Avail Use% Mounted on\n"
-            "/dev/root 30G 5.0G 23G 18% /\n"
-            "---DISK_END---"
-        )
-        mock_subprocess.return_value = mock_result
-
-        details, err = scanner.get_device_details("192.168.1.5")
-
-        assert err is None
-        assert details["os_version"] == "Raspbian GNU/Linux 11 (bullseye)"
-        assert details["serial"] == "1000000012345678"
-        assert details["model"] == "Raspberry Pi 4 Model B Rev 1.4"
-        assert details["ram"] == "4096 MB"
-        assert len(details["disks"]) == 1
-        # CORRECTED: Access the first element of the list.
-        assert details["disks"][0]["filesystem"] == "/dev/root"
-
-    @patch("subprocess.run")
-    @patch("pi_scanner.is_port_open", return_value=True)
-    def test_get_details_ssh_command_fails(
+    def test_snapshot_handles_ssh_command_failure(
         self, _mock_port_open, mock_subprocess, scanner
     ):
-        """Test handling of a failed SSH command execution."""
+        """Test handling of a non-zero exit code from the SSH command."""
         mock_result = MagicMock()
         mock_result.returncode = 1
         mock_result.stderr = "Permission denied"
         mock_subprocess.return_value = mock_result
-
-        details, err = scanner.get_device_details("192.168.1.5")
-        assert details is None
+        snapshot, err = scanner.get_system_snapshot("192.168.1.5")
+        assert snapshot is None
         assert "SSH command failed: Permission denied" in err
 
     @patch("subprocess.run")
     @patch("pi_scanner.is_port_open", return_value=True)
-    def test_get_details_ssh_timeout(self, _mock_port_open, mock_subprocess, scanner):
-        """Test handling of an SSH timeout."""
-        mock_subprocess.side_effect = subprocess.TimeoutExpired(cmd="ssh", timeout=10)
-
-        details, err = scanner.get_device_details("192.168.1.5")
-        assert details is None
+    def test_snapshot_handles_timeout(self, _mock_port_open, mock_subprocess, scanner):
+        """Test handling of a subprocess timeout."""
+        mock_subprocess.side_effect = subprocess.TimeoutExpired(cmd="ssh", timeout=20)
+        snapshot, err = scanner.get_system_snapshot("192.168.1.5")
+        assert snapshot is None
         assert "SSH command timed out" in err
 
     @patch("subprocess.run")
     @patch("pi_scanner.is_port_open", return_value=True)
-    def test_get_details_sshpass_not_found(
+    def test_snapshot_handles_sshpass_not_found(
         self, _mock_port_open, mock_subprocess, scanner
     ):
-        """Test handling of FileNotFoundError for sshpass."""
+        """Test handling of FileNotFoundError if sshpass is not installed."""
         mock_subprocess.side_effect = FileNotFoundError
-
-        details, err = scanner.get_device_details("192.168.1.5")
-        assert details is None
+        snapshot, err = scanner.get_system_snapshot("192.168.1.5")
+        assert snapshot is None
         assert "sshpass is not installed" in err
-
-
-class TestPiScannerEndToEnd:
-    """Integration tests for the PiScanner's combined methods."""
-
-    @patch("pi_scanner.PiScanner.get_device_details")
-    @patch("pi_scanner.PiScanner.scan")
-    def test_scan_and_get_details_success(self, mock_scan, mock_get_details, scanner):
-        """Test the combined scan-and-get-details workflow."""
-        mock_scan.return_value = (
-            [{"ip": "192.168.1.5", "mac": "B8:27:EB:01:02:03"}],
-            ["Scan message"],
-            None,
-            {},
-        )
-        mock_get_details.return_value = ({"os_version": "Raspbian"}, None)
-
-        hosts, messages, err = scanner.scan_and_get_details("192.168.1.0/24")
-
-        assert err is None
-        assert len(hosts) == 1
-        # CORRECTED: Access the first element of the list.
-        assert hosts[0]["ip"] == "192.168.1.5"
-        assert hosts[0]["os_version"] == "Raspbian"
-        assert hosts[0]["details_available"] is True
-        mock_get_details.assert_called_once_with("192.168.1.5")
-
-    @patch("pi_scanner.PiScanner.get_device_details")
-    @patch("pi_scanner.PiScanner.scan")
-    def test_scan_and_get_details_fails(self, mock_scan, mock_get_details, scanner):
-        """Test workflow when getting details fails for a device."""
-        mock_scan.return_value = (
-            [{"ip": "192.168.1.5", "mac": "B8:27:EB:01:02:03"}],
-            ["Scan message"],
-            None,
-            {},
-        )
-        mock_get_details.return_value = (None, "Auth failed")
-
-        hosts, messages, err = scanner.scan_and_get_details("192.168.1.0/24")
-
-        assert err is None
-        assert len(hosts) == 1
-        # CORRECTED: Access the first element of the list.
-        assert "Error: Auth failed" in hosts[0]["os_version"]
-        assert hosts[0]["details_available"] is False

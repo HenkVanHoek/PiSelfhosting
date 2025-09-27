@@ -30,6 +30,17 @@ document.addEventListener('DOMContentLoaded', () => {
     /** @type {ComponentData | null} */
     let componentData = null;
 
+    /**
+     * @typedef {object} ComponentVariable
+     * @property {string} id
+     * @property {string} [label]
+     * @property {string} description
+     * @property {string} type
+     * @property {string} [default]
+     * @property {'always'|'clean-install'|''} [required]
+     * @property {'dotenv'} [source]
+     */
+
     const dirtyTabs = new Set();
     let nextTabTarget = null;
     const unsavedChangesModal = new bootstrap.Modal(document.getElementById('unsavedChangesModal'));
@@ -68,12 +79,19 @@ document.addEventListener('DOMContentLoaded', () => {
         rows.forEach(row => {
             const idEl = row.querySelector('[data-field="id"]');
             if (idEl) {
+                // START OF FIX:
+                // Now reads the value from the new 'source' dropdown to ensure
+                // the complete variable definition is collected from the DOM.
                 newVariables.push({
                     id: idEl.value,
+                    label: row.querySelector('[data-field="label"]').value,
                     description: row.querySelector('[data-field="description"]').value,
                     type: row.querySelector('[data-field="type"]').value,
-                    default: row.querySelector('[data-field="default"]').value
+                    source: row.querySelector('[data-field="source"]').value,
+                    default: row.querySelector('[data-field="default"]').value,
+                    required: row.querySelector('[data-field="required"]').value
                 });
+                // END OF FIX:
             }
         });
         return newVariables;
@@ -155,7 +173,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!editorWrapper || !importBtn || !fileInput || !codeEditor) return;
         importBtn.addEventListener('click', () => fileInput.click());
         fileInput.addEventListener('change', (event) => {
-            const file = event.target.files;
+            const file = event.target.files[0];
             if (file) handleFile(file);
         });
         editorWrapper.addEventListener('dragover', (e) => {
@@ -166,7 +184,7 @@ document.addEventListener('DOMContentLoaded', () => {
         editorWrapper.addEventListener('drop', (e) => {
             e.preventDefault();
             editorWrapper.classList.remove('drag-over');
-            const file = e.dataTransfer.files;
+            const file = e.dataTransfer.files[0];
             if (file) handleFile(file);
         });
         const handleFile = (file) => {
@@ -295,10 +313,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 const listItem = document.createElement('li');
                 listItem.className = 'list-group-item d-flex justify-content-between align-items-center';
                 listItem.innerHTML = `
-                    <span>${group.name}</span>
-                    <button class="btn btn-sm btn-outline-danger" data-group-id="${group.id}" ${isUsed ? 'disabled title="Cannot delete a group that contains components"' : ''}>
-                        <i class="bi bi-trash"></i>
-                    </button>
+                    <div class="flex-grow-1 me-2">
+                        <span class="group-name-display">${group.name}</span>
+                        <input type="text" class="form-control d-none group-name-input" value="${group.name}">
+                    </div>
+                    <div>
+                        <button class="btn btn-sm btn-outline-primary me-1" data-action="edit"><i class="bi bi-pencil"></i></button>
+                        <button class="btn btn-sm btn-outline-success d-none me-1" data-action="save"><i class="bi bi-check-lg"></i></button>
+                        <button class="btn btn-sm btn-outline-danger" data-action="delete" data-group-id="${group.id}" ${isUsed ? 'disabled title="Cannot delete a group that contains components"' : ''}>
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
                 `;
                 groupsList.appendChild(listItem);
             });
@@ -306,16 +331,54 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         groupsList.addEventListener('click', async (e) => {
             const button = e.target.closest('button');
-            if (!button || button.disabled) return;
-            const groupId = button.dataset.groupId;
-            if (confirm(`Are you sure you want to delete the group '${groupId}'? This cannot be undone.`)) {
-                try {
-                    await fetchJson(`/api/groups/${groupId}`, { method: 'DELETE' });
-                    showAlert(`Group '${groupId}' deleted successfully.`, 'success');
-                    modal.hide();
-                    await loadComponents();
-                } catch (error) {
-                    showAlert(`Error deleting group: ${error.message}`, 'danger');
+            if (!button) return;
+            const action = button.dataset.action;
+            const listItem = button.closest('li');
+            const groupNameDisplay = listItem.querySelector('.group-name-display');
+            const groupNameInput = listItem.querySelector('.group-name-input');
+            const editBtn = listItem.querySelector('[data-action="edit"]');
+            const saveBtn = listItem.querySelector('[data-action="save"]');
+            const deleteBtn = listItem.querySelector('[data-action="delete"]');
+            const groupId = deleteBtn.dataset.groupId;
+
+            if (action === 'edit') {
+                groupNameDisplay.classList.add('d-none');
+                groupNameInput.classList.remove('d-none');
+                editBtn.classList.add('d-none');
+                saveBtn.classList.remove('d-none');
+                groupNameInput.focus();
+            } else if (action === 'save') {
+                const newName = groupNameInput.value.trim();
+                if (newName && newName !== groupNameDisplay.textContent) {
+                    try {
+                        await fetchJson(`/api/groups/${groupId}/rename`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ name: newName })
+                        });
+                        showAlert(`Group renamed to '${newName}' successfully.`, 'success');
+                        modal.hide();
+                        await loadComponents();
+                    } catch (error) {
+                        showAlert(`Error renaming group: ${error.message}`, 'danger');
+                    }
+                } else {
+                    groupNameDisplay.classList.remove('d-none');
+                    groupNameInput.classList.add('d-none');
+                    editBtn.classList.remove('d-none');
+                    saveBtn.classList.add('d-none');
+                }
+            } else if (action === 'delete') {
+                if (button.disabled) return;
+                if (confirm(`Are you sure you want to delete the group '${groupId}'? This cannot be undone.`)) {
+                    try {
+                        await fetchJson(`/api/groups/${groupId}`, { method: 'DELETE' });
+                        showAlert(`Group '${groupId}' deleted successfully.`, 'success');
+                        modal.hide();
+                        await loadComponents();
+                    } catch (error) {
+                        showAlert(`Error deleting group: ${error.message}`, 'danger');
+                    }
                 }
             }
         });
@@ -360,11 +423,7 @@ document.addEventListener('DOMContentLoaded', () => {
         saveChangesBtn.disabled = true;
         saveChangesBtn.innerHTML = `<span class="spinner-border spinner-border-sm"></span> Saving...`;
 
-        // START OF FIX:
-        // The state of `currentVariables` is updated by reading directly from the DOM.
-        // The blocking validation call has been removed.
         currentVariables = collectVariablesFromDOM();
-        // END OF FIX
 
         try {
             await Promise.all([saveMetadata(componentId), saveVariables(componentId), saveTemplate(componentId)]);
@@ -390,7 +449,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 editorContent.classList.add('d-none');
                 placeholder.classList.remove('d-none');
                 await loadComponents();
-            } catch (error) {
+            } catch (error)
+            {
                 showAlert(`Error deleting component: ${error.message}`, 'danger');
             }
         }
@@ -417,25 +477,50 @@ document.addEventListener('DOMContentLoaded', () => {
                 listContainer.innerHTML = '<p class="text-muted">No user variables defined.</p>';
             }
             currentVariables.forEach((variable, index) => {
-                const variableTypes = ['string', 'port', 'path'];
-                const optionsHtml = variableTypes.map(type => `<option value="${type}" ${variable.type === type ? 'selected' : ''}>${type}</option>`).join('');
+                // START OF FIX:
+                // This section has been completely refactored to:
+                // 1. Create the new layout with Description on its own line.
+                // 2. Add the new "Source" dropdown menu.
+                // 3. Change the Description input to a multi-line textarea.
+                const variableTypes = ['string', 'port', 'path', 'password'];
+                const typeOptionsHtml = variableTypes.map(type => `<option value="${type}" ${variable.type === type ? 'selected' : ''}>${type}</option>`).join('');
+
+                const sourceOptionsHtml = `
+                    <option value="" ${!variable.source ? 'selected' : ''}>User Input</option>
+                    <option value="dotenv" ${variable.source === 'dotenv' ? 'selected' : ''}>DotEnv</option>
+                `;
+
+                const requiredOptionsHtml = `
+                    <option value="" ${!variable.required ? 'selected' : ''}>Not Required</option>
+                    <option value="always" ${variable.required === 'always' ? 'selected' : ''}>Required Always</option>
+                    <option value="clean-install" ${variable.required === 'clean-install' ? 'selected' : ''}>Required on Clean Install</option>
+                `;
                 const row = document.createElement('div');
                 row.className = 'card mb-3';
                 row.innerHTML = `
                     <div class="card-body">
-                        <div class="row g-3">
-                            <div class="col-md-6 col-lg-3"><label class="form-label">Variable ID</label><input type="text" class="form-control" data-index="${index}" data-field="id" value="${variable.id || ''}"></div>
-                            <div class="col-md-6 col-lg-4"><label class="form-label">Description</label><input type="text" class="form-control" data-index="${index}" data-field="description" value="${variable.description || ''}"></div>
-                            <div class="col-md-6 col-lg-2"><label class="form-label">Type</label><select class="form-select" data-index="${index}" data-field="type">${optionsHtml}</select></div>
-                            <div class="col-md-6 col-lg-3"><label class="form-label">Default Value (Optional)</label><input type="text" class="form-control" data-index="${index}" data-field="default" value="${variable.default || ''}"></div>
+                        <div class="row g-2 align-items-center mb-3">
+                            <div class="col-md-2"><label class="form-label small">Variable ID</label><input type="text" class="form-control form-control-sm" data-index="${index}" data-field="id" value="${variable.id || ''}"></div>
+                            <div class="col-md-2"><label class="form-label small">Label (Optional)</label><input type="text" class="form-control form-control-sm" data-index="${index}" data-field="label" value="${variable.label || ''}"></div>
+                            <div class="col-md-2"><label class="form-label small">Type</label><select class="form-select form-select-sm" data-index="${index}" data-field="type">${typeOptionsHtml}</select></div>
+                            <div class="col-md-2"><label class="form-label small">Source</label><select class="form-select form-select-sm" data-index="${index}" data-field="source">${sourceOptionsHtml}</select></div>
+                            <div class="col-md-2"><label class="form-label small">Default Value</label><input type="text" class="form-control form-control-sm" data-index="${index}" data-field="default" value="${variable.default || ''}"></div>
+                            <div class="col-md-2"><label class="form-label small">Required</label><select class="form-select form-select-sm" data-index="${index}" data-field="required">${requiredOptionsHtml}</select></div>
+                        </div>
+                        <div class="row">
+                            <div class="col-12">
+                                <label class="form-label small">Description</label>
+                                <textarea class="form-control form-control-sm" rows="2" data-index="${index}" data-field="description">${variable.description || ''}</textarea>
+                            </div>
                         </div>
                         <button class="btn btn-sm btn-outline-danger mt-3" data-index="${index}"><i class="bi bi-trash"></i> Remove</button>
                     </div>`;
+                // END OF FIX
                 listContainer.appendChild(row);
             });
         };
         listContainer.addEventListener('input', e => {
-            if (e.target.matches('input') || e.target.matches('select')) {
+            if (e.target.matches('input') || e.target.matches('select') || e.target.matches('textarea')) {
                 const { index, field } = e.target.dataset;
                 currentVariables[index][field] = e.target.value;
                 markTabAsDirty('variables-pane');
@@ -450,7 +535,10 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
         document.getElementById('add-variable-btn').addEventListener('click', () => {
-            currentVariables.push({ id: '', description: '', type: 'string', default: '' });
+            // START OF FIX:
+            // Added 'source' to the new variable object to ensure data consistency.
+            currentVariables.push({ id: '', label: '', description: '', type: 'string', source: '', default: '', required: '' });
+            // END OF FIX:
             renderAllRows();
             markTabAsDirty('variables-pane');
         });
@@ -466,7 +554,7 @@ document.addEventListener('DOMContentLoaded', () => {
      * @param {string[]|string} [details.depends_on]
      * @param {boolean} [details.has_ui]
      * @param {boolean} [details.has_configuration]
-     * @param {object[]} [details.required_variables]
+     * @param {ComponentVariable[]} [details.required_variables]
      */
     const renderEditor = async (details) => {
         const componentId = details.id;
@@ -631,12 +719,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const loadComponents = async () => {
         try {
             componentData = await fetchJson('/api/components');
-            const sidebar = document.querySelector('.sidebar');
+            const sidebarControls = document.getElementById('sidebar-controls');
             if (!document.getElementById('component-search')) {
                 const searchInput = document.createElement('div');
-                searchInput.className = 'mb-3';
                 searchInput.innerHTML = `<input type="text" id="component-search" class="form-control" placeholder="Search components...">`;
-                sidebar.querySelector('.d-grid.gap-2.mb-3').insertAdjacentElement('afterend', searchInput);
+                sidebarControls.appendChild(searchInput);
                 searchInput.addEventListener('input', (e) => {
                     const searchTerm = e.target.value.toLowerCase();
                     document.querySelectorAll('.group-container').forEach(container => {

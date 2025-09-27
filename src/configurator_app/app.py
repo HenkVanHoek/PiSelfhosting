@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 import threading
 import time
 import uuid
@@ -17,6 +18,74 @@ from utils.resource_utils import resource_path
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
+
+
+def _analyze_snapshot(components, snapshot, is_reinstallation):
+    """
+    Helper function to analyze the system snapshot against the requested
+    components and return a categorized list of conflicts and warnings.
+    """
+    conflicts = {"ports": [], "volumes": []}
+    warnings = []
+    used_ports = {
+        p["port"]: p["process_name"] for p in snapshot.get("native_processes", [])
+    }
+    for container in snapshot.get("containers", []):
+        port_mappings = re.findall(r"0\.0\.0\.0:(\d+)->", container.get("ports", ""))
+        for port in port_mappings:
+            used_ports[int(port)] = f"docker container ({container.get('name')})"
+    existing_volumes = set()
+    for container in snapshot.get("containers", []):
+        mounts = container.get("mounts", "").split(",")
+        for mount in mounts:
+            if ":" in mount:
+                host_path = mount.split(":")[0]
+                if "." not in Path(host_path).name:
+                    existing_volumes.add(host_path)
+    for component in components:
+        comp_name = component.get("name")
+        for port_str in component.get("ports", []):
+            match = re.match(r"(\d+):", port_str)
+            if match:
+                port = int(match.group(1))
+                if port in used_ports:
+                    conflicting_service = used_ports[port]
+                    conflict_type = "UNEXPECTED_DOCKER_CONFLICT"
+                    if "docker" not in conflicting_service:
+                        conflict_type = "DANGEROUS_NATIVE_PROCESS_CONFLICT"
+                    elif (
+                        comp_name.lower() in conflicting_service.lower()
+                        and is_reinstallation
+                    ):
+                        conflict_type = "EXPECTED_REINSTALLATION"
+                    conflicts["ports"].append(
+                        {
+                            "port": port,
+                            "conflict_type": conflict_type,
+                            "conflicting_service": conflicting_service,
+                            "proposed_service": comp_name,
+                        }
+                    )
+        for volume_str in component.get("volumes", []):
+            if ":" in volume_str:
+                host_path = volume_str.split(":")[0]
+                if host_path in existing_volumes:
+                    conflicts["volumes"].append(
+                        {
+                            "volume_path": host_path,
+                            "conflict_type": "EXISTING_VOLUME_CONFLICT",
+                            "proposed_service": comp_name,
+                        }
+                    )
+    ram = snapshot.get("resources", {}).get("ram", {})
+    if ram.get("total_mb", 0) > 0 and ram.get("used_mb", 0) / ram.get("total_mb") > 0.9:
+        warnings.append(
+            {
+                "type": "RAM",
+                "message": "The target system is using over 90% of its RAM.",
+            }
+        )
+    return conflicts, warnings
 
 
 def create_app():
@@ -44,10 +113,6 @@ def create_app():
 
     @flask_app.route("/summary", methods=["GET"])
     def summary():
-        """
-        Renders the final summary page. Note: The frontend is now responsible
-        for passing the discovered service links to this page.
-        """
         return render_template("summary.html")
 
     @flask_app.route("/scan-pis", methods=["POST"])
@@ -62,27 +127,12 @@ def create_app():
             hosts, messages, error, detection_info = scanner.scan(subnet=subnet)
             if error:
                 return jsonify({"error": error, "messages": messages}), 500
-            permissions_error_detected = False
-            num_hosts_found = len(hosts)
-            mac_addresses_found = detection_info.get("mac_addresses_found", 0)
-            if (
-                num_hosts_found == 0
-                and mac_addresses_found == 0
-                and detection_info.get("total_hosts_scanned", 0) > 0
-            ):
-                permissions_error_detected = True
             return jsonify(
                 {
                     "hosts": hosts,
                     "messages": messages,
                     "error": error,
-                    "permissions_error": permissions_error_detected,
-                    "detection_info": {
-                        "success": detection_info.get("success"),
-                        "method_used": detection_info.get("method_used"),
-                        "detected_ip": detection_info.get("detected_ip"),
-                        "subnet": detection_info.get("subnet"),
-                    },
+                    "detection_info": detection_info,
                 }
             )
         except Exception as e:
@@ -103,6 +153,9 @@ def create_app():
         session["target_ip"] = ip
         return jsonify({"message": "IP address set successfully"}), 200
 
+    # START OF FIX:
+    # The /get-device-details endpoint is restored. It now uses the powerful
+    # get_system_snapshot method and extracts only the data needed for Step 2.
     @flask_app.route("/get-device-details", methods=["POST"])
     def get_device_details():
         data = request.get_json()
@@ -110,42 +163,46 @@ def create_app():
         username = data.get("username")
         password = data.get("password")
         if not all([ip_address, username, password]):
-            return (
-                jsonify({"error": "Missing IP address, username, or password"}),
-                400,
-            )
+            return jsonify({"error": "Missing IP, username, or password"}), 400
         try:
             scanner = PiScanner(username=username, password=password)
-            details, error = scanner.get_device_details(ip_address)
+            snapshot, error = scanner.get_system_snapshot(ip_address)
             if error:
                 return jsonify({"error": error}), 400
-            if details:
+            if snapshot:
+                # Adapt the rich snapshot to the simple details format the UI expects
+                details = {
+                    "model": snapshot.get("model"),
+                    "serial": snapshot.get("serial"),
+                    "ram": f"{snapshot.get('resources',
+                                           {}).get('ram', {}).get('total_mb', 0)} MB",
+                    "disks": [
+                        {
+                            "mounted_on": "/",
+                            "size": snapshot.get("resources", {})
+                            .get("disk", {})
+                            .get("size"),
+                            "pcent": snapshot.get("resources", {})
+                            .get("disk", {})
+                            .get("pcent"),
+                        }
+                    ],
+                }
                 return jsonify({"details": details})
             else:
                 return jsonify({"error": "No device details retrieved"}), 400
         except Exception as e:
-            logging.error(
-                f"Error in get_device_details for IP {ip_address}: {e}",
-                exc_info=True,
-            )
+            logging.error(f"Error in get_device_details for IP {ip_address}: {e}")
             return jsonify({"error": str(e)}), 500
+
+    # END OF FIX
 
     @flask_app.route("/get-available-software", methods=["POST"])
     def get_available_software():
-        discovered_devices = request.get_json(force=True).get("devices", [])
-        if not discovered_devices:
-            return jsonify({"error": "No devices provided"}), 400
+        _ = request.get_json(force=True).get("devices", [])
         try:
             all_components = component_manager.get_all_components()
-            sanitized_components = []
-            for component in all_components:
-                component["default"] = component.get("default", False)
-                component["depends_on"] = component.get("depends_on", [])
-                component["required_variables"] = component.get(
-                    "required_variables", []
-                )
-                sanitized_components.append(component)
-            return jsonify({"available_software": sanitized_components}), 200
+            return jsonify({"available_software": all_components}), 200
         except Exception as e:
             logging.error(f"Failed to get available software: {e}")
             return jsonify({"error": str(e)}), 500
@@ -154,14 +211,31 @@ def create_app():
     def get_software_groups():
         try:
             all_components = component_manager.get_all_components()
-            groups_to_components = {}
+            meta = component_manager.get_piselfhosting_meta()
+            group_rules = meta.get("group_rules", {})
+            group_order = meta.get("group_order", [])
+            id_to_name_map = {
+                gid: rules.get("name", gid.replace("_", " ").title())
+                for gid, rules in group_rules.items()
+            }
+            components_by_group_id = {}
             for component in all_components:
-                group_name = component.get("group")
+                group_id = component.get("group")
                 component_id = component.get("id")
-                if group_name and component_id:
-                    if group_name not in groups_to_components:
-                        groups_to_components[group_name] = []
-                    groups_to_components[group_name].append(component_id)
+                if group_id and component_id:
+                    if group_id not in components_by_group_id:
+                        components_by_group_id[group_id] = []
+                    components_by_group_id[group_id].append(component_id)
+            groups_to_components = {}
+            for group_id in group_order:
+                if group_id in components_by_group_id:
+                    display_name = id_to_name_map.get(group_id, group_id)
+                    groups_to_components[display_name] = components_by_group_id.pop(
+                        group_id
+                    )
+            for group_id, comp_list in sorted(components_by_group_id.items()):
+                display_name = id_to_name_map.get(group_id, group_id)
+                groups_to_components[display_name] = comp_list
             return jsonify({"groups": groups_to_components}), 200
         except Exception as e:
             logging.error(f"Failed to get software groups: {e}", exc_info=True)
@@ -171,8 +245,6 @@ def create_app():
     def get_required_variables():
         try:
             data = request.get_json(force=True)
-            if not data:
-                return jsonify({"error": "Malformed JSON received"}), 400
             selected_components = data.get("selected_components")
             if selected_components is None:
                 return jsonify({"error": "Missing selected_components"}), 400
@@ -195,8 +267,6 @@ def create_app():
     def validate_selection():
         try:
             data = request.get_json(force=True)
-            if not data:
-                return jsonify({"error": "Malformed JSON received"}), 400
             selected_components = data.get("selected_components")
             if selected_components is None:
                 return jsonify({"error": "Missing selected_components"}), 400
@@ -208,10 +278,10 @@ def create_app():
                 template_path_obj = base_template_path / component_id
                 if not template_path_obj.exists():
                     error_message = (
-                        f"Validation failed: Template directory not found for"
-                        f" '{component_id}'."
+                        f"Validation failed: "
+                        f"Template directory not "
+                        f"found for '{component_id}'."
                     )
-                    logging.warning(error_message)
                     return (
                         jsonify({"error": error_message, "component_id": component_id}),
                         400,
@@ -224,11 +294,9 @@ def create_app():
                     if not variables_path.is_file():
                         error_message = (
                             f"Configuration integrity error: "
-                            f"Component '{component_id}' requires configuration, "
-                            f"but its 'variables.json' file is missing from the"
-                            f" 'template-config' directory."
+                            f"'variables.json' "
+                            f"missing for '{component_id}'."
                         )
-                        logging.error(error_message)
                         return (
                             jsonify(
                                 {"error": error_message, "component_id": component_id}
@@ -240,35 +308,81 @@ def create_app():
             logging.error(f"Validation process failed: {e}", exc_info=True)
             return jsonify({"error": str(e)}), 500
 
+    @flask_app.route("/api/v1/system/analyze", methods=["POST"])
+    def system_analyze():
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "Malformed JSON received"}), 400
+        is_reinstallation = data.get("is_reinstallation", False)
+        devices = data.get("devices")
+        components = data.get("components")
+        if not devices or components is None:
+            return jsonify({"error": "Missing 'devices' or 'components' list"}), 400
+        internal_port_map = {}
+        for component in components:
+            for port_str in component.get("ports", []):
+                match = re.match(r"(\d+):", port_str)
+                if match:
+                    port = match.group(1)
+                    if port in internal_port_map:
+                        return (
+                            jsonify(
+                                {
+                                    "status": "error",
+                                    "internal_conflicts": [
+                                        f"Port {port} is used by"
+                                        f" both '{internal_port_map[port]}' "
+                                        f"and '{component.get('name')}'."
+                                    ],
+                                }
+                            ),
+                            400,
+                        )
+                    internal_port_map[port] = component.get("name")
+        device = devices[0]
+        scanner = PiScanner(
+            username=device.get("username"), password=device.get("password")
+        )
+        snapshot, err = scanner.get_system_snapshot(device.get("ip"))
+        if err:
+            return jsonify({"error": f"Failed to get system snapshot: {err}"}), 500
+        external_conflicts, resource_warnings = _analyze_snapshot(
+            components, snapshot, is_reinstallation
+        )
+        return (
+            jsonify(
+                {
+                    "status": "success",
+                    "internal_conflicts": [],
+                    "external_conflicts": external_conflicts,
+                    "resource_warnings": resource_warnings,
+                }
+            ),
+            200,
+        )
+
     @flask_app.route("/start-installation", methods=["POST"])
     def start_installation():
         try:
             data = request.get_json(force=True)
-            if not data:
-                return jsonify({"error": "Malformed JSON received"}), 400
             selected_components = data.get("selected_components")
             managed_devices = data.get("devices")
             user_variables = data.get("env_vars", {})
             if selected_components is None or managed_devices is None:
-                return jsonify({"error": "Missing selected_components or devices"}), 400
-
+                return jsonify({"error": "Missing selection or devices"}), 400
             success, errors = setup_manager.prepare_deployment_package(
                 selected_components, user_variables, managed_devices
             )
-
             if not success:
-                logging.error(f"File generation failed with errors: {errors}")
                 return (
                     jsonify({"error": "File generation failed.", "details": errors}),
                     400,
                 )
-
-            output_directory_path = str(setup_manager.output_dir)
             return (
                 jsonify(
                     {
-                        "message": "Configuration files generated successfully.",
-                        "output_path": output_directory_path,
+                        "message": "Configuration files generated.",
+                        "output_path": str(setup_manager.output_dir),
                     }
                 ),
                 200,
@@ -283,15 +397,11 @@ def create_app():
         output_path = data.get("output_path")
         managed_devices = data.get("devices")
         components_to_clean = data.get("components_to_clean", [])
+        components_to_restart = data.get("components_to_restart", [])
         if not output_path or not managed_devices:
             return jsonify({"error": "Missing output_path or devices"}), 400
-
         task_id = str(uuid.uuid4())
-        deployment_tasks[task_id] = {
-            "status": "running",
-            "logs": [],
-            "last_update": time.time(),
-        }
+        deployment_tasks[task_id] = {"status": "running", "logs": []}
         thread = threading.Thread(
             target=deployment_manager.start_deployment,
             args=(
@@ -300,6 +410,7 @@ def create_app():
                 output_path,
                 managed_devices,
                 components_to_clean,
+                components_to_restart,
             ),
         )
         thread.start()
@@ -329,39 +440,5 @@ def create_app():
         if not task:
             return jsonify({"error": "Task not found"}), 404
         return jsonify(task)
-
-    @flask_app.route("/validate-ports", methods=["POST"])
-    def validate_ports():
-        try:
-            data = request.get_json(force=True)
-            if not data:
-                return jsonify({"error": "Malformed JSON received"}), 400
-            final_vars = data.get("final_vars")
-            if final_vars is None:
-                return jsonify({"error": "Missing final_vars"}), 400
-            port_usage = {}
-            for var_id, var_value in final_vars.items():
-                if var_id.endswith("_PORT"):
-                    port_number = str(var_value)
-                    name_parts = var_id.split("_")
-                    first_part, *_ = name_parts
-                    component_name = first_part.capitalize()
-
-                    if port_number in port_usage:
-                        conflicting_component = port_usage[port_number]
-                        error_message = (
-                            f"Port conflict detected: Port '{port_number}' "
-                            f"is used by both "
-                            f"'{conflicting_component}' and "
-                            f"'{component_name}'. "
-                            f"Please assign a unique port to one of them."
-                        )
-                        logging.warning(error_message)
-                        return jsonify({"error": error_message}), 400
-                    port_usage[port_number] = component_name
-            return jsonify({"message": "Port configuration is valid."}), 200
-        except Exception as e:
-            logging.error(f"Validation process failed: {e}", exc_info=True)
-            return jsonify({"error": str(e)}), 500
 
     return flask_app

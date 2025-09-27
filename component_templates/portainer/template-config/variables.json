@@ -4,21 +4,21 @@
       "default": "lts",
       "description": "The Docker image tag for Portainer CE. 'lts' (Long-Term Support) is recommended for stability.",
       "id": "PORTAINER_IMAGE_TAG",
-      "label": "Portainer Version Tag",
+      "label": "Portainer Image Tag",
       "type": "string"
     },
     {
       "default": "9443",
       "description": "The external HTTPS port for the Portainer web UI.",
       "id": "PORTAINER_WEB_PORT",
-      "label": "Portainer Web Port (HTTPS)",
+      "label": "Portainer Web Port",
       "type": "port"
     },
     {
       "default": "8000",
       "description": "The external port for the Portainer Edge Agent tunnel server.",
       "id": "PORTAINER_EDGE_PORT",
-      "label": "Portainer Edge Agent Port",
+      "label": "Portainer Edge Port",
       "type": "string"
     }
   ]

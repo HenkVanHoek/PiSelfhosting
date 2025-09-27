@@ -16,7 +16,9 @@
     <style>
         body, html { height: 100%; overflow: hidden; }
         .main-container { display: flex; height: 100vh; padding-top: 56px; }
-        .sidebar { background-color: #f8f9fa; border-right: 1px solid #dee2e6; padding: 1rem; overflow-y: auto; width: 280px; min-width: 200px; max-width: 600px; }
+        .sidebar { background-color: #f8f9fa; border-right: 1px solid #dee2e6; padding: 1rem; width: 280px; min-width: 200px; max-width: 600px; display: flex; flex-direction: column; overflow-y: hidden; }
+        .sidebar-header { flex-shrink: 0; }
+        #component-list { overflow-y: auto; flex-grow: 1; }
         .content { flex-grow: 1; padding: 2rem; overflow-y: auto; display: flex; flex-direction: column; }
         #feedback-alert { position: fixed; top: 70px; right: 20px; z-index: 1050; }
         #editor-wrapper { border: 1px solid #dee2e6; border-radius: 0.25rem; flex-grow: 1; position: relative; }
@@ -62,13 +64,16 @@
 
 <div class="main-container">
     <div class="sidebar" id="sidebar">
-        <div class="d-flex justify-content-between align-items-center">
-            <h4>Components</h4>
-            <button class="btn btn-sm btn-outline-secondary" id="manage-groups-btn" title="Manage Groups"><i class="bi bi-gear"></i></button>
-        </div>
-        <hr>
-        <div class="d-grid gap-2 mb-3">
-            <button class="btn btn-primary" id="create-new-btn">Create New Component</button>
+        <div class="sidebar-header">
+            <div class="d-flex justify-content-between align-items-center">
+                <h4>Components</h4>
+                <button class="btn btn-sm btn-outline-secondary" id="manage-groups-btn" title="Manage Groups"><i class="bi bi-gear"></i></button>
+            </div>
+            <hr>
+            <div class="d-grid gap-2 mb-3">
+                <button class="btn btn-primary" id="create-new-btn">Create New Component</button>
+            </div>
+            <div id="sidebar-controls" class="mb-3"></div>
         </div>
         <div class="list-group" id="component-list"></div>
     </div>
@@ -168,7 +173,7 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                <p class="text-muted">You can delete any group that has no components assigned to it.</p>
+                <p class="text-muted">You can edit group names or delete any group that has no components assigned to it.</p>
                 <ul class="list-group" id="manage-groups-list"></ul>
             </div>
             <div class="modal-footer">

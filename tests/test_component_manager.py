@@ -14,11 +14,22 @@ def manager_with_initial_data(tmp_path: Path):
     templates_dir.mkdir()
 
     metadata_content = {
-        "_piselfhosting": {"components_order": ["comp-b", "comp-a"]},
+        "_piselfhosting": {
+            "components_order": ["comp-b", "comp-a"],
+            # START OF FIX:
+            "group_order": ["group_one"],
+            "group_rules": {
+                "group_one": {"name": "Original Group Name", "is_exclusive": False}
+            },
+            # END OF FIX
+        },
         "components": {
             "comp-a": {
                 "name": "Component A",
                 "docker_service_name": "service-a-special",
+                # START OF FIX:
+                "group": "group_one",
+                # END OF FIX
             },
             "comp-b": {"name": "Component B"},
         },
@@ -121,3 +132,24 @@ class TestComponentManager:
             unsorted_ids_with_new
         )
         assert sorted_ids_with_new == ["comp-b", "comp-a", "new-comp"]
+
+    # START OF FIX:
+    def test_rename_group_success(self, manager_with_initial_data):
+        """Verify that renaming a group updates the metadata file correctly."""
+        manager, tmp_path = manager_with_initial_data
+        metadata_file = tmp_path / "components_metadata.json"
+
+        manager.rename_group("group_one", "Renamed Group")
+
+        # Verify by reloading the raw data
+        data = json.loads(metadata_file.read_text())
+        group_name = data["_piselfhosting"]["group_rules"]["group_one"]["name"]
+        assert group_name == "Renamed Group"
+
+    def test_rename_group_nonexistent(self, manager_with_initial_data):
+        """Verify that renaming a nonexistent group raises a ValueError."""
+        manager, _ = manager_with_initial_data
+        with pytest.raises(ValueError, match="Group 'nonexistent-group' not found."):
+            manager.rename_group("nonexistent-group", "Some Name")
+
+    # END OF FIX:

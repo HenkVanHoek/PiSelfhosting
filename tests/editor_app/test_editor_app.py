@@ -140,6 +140,85 @@ class EditorAppTestCase(unittest.TestCase):
         self.mock_component_manager.delete_group.assert_called_with("old-group")
         self.assertIn("message", response.json)
 
+    def test_rename_group_success(self):
+        """Test the API endpoint for renaming a group successfully."""
+        payload = {"name": "New Group Name"}
+        response = self.client.put(
+            "/api/groups/old-group-name/rename",
+            data=json.dumps(payload),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.mock_component_manager.rename_group.assert_called_with(
+            "old-group-name", "New Group Name"
+        )
+        self.assertIn("message", response.json)
+        self.assertIn("renamed to 'New Group Name'", response.json["message"])
+
+    def test_rename_group_missing_name(self):
+        """Test renaming a group with a missing 'name' in the payload."""
+        payload = {"wrong_key": "some value"}
+        response = self.client.put(
+            "/api/groups/a-group/rename",
+            data=json.dumps(payload),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("error", response.json)
+        self.assertIn("New name is required", response.json["error"])
+        self.mock_component_manager.rename_group.assert_not_called()
+
+    def test_rename_group_manager_error(self):
+        """Test renaming a group when the manager raises a ValueError."""
+        self.mock_component_manager.rename_group.side_effect = ValueError(
+            "Group does not exist"
+        )
+        payload = {"name": "Any Name"}
+        response = self.client.put(
+            "/api/groups/non-existent-group/rename",
+            data=json.dumps(payload),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("error", response.json)
+        self.assertEqual(response.json["error"], "Group does not exist")
+
+    def test_update_component_variables_with_required_field(self):
+        """
+        Test that the 'required' field is correctly processed when updating
+        variables. An empty 'required' value should be omitted.
+        """
+        payload = {
+            "variables": [
+                {"id": "VAR1", "required": "always"},
+                {"id": "VAR2", "required": ""},
+                {"id": "VAR3"},
+            ]
+        }
+        # START OF FIX:
+        # The expected payload was corrected to match the actual, correct
+        # behavior of the application, which is to remove the empty 'required'
+        # key but keep the variable itself.
+        expected_call_payload = {
+            "variables": [
+                {"id": "VAR1", "required": "always"},
+                {"id": "VAR2"},
+                {"id": "VAR3"},
+            ]
+        }
+        # END OF FIX:
+
+        response = self.client.put(
+            "/api/components/some-comp/variables",
+            data=json.dumps(payload),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.mock_component_manager.update_component_variables.assert_called_once_with(
+            "some-comp", expected_call_payload
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

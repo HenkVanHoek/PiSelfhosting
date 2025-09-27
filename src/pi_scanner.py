@@ -2,8 +2,9 @@ import ipaddress
 import json
 import logging
 import os
+import re
 import socket
-import subprocess  # nosec
+import subprocess  # nosec B404
 
 import nmap
 import psutil
@@ -14,6 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 def _load_pi_mac_prefixes():
+    """Loads the known Raspberry Pi MAC address prefixes from a JSON file."""
     try:
         config_path = resource_path(os.path.join("config", "raspberry_pi_oui.json"))
         with open(config_path, "r", encoding="utf-8") as f:
@@ -28,6 +30,7 @@ PI_MAC_PREFIXES = _load_pi_mac_prefixes()
 
 
 def is_raspberry_pi(mac_address):
+    """Checks if a given MAC address belongs to a Raspberry Pi."""
     if not mac_address:
         return False
     mac_prefix = mac_address[:8].lower()
@@ -35,6 +38,7 @@ def is_raspberry_pi(mac_address):
 
 
 def is_port_open(host, port):
+    """Checks if a TCP port is open on a given host."""
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.settimeout(1)
     try:
@@ -46,23 +50,35 @@ def is_port_open(host, port):
 
 
 class PiScanner:
-    SSH_COMMAND = (
-        "echo '---OS_INFO_START---'; cat /etc/os-release; "
+    """
+    Scans the network for Raspberry Pi devices and gathers detailed system
+    information from them via SSH.
+    """
+
+    SSH_SNAPSHOT_COMMAND = (
+        "echo '---OS_INFO_START---'; cat /etc/os-release || echo 'error'; "
         "echo '---OS_INFO_END---'; "
-        "echo '---SERIAL_START---'; cat /proc/cpuinfo | grep Serial |"
-        " cut -d ' ' -f 2; echo '---SERIAL_END---'; "
+        "echo '---SERIAL_START---'; "
+        "cat /proc/cpuinfo | grep Serial | cut -d ' ' -f 2 || echo 'error'; "
+        "echo '---SERIAL_END---'; "
         "echo '---MODEL_START---'; "
-        "if [ -f /proc/device-tree/model ]; then "
-        "  cat /proc/device-tree/model; "
-        "elif [ -f /etc/piselfhosting-virtual-pi-server ]; then "
-        "  cat /etc/piselfhosting-virtual-pi-server; "
-        "fi; "
+        "if [ -f /proc/device-tree/model ]; then cat /proc/device-tree/model; "
+        "elif [ -f /etc/piselfhosting-virtual-pi-server ]; "
+        "then cat /etc/piselfhosting-virtual-pi-server; fi; "
         "echo '---MODEL_END---'; "
-        "echo '---RAM_START---'; free -m | grep Mem "
-        "| awk '{print $2 \" MB\"}';"
-        " echo '---RAM_END---'; "
-        "echo '---DISK_START---'; df -h "
-        "--output=source,size,used,avail,pcent,target; echo '---DISK_END---';"
+        "echo '---DOCKER_STATUS_START---'; "
+        "systemctl is-active --quiet docker && echo 'active' || echo 'inactive'; "
+        "echo '---DOCKER_STATUS_END---'; "
+        "echo '---DOCKER_PS_START---'; "
+        "docker ps --format '{{.Names}}#{{.Ports}}#{{.Mounts}}' || echo 'error'; "
+        "echo '---DOCKER_PS_END---'; "
+        "echo '---SS_START---'; ss -ltpn || echo 'error'; "
+        "echo '---SS_END---'; "
+        "echo '---RAM_START---'; free -m || echo 'error'; "
+        "echo '---RAM_END---'; "
+        "echo '---DISK_START---'; "
+        "df -h / --output=size,pcent || echo 'error'; "
+        "echo '---DISK_END---';"
     )
 
     def __init__(self, username, password):
@@ -75,13 +91,8 @@ class PiScanner:
         s.settimeout(0)
         try:
             s.connect(("8.8.8.8", 1))
-            # Use an intermediate variable for clarity and to ensure correctness
-            sock_info_tuple = s.getsockname()
-            ip_address = sock_info_tuple[0]
+            ip_address = s.getsockname()[0]
         except OSError:
-            return "127.0.0.1"
-        except Exception:
-            logging.exception("Unexpected error in get_local_ip")
             return "127.0.0.1"
         finally:
             s.close()
@@ -91,110 +102,123 @@ class PiScanner:
     def detect_subnet():
         primary_ip = PiScanner.get_primary_ip()
         if primary_ip == "127.0.0.1":
-            logger.warning("Could not determine a non-loopback IP address.")
             return None
-
-        logger.info(f"🔍 Primary IP detected: {primary_ip}")
         all_addrs = psutil.net_if_addrs()
-        for interface_addresses in all_addrs.values():
-            for addr in interface_addresses:
+        for addresses in all_addrs.values():
+            for addr in addresses:
                 if addr.family == socket.AF_INET and addr.address == primary_ip:
-                    netmask = addr.netmask
-                    logger.info(f"   - IP Address: {addr.address}")
-                    logger.info(f"   - Netmask:    {netmask}")
                     network = ipaddress.IPv4Network(
-                        f"{addr.address}/{netmask}", strict=False
+                        f"{addr.address}/{addr.netmask}", strict=False
                     )
-                    logger.info(f"🌐 Calculated Subnet: {network.with_prefixlen}")
                     return str(network.with_prefixlen)
-
-        logger.warning(
-            "❌ Could not find interface details for the primary IP using psutil."
-        )
         return None
 
     def scan(self, subnet=None):
         detection_info = {}
         messages = []
-
         if subnet is None:
             detected_subnet = self.detect_subnet()
             if detected_subnet:
                 subnet = detected_subnet
-                detection_info = {
-                    "success": True,
-                    "method_used": "auto_detect",
-                    "detected_ip": self.get_primary_ip(),
-                    "subnet": subnet,
-                }
+                detection_info = {"success": True, "method_used": "auto_detect"}
                 messages.append(f"✅ Subnet auto-detected: {subnet}")
             else:
-                error_msg = "Could not auto-detect subnet. Please provide one manually."
-                messages.append(error_msg)
+                error_msg = "Could not auto-detect subnet."
                 detection_info["success"] = False
                 return [], messages, error_msg, detection_info
         else:
-            detection_info = {
-                "success": True,
-                "method_used": "user_provided",
-                "subnet": subnet,
-            }
+            detection_info = {"success": True, "method_used": "user_provided"}
             messages.append(f"🎯 Using provided network: {subnet}")
-
-        messages.append(f"🔍 Scanning {subnet} for Raspberry Pi devices...")
-
         try:
             nm = nmap.PortScanner()
             result = nm.scan(hosts=subnet, arguments="-sn -PR", sudo=True)
-
             hosts = []
-            scanned_hosts = list(result["scan"].keys())
-            messages.append(f"📡 Found {len(scanned_hosts)} active devices")
-            detection_info["total_hosts_scanned"] = len(scanned_hosts)
-
-            pi_count = 0
-            mac_address_count = 0
-            for host in scanned_hosts:
-                host_info = result["scan"][host]
-                if "addresses" in host_info and "mac" in host_info["addresses"]:
-                    mac_address_count += 1
-                    mac_address = host_info["addresses"]["mac"].upper()
-                    vendor = host_info["vendor"].get(mac_address, "Unknown")
-                    if is_raspberry_pi(mac_address):
-                        pi_count += 1
-                        hosts.append(
-                            {
-                                "ip": host,
-                                "mac": mac_address,
-                                "vendor": vendor,
-                                "hostname": host_info.get("hostnames", [{}])[0].get(
-                                    "name", "Unknown"
-                                ),
-                            }
-                        )
-                        messages.append(f"🍓 Raspberry Pi found: {host} ({vendor})")
-
-            detection_info["mac_addresses_found"] = mac_address_count
-
-            if pi_count == 0:
-                messages.append("⚠️ No Raspberry Pi devices found in this network")
-            else:
-                messages.append(
-                    f"✅ Scan complete: {pi_count} Raspberry Pi(s) discovered"
-                )
-
-            logger.info(f"Scan completed. Found {len(hosts)} Raspberry Pi devices.")
+            for host, host_info in result.get("scan", {}).items():
+                mac = host_info.get("addresses", {}).get("mac")
+                if mac and is_raspberry_pi(mac):
+                    vendor = host_info.get("vendor", {}).get(mac, "Unknown")
+                    hostname = host_info.get("hostnames", [{}])[0].get("name", "")
+                    hosts.append(
+                        {
+                            "ip": host,
+                            "mac": mac,
+                            "vendor": vendor,
+                            "hostname": hostname or "Unknown",
+                        }
+                    )
             return hosts, messages, "", detection_info
         except Exception as e:
             error_msg = f"❌ Scan failed: {str(e)}"
-            logger.error(f"Scan failed: {e}")
             detection_info["success"] = False
             return [], messages, error_msg, detection_info
 
-    def get_device_details(self, ip_address):
+    @staticmethod
+    def _parse_section(key, output):
+        pattern = f"---{key}_START---(.*?)---{key}_END---"
+        match = re.search(pattern, output, re.DOTALL)
+        return match.group(1).strip() if match else ""
+
+    @staticmethod
+    def _parse_docker_ps(raw_output):
+        if not raw_output or "error" in raw_output:
+            return []
+        containers = []
+        for line in raw_output.strip().split("\n"):
+            parts = line.split("#")
+            if len(parts) != 3:
+                continue
+            name, ports_raw, mounts_raw = parts
+            containers.append({"name": name, "ports": ports_raw, "mounts": mounts_raw})
+        return containers
+
+    @staticmethod
+    def _parse_ss_output(raw_output):
+        if not raw_output or "error" in raw_output:
+            return []
+        processes = []
+        proc_regex = re.compile(r'users:\(\("([^"]+)"')
+        for line in raw_output.strip().split("\n")[1:]:
+            parts = line.split()
+            if len(parts) < 4 or "LISTEN" not in parts[0]:
+                continue
+            try:
+                address = parts[3]
+                port = address.split(":")[-1]
+                proc_match = proc_regex.search(line)
+                proc_name = proc_match.group(1) if proc_match else "unknown"
+                processes.append({"port": int(port), "process_name": proc_name})
+            except (ValueError, IndexError):
+                continue
+        return processes
+
+    @staticmethod
+    def _parse_resource_metrics(ram_raw, disk_raw):
+        resources = {
+            "ram": {"total_mb": 0, "used_mb": 0},
+            "disk": {"size": "N/A", "pcent": "N/A"},
+        }
+        if ram_raw:
+            mem_line = next(
+                (line for line in ram_raw.split("\n") if line.startswith("Mem:")),
+                None,
+            )
+            if mem_line:
+                parts = mem_line.split()
+                if len(parts) >= 3:
+                    resources["ram"] = {
+                        "total_mb": int(parts[1]),
+                        "used_mb": int(parts[2]),
+                    }
+        if disk_raw:
+            disk_line = disk_raw.strip().split("\n")[-1]
+            parts = disk_line.split()
+            if len(parts) >= 2:
+                resources["disk"] = {"size": parts[0], "pcent": parts[1]}
+        return resources
+
+    def get_system_snapshot(self, ip_address):
         if not is_port_open(ip_address, 22):
             return None, f"SSH port 22 is not open on {ip_address}."
-
         try:
             command = [
                 "sshpass",
@@ -206,120 +230,44 @@ class PiScanner:
                 "-o",
                 "ConnectTimeout=10",
                 f"{self.username}@{ip_address}",
-                self.SSH_COMMAND,
+                self.SSH_SNAPSHOT_COMMAND,
             ]
-            result = subprocess.run(
-                command, capture_output=True, text=True, timeout=20
-            )  # nosec
-
+            result = subprocess.run(  # nosec B603
+                command, capture_output=True, text=True, timeout=20, check=False
+            )
             if result.returncode != 0:
                 return None, f"SSH command failed: {result.stderr.strip()}"
 
-            import re
-
-            def parse_section(key, output):
-                try:
-                    pattern = f"---{key}_START---(.*?)---{key}_END---"
-                    match = re.search(pattern, output, re.DOTALL)
-                    return match.group(1).strip() if match else ""
-                except Exception:
-                    return ""
-
-            output_str = result.stdout
-            os_info_raw = parse_section("OS_INFO", output_str)
-            serial_raw = parse_section("SERIAL", output_str)
-            model_raw = parse_section("MODEL", output_str)
-            ram_raw = parse_section("RAM", output_str)
-            disk_raw = parse_section("DISK", output_str)
-
+            output = result.stdout
+            os_info_raw = self._parse_section("OS_INFO", output)
             os_info = dict(
                 line.split("=", 1)
                 for line in os_info_raw.strip().split("\n")
                 if "=" in line
             )
+            docker_status_str = self._parse_section("DOCKER_STATUS", output)
+            docker_ps_raw = self._parse_section("DOCKER_PS", output)
+            ss_raw = self._parse_section("SS", output)
+            ram_raw = self._parse_section("RAM", output)
+            disk_raw = self._parse_section("DISK", output)
 
-            disk_lines = disk_raw.strip().split("\n")
-            if disk_lines and "Filesystem" in disk_lines:
-                disk_lines = disk_lines[1:]
-
-            disks = []
-            for line in disk_lines:
-                line_parts = line.strip().split()
-                if len(line_parts) == 6:
-                    disks.append(
-                        dict(
-                            zip(
-                                [
-                                    "filesystem",
-                                    "size",
-                                    "used",
-                                    "avail",
-                                    "pcent",
-                                    "mounted_on",
-                                ],
-                                line_parts,
-                            )
-                        )
-                    )
-
-            # Corrected logic
-            final_model = model_raw.strip().replace("\x00", "")
-            final_serial = serial_raw.strip()
-
-            if "MODEL_NAME=" in model_raw:
-                vm_meta = dict(
-                    line.split("=", 1)
-                    for line in model_raw.strip().split("\n")
-                    if "=" in line
-                )
-                final_model = vm_meta.get("MODEL_NAME", final_model).strip()
-                final_serial = vm_meta.get("SERIAL_NUMBER", final_serial).strip()
-
-            details = {
+            snapshot = {
                 "os_version": os_info.get("PRETTY_NAME", "N/A").strip('"'),
-                "serial": final_serial,
-                "model": final_model,
-                "ram": ram_raw.strip(),
-                "disks": disks,
+                "serial": self._parse_section("SERIAL", output),
+                "model": self._parse_section("MODEL", output).replace("\x00", ""),
+                "docker_is_active": "active" == docker_status_str,
+                "containers": self._parse_docker_ps(docker_ps_raw),
+                "native_processes": self._parse_ss_output(ss_raw),
+                "resources": self._parse_resource_metrics(ram_raw, disk_raw),
             }
-            return details, None
+            return snapshot, None
         except FileNotFoundError:
-            msg = "sshpass is not installed. This tool is required for SSH."
-            logger.error(msg)
+            msg = "sshpass is not installed."
             return None, msg
         except subprocess.TimeoutExpired:
             msg = f"SSH command timed out for {ip_address}."
-            logger.error(msg)
             return None, msg
         except Exception as e:
             msg = f"An unexpected SSH error occurred: {e}"
             logger.error(msg, exc_info=True)
             return None, msg
-
-    def scan_and_get_details(self, subnet, per_device_callback=None):
-        hosts, messages, err, _ = self.scan(subnet)
-        if err:
-            return [], messages, err
-
-        detailed_hosts = []
-        for host in hosts:
-            details, detail_err = self.get_device_details(host["ip"])
-
-            if detail_err and per_device_callback:
-                custom_creds = per_device_callback(host["ip"], detail_err)
-                if custom_creds:
-                    username, password = custom_creds
-                    temp_scanner = PiScanner(username, password)
-                    details, detail_err = temp_scanner.get_device_details(host["ip"])
-
-            if detail_err:
-                logger.warning(f"Could not get details for {host['ip']}: {detail_err}")
-                host["os_version"] = f"Error: {detail_err}"
-                host["details_available"] = False
-            else:
-                host.update(details)
-                host["details_available"] = True
-
-            detailed_hosts.append(host)
-
-        return detailed_hosts, messages, None
