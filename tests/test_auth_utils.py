@@ -1,14 +1,14 @@
 # tests/test_auth_utils.py
 
-from passlib.hash import bcrypt
+from passlib.hash import argon2
 
 from src.utils.auth_utils import generate_basic_auth_hash
 
 
-def test_generate_basic_auth_hash_creates_valid_bcrypt_output():
+def test_generate_basic_auth_hash_creates_valid_argon2_output():
     """
     Test that the function generates a securely hashed string in the
-    'username:hash' format using the bcrypt algorithm.
+    'username:hash' format using the Argon2ID algorithm.
     """
     username = "testuser"
     password = "SecurePassword123"
@@ -22,16 +22,17 @@ def test_generate_basic_auth_hash_creates_valid_bcrypt_output():
 
     # Unpack the result: (username, hash_string)
     # The new directive requires unpacking
+    # The split result is a list [username, hash_string]
     parts = result_string.split(":", 1)
-    unpacked_username, hash_string = parts
+    unpacked_username, hash_string = parts  # Unpacking-First Mandate
 
-    # 2. Assert the hash itself is a valid bcrypt hash
-    # (i.e., starts with $2y$ or $2b$)
-    assert hash_string.startswith("$2y$") or hash_string.startswith("$2b$")
+    # 2. Assert the hash itself is a valid Argon2 hash
+    # (i.e., starts with the standard Argon2ID prefix)
+    assert hash_string.startswith("$argon2id$")
 
     # 3. Assert the hash is verifiable (the core security test)
-    # Use passlib's bcrypt verification method
-    assert bcrypt.verify(password, hash_string)
+    # Use passlib's argon2 verification method
+    assert argon2.verify(password, hash_string)
 
 
 def test_generate_basic_auth_hash_is_unique_on_each_call():
@@ -45,19 +46,17 @@ def test_generate_basic_auth_hash_is_unique_on_each_call():
     hash_one = generate_basic_auth_hash(username, password)
     hash_two = generate_basic_auth_hash(username, password)
 
-    # The result strings must be different because bcrypt uses a random salt
+    # The result strings must be different because Argon2 uses a random salt
     assert hash_one != hash_two
 
     # But both must still verify against the original password
     parts_one = hash_one.split(":", 1)
     parts_two = hash_two.split(":", 1)
 
-    # Defensive unpacking check for the core assertion
-    hash_one_string = next(iter(parts_one[1:]), None)
-    hash_two_string = next(iter(parts_two[1:]), None)
+    # Unpacking-First Mandate for the core assertion
+    _, hash_one_string = parts_one
+    _, hash_two_string = parts_two
 
-    assert hash_one_string is not None
-    assert hash_two_string is not None
-
-    assert bcrypt.verify(password, hash_one_string)
-    assert bcrypt.verify(password, hash_two_string)
+    # Verify both hashes
+    assert argon2.verify(password, hash_one_string)
+    assert argon2.verify(password, hash_two_string)
