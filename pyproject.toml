@@ -34,7 +34,7 @@ dependencies = [
     "keyring",
     "appdirs",
     "paramiko",
-    "argon-cffi",
+    "argon2-cffi",
     "passlib"
 ]
 
