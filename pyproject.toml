@@ -1,5 +1,3 @@
-# pyproject.toml (Final, Complete Version)
-
 [tool.isort]
 profile = "black"
 line_length = 88
@@ -12,15 +10,17 @@ pythonpath = [
   "."
 ]
 norecursedirs = ["scripts", "test_scanner.py"]
+# START OF FIX: Use precise regex filter to ignore external 'crypt' deprecation warning
+filterwarnings = [
+    "ignore:.*'crypt' is deprecated and slated for removal in Python 3.13.*:DeprecationWarning"
+]
+# END OF FIX: Use precise regex filter to ignore external 'crypt' deprecation warning
 
 [project]
 name = "PiSelfhosting"
 version = "0.4.46-Alpha"
 description = "A project to self-host services on a Raspberry Pi."
 requires-python = ">=3.11"
-
-# THIS NEW SECTION IS THE PRIMARY FIX
-# It lists all packages required for the application to run.
 dependencies = [
     "flask",
     "python-dotenv",
@@ -33,7 +33,8 @@ dependencies = [
     "requests",
     "keyring",
     "appdirs",
-    "paramiko"
+    "paramiko",
+    "passlib"
 ]
 
 [tool.setuptools]

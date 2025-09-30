@@ -27,6 +27,61 @@ class EditorAppTestCase(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"PiSelfhosting Component Editor", response.data)
 
+    # START OF FIX: Add tests for the new /api/generate_auth_hash endpoint
+    @patch("src.editor_app.app.generate_basic_auth_hash")
+    def test_generate_auth_hash_api_success(self, mock_generate_hash):
+        """
+        Test the API endpoint for hash generation with a successful payload,
+        checking the data contract.
+        """
+        mock_generated_string = "testuser:$2a$12$ABCDEFGHIJ.K/LMNOPQR.STUV.WXYZ0123"
+        mock_generate_hash.return_value = mock_generated_string
+
+        payload = {"username": "testuser", "password": "SecurePassword123"}
+
+        response = self.client.post(
+            "/api/generate_auth_hash",
+            data=json.dumps(payload),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("hashed_user_string", response.json)
+        self.assertEqual(response.json["hashed_user_string"], mock_generated_string)
+
+        # Verify the utility function was called with the correct arguments
+        mock_generate_hash.assert_called_once_with(
+            payload["username"], payload["password"]
+        )
+
+    def test_generate_auth_hash_api_missing_data(self):
+        """
+        Test the API endpoint for hash generation when required data is missing.
+        """
+        # Case 1: Missing username
+        response_missing_user = self.client.post(
+            "/api/generate_auth_hash",
+            data=json.dumps({"password": "p"}),
+            content_type="application/json",
+        )
+        self.assertEqual(response_missing_user.status_code, 400)
+        self.assertIn(
+            "Username and password are required", response_missing_user.json["error"]
+        )
+
+        # Case 2: Missing password
+        response_missing_pass = self.client.post(
+            "/api/generate_auth_hash",
+            data=json.dumps({"username": "u"}),
+            content_type="application/json",
+        )
+        self.assertEqual(response_missing_pass.status_code, 400)
+        self.assertIn(
+            "Username and password are required", response_missing_pass.json["error"]
+        )
+
+    # END OF FIX: Add tests for the new /api/generate_auth_hash endpoint
+
     def test_get_components_api(self):
         """Test the API endpoint for getting grouped and sorted components."""
         self.mock_component_manager.get_all_components.return_value = [

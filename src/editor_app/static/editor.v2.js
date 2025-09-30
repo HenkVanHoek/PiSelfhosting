@@ -1,3 +1,9 @@
+// src/editor_app/static/editor.v2.js
+
+// START OF FIX: Reverting to local relative path which is the correct standard for same-folder modules.
+import { renderEditor, renderVariablesPane } from './ui_render_utils.js';
+// END OF FIX: Reverting to local relative path which is the correct standard for same-folder modules.
+
 document.addEventListener('DOMContentLoaded', () => {
     const componentList = document.getElementById('component-list');
     const editorPane = document.getElementById('editor-pane');
@@ -10,6 +16,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let codeEditor = null;
     let currentVariables = [];
+    let internalRenderVariablesRows = null; // Stores the inner render function from ui_render_utils
 
     /**
      * @typedef {object} ComponentSummary
@@ -384,6 +391,102 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     };
 
+    // START OF FIX: Re-insert setupHashGenerator function body and fix Linter issues
+    const setupHashGenerator = () => {
+        // Element selection for hash generator (assuming from earlier context)
+        const hashGeneratorModalEl = document.getElementById('hashGeneratorModal');
+        const hashGeneratorForm = document.getElementById('hash-generator-form');
+        const hashUsernameInput = document.getElementById('hash-username');
+        const hashPasswordInput = document.getElementById('hash-password');
+        const hashPasswordConfirmInput = document.getElementById('hash-password-confirm');
+        const passwordMatchFeedback = document.getElementById('password-match-feedback');
+        const generateHashSubmitBtn = document.getElementById('generate-hash-submit-btn');
+        const hashResultArea = document.getElementById('hash-result-area');
+        const hashOutputInput = document.getElementById('hash-output');
+        const copyHashBtn = document.getElementById('copy-hash-btn');
+        const generateHashBtn = document.getElementById('generate-hash-btn');
+
+        // Return if any of the critical elements for the feature are missing
+        if (!hashGeneratorModalEl || !generateHashBtn) return;
+
+        const hashGeneratorModal = new bootstrap.Modal(hashGeneratorModalEl);
+
+        // 1. Button click opens the modal
+        generateHashBtn.addEventListener('click', () => {
+            hashGeneratorForm.reset();
+            hashPasswordInput.classList.remove('is-invalid');
+            hashPasswordConfirmInput.classList.remove('is-invalid');
+            hashResultArea.style.display = 'none';
+            hashGeneratorModal.show();
+        });
+
+        // 2. Form submission handles the API call
+        hashGeneratorForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const username = hashUsernameInput.value.trim();
+            const password = hashPasswordInput.value;
+            const passwordConfirm = hashPasswordConfirmInput.value;
+
+            // Basic validation
+            if (password !== passwordConfirm) {
+                hashPasswordInput.classList.add('is-invalid');
+                hashPasswordConfirmInput.classList.add('is-invalid');
+                passwordMatchFeedback.style.display = 'block';
+                showAlert('Passwords do not match.', 'danger');
+                return;
+            }
+            hashPasswordInput.classList.remove('is-invalid');
+            hashPasswordConfirmInput.classList.remove('is-invalid');
+            passwordMatchFeedback.style.display = 'none';
+
+            if (!username || !password) {
+                showAlert('Username and Password cannot be empty.', 'danger');
+                return;
+            }
+
+            generateHashSubmitBtn.disabled = true;
+            generateHashSubmitBtn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span> Generating...`;
+
+            try {
+                const payload = { username, password };
+                const response = await fetchJson('/api/generate_auth_hash', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                // noinspection JSUnresolvedVariable
+                hashOutputInput.value = response.hashed_user_string;
+                hashResultArea.style.display = 'block';
+                showAlert('Secure hash generated successfully!', 'success');
+
+            } catch (error) {
+                showAlert(`Error generating hash: ${error.message}`, 'danger');
+                hashResultArea.style.display = 'none';
+            } finally {
+                generateHashSubmitBtn.disabled = false;
+                generateHashSubmitBtn.innerHTML = `Generate Hash`;
+            }
+        });
+
+        // 3. Copy to clipboard functionality - FIX: Deprecated execCommand
+        copyHashBtn.addEventListener('click', async () => {
+            const textToCopy = hashOutputInput.value;
+            try {
+                await navigator.clipboard.writeText(textToCopy);
+                showAlert('Hash string copied to clipboard!', 'success');
+            } catch (err) {
+                // Fallback for older browsers
+                hashOutputInput.select();
+                // noinspection JSDeprecatedSymbols
+                document.execCommand('copy');
+                showAlert('Hash string copied to clipboard (Legacy fallback)!', 'success');
+            }
+        });
+    };
+    // END OF FIX: Re-insert setupHashGenerator function body and fix Linter issues
+
     const saveMetadata = async (componentId) => {
         const payload = {
             name: document.getElementById('comp-name').value,
@@ -401,7 +504,8 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const saveVariables = async (componentId) => {
-        const payload = { variables: currentVariables };
+        // CRITICAL: currentVariables must be updated from DOM before saving
+        const payload = { variables: collectVariablesFromDOM() };
         await fetchJson(`/api/components/${componentId}/variables`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
@@ -423,7 +527,7 @@ document.addEventListener('DOMContentLoaded', () => {
         saveChangesBtn.disabled = true;
         saveChangesBtn.innerHTML = `<span class="spinner-border spinner-border-sm"></span> Saving...`;
 
-        currentVariables = collectVariablesFromDOM();
+        // The saveVariables function now calls collectVariablesFromDOM() internally
 
         try {
             await Promise.all([saveMetadata(componentId), saveVariables(componentId), saveTemplate(componentId)]);
@@ -456,93 +560,33 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    const renderVariablesPane = () => {
-        const container = document.getElementById('variables-pane');
-        container.innerHTML = `
-            <div class="alert alert-info small">
-                <i class="bi bi-info-circle-fill"></i>
-                <strong>Hint:</strong> The <strong>Default Value</strong> field supports special macros.
-                Use <code>{{ CONFIG_BASE_PATH }}/your-path</code> for portable data paths, and
-                <code>{{ DOTENV.YOUR_GLOBAL_VAR }}</code> to bind the value to the user <strong>.env</strong> file.
-                <a href="https://github.com/HenkVanHoek/PiSelfhosting/blob/main/docs/ARCHITECTURE.md#25-the-variable-and-macro-system" target="_blank" class="alert-link">Learn More</a>.
-            </div>
-            <div id="variables-list" class="mt-3"></div>
-            <button class="btn btn-secondary mt-3" id="add-variable-btn"><i class="bi bi-plus-circle"></i> Add New Variable</button>
-        `;
+    /**
+     * Handles the state mutation for the variables pane and triggers a re-render.
+     * @param {number|undefined} [indexToRemove] - Optional index of a variable to remove.
+     */
+    const handleVariablesStateAndRender = (indexToRemove) => {
+        // If an index is provided, mutate the array
+        if (indexToRemove !== undefined) {
+            currentVariables.splice(indexToRemove, 1);
+        } else {
+            // For general re-render when a field changes, we update the state
+            // by collecting from DOM, which is not what we want here as it's an
+            // expensive way to update. For simplicity in the refactor, we stick
+            // to the original files mutation pattern.
+        }
 
-        const listContainer = document.getElementById('variables-list');
-        const renderAllRows = () => {
-            listContainer.innerHTML = '';
-            if (currentVariables.length === 0) {
-                listContainer.innerHTML = '<p class="text-muted">No user variables defined.</p>';
-            }
-            currentVariables.forEach((variable, index) => {
-                // START OF FIX:
-                // This section has been completely refactored to:
-                // 1. Create the new layout with Description on its own line.
-                // 2. Add the new "Source" dropdown menu.
-                // 3. Change the Description input to a multi-line textarea.
-                const variableTypes = ['string', 'port', 'path', 'password'];
-                const typeOptionsHtml = variableTypes.map(type => `<option value="${type}" ${variable.type === type ? 'selected' : ''}>${type}</option>`).join('');
+        if (internalRenderVariablesRows) {
+            internalRenderVariablesRows();
+        }
+    };
 
-                const sourceOptionsHtml = `
-                    <option value="" ${!variable.source ? 'selected' : ''}>User Input</option>
-                    <option value="dotenv" ${variable.source === 'dotenv' ? 'selected' : ''}>DotEnv</option>
-                `;
-
-                const requiredOptionsHtml = `
-                    <option value="" ${!variable.required ? 'selected' : ''}>Not Required</option>
-                    <option value="always" ${variable.required === 'always' ? 'selected' : ''}>Required Always</option>
-                    <option value="clean-install" ${variable.required === 'clean-install' ? 'selected' : ''}>Required on Clean Install</option>
-                `;
-                const row = document.createElement('div');
-                row.className = 'card mb-3';
-                row.innerHTML = `
-                    <div class="card-body">
-                        <div class="row g-2 align-items-center mb-3">
-                            <div class="col-md-2"><label class="form-label small">Variable ID</label><input type="text" class="form-control form-control-sm" data-index="${index}" data-field="id" value="${variable.id || ''}"></div>
-                            <div class="col-md-2"><label class="form-label small">Label (Optional)</label><input type="text" class="form-control form-control-sm" data-index="${index}" data-field="label" value="${variable.label || ''}"></div>
-                            <div class="col-md-2"><label class="form-label small">Type</label><select class="form-select form-select-sm" data-index="${index}" data-field="type">${typeOptionsHtml}</select></div>
-                            <div class="col-md-2"><label class="form-label small">Source</label><select class="form-select form-select-sm" data-index="${index}" data-field="source">${sourceOptionsHtml}</select></div>
-                            <div class="col-md-2"><label class="form-label small">Default Value</label><input type="text" class="form-control form-control-sm" data-index="${index}" data-field="default" value="${variable.default || ''}"></div>
-                            <div class="col-md-2"><label class="form-label small">Required</label><select class="form-select form-select-sm" data-index="${index}" data-field="required">${requiredOptionsHtml}</select></div>
-                        </div>
-                        <div class="row">
-                            <div class="col-12">
-                                <label class="form-label small">Description</label>
-                                <textarea class="form-control form-control-sm" rows="2" data-index="${index}" data-field="description">${variable.description || ''}</textarea>
-                            </div>
-                        </div>
-                        <button class="btn btn-sm btn-outline-danger mt-3" data-index="${index}"><i class="bi bi-trash"></i> Remove</button>
-                    </div>`;
-                // END OF FIX
-                listContainer.appendChild(row);
-            });
-        };
-        listContainer.addEventListener('input', e => {
-            if (e.target.matches('input') || e.target.matches('select') || e.target.matches('textarea')) {
-                const { index, field } = e.target.dataset;
-                currentVariables[index][field] = e.target.value;
-                markTabAsDirty('variables-pane');
-            }
-        });
-        listContainer.addEventListener('click', e => {
-            const removeButton = e.target.closest('button');
-            if (removeButton && removeButton.dataset.index) {
-                currentVariables.splice(parseInt(removeButton.dataset.index, 10), 1);
-                renderAllRows();
-                markTabAsDirty('variables-pane');
-            }
-        });
-        document.getElementById('add-variable-btn').addEventListener('click', () => {
-            // START OF FIX:
-            // Added 'source' to the new variable object to ensure data consistency.
-            currentVariables.push({ id: '', label: '', description: '', type: 'string', source: '', default: '', required: '' });
-            // END OF FIX:
-            renderAllRows();
-            markTabAsDirty('variables-pane');
-        });
-        renderAllRows();
+    const handleAddVariable = () => {
+        // START OF FIX:
+        // Added 'source' to the new variable object to ensure data consistency.
+        currentVariables.push({ id: '', label: '', description: '', type: 'string', source: '', default: '', required: '' });
+        // END OF FIX:
+        handleVariablesStateAndRender();
+        markTabAsDirty('variables-pane');
     };
 
     /**
@@ -556,41 +600,31 @@ document.addEventListener('DOMContentLoaded', () => {
      * @param {boolean} [details.has_configuration]
      * @param {ComponentVariable[]} [details.required_variables]
      */
-    const renderEditor = async (details) => {
+    const applicationRenderEditor = async (details) => { // Renamed from renderEditor to avoid confusion with imported function
         const componentId = details.id;
+        // CRITICAL: Update the state array from the fetched details
         currentVariables = details.required_variables || [];
-        let dependsOn = Array.isArray(details.depends_on) ? details.depends_on : (details.depends_on ? [details.depends_on] : []);
-        const dependsOnStr = dependsOn.join(', ');
-        document.getElementById('editor-title').textContent = details.name || componentId;
-        const metadataPane = document.getElementById('metadata-pane');
-        metadataPane.innerHTML = `
-            <div class="mb-3"><label class="form-label">Component ID</label><input type="text" class="form-control" id="comp-id" value="${componentId}" readonly></div>
-            <div class="mb-3"><label for="comp-name" class="form-label">Name</label><input type="text" class="form-control" id="comp-name" value="${details.name || ''}"></div>
-            <div class="mb-3"><label for="comp-desc" class="form-label">Description</label><textarea class="form-control" id="comp-desc" rows="3">${details.description || ''}</textarea></div>
-            <div class="row">
-                <div class="col-md-6 mb-3"><label for="comp-group" class="form-label">Group</label><input type="text" class="form-control"
-                id="comp-group" list="group-datalist" value="${details.group || ''}"><datalist id="group-datalist"></datalist>
-                </div>
-                <div class="col-md-6 mb-3"><label for="comp-deps" class="form-label">Depends On</label><input type="text" class="form-control" id="comp-deps" value="${dependsOnStr}"></div>
-            </div>
-            <div class="form-check form-switch mb-2"><input class="form-check-input" type="checkbox" role="switch" id="comp-has-ui"><label class="form-check-label" for="comp-has-ui">Has Web UI</label></div>
-            <div class="form-check form-switch mb-3"><input class="form-check-input" type="checkbox" role="switch" id="comp-has-config"><label class="form-check-label" for="comp-has-config">Has User Configuration</label></div>`;
-        metadataPane.addEventListener('input', () => markTabAsDirty('metadata-pane'));
 
-        const datalist = document.getElementById('group-datalist');
-        datalist.innerHTML = '';
-        if (componentData && componentData.groups) {
-            componentData.groups.forEach(group => {
-                const option = document.createElement('option');
-                option.value = group.id;
-                option.textContent = group.name;
-                datalist.appendChild(option);
-            });
-        }
-        document.getElementById('comp-has-ui').checked = details.has_ui || false;
-        document.getElementById('comp-has-config').checked = details.has_configuration || false;
-        document.getElementById('save-changes-btn').onclick = () => handleSaveChanges(componentId);
-        document.getElementById('delete-component-btn').onclick = () => handleDeleteComponent(componentId);
+        // 1. Render Metadata
+        renderEditor(
+            details,
+            componentData,
+            markTabAsDirty,
+            handleSaveChanges,
+            handleDeleteComponent
+        );
+
+        // 2. Render Variables Pane
+        // START OF FIX: Simplified parameter passing for markTabDirtyCallback to resolve 'Unused property' warning.
+        internalRenderVariablesRows = renderVariablesPane({
+            variables: currentVariables,
+            renderAllRowsCallback: handleVariablesStateAndRender, // Pass a function that triggers re-render after splice
+            markTabDirtyCallback: () => markTabAsDirty('variables-pane'),
+            onAddVariable: handleAddVariable
+        });
+        // END OF FIX: Simplified parameter passing for markTabDirtyCallback to resolve 'Unused property' warning.
+
+        // 3. Setup CodeMirror
         if (!codeEditor) {
             const selectedTheme = document.getElementById('theme-selector').value;
             codeEditor = CodeMirror.fromTextArea(document.getElementById('template-editor'), {
@@ -602,7 +636,7 @@ document.addEventListener('DOMContentLoaded', () => {
         codeEditor.on('change', dirtyMarker);
         codeEditor.dirtyMarker = dirtyMarker;
 
-        renderVariablesPane();
+        // 4. Final Setup
         setupEditorImportFeatures();
 
         const validateBtn = document.getElementById('validate-template-btn');
@@ -651,7 +685,7 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const details = await fetchJson(`/api/components/${componentId}`);
             details.id = componentId;
-            await renderEditor(details);
+            await applicationRenderEditor(details);
         } catch (error) {
             console.error('Error loading component details:', error);
             editorPane.innerHTML = `<p class="text-center text-danger">Failed to load details: ${error.message}</p>`;
@@ -830,6 +864,7 @@ document.addEventListener('DOMContentLoaded', () => {
         setupCreateComponentModal();
         setupManageGroupsModal();
         setupDirtyFormHandling();
+        setupHashGenerator();
         updateUiForDirtyState();
     })();
 });

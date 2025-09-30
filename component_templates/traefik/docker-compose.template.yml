@@ -50,13 +50,22 @@ services:
 
     labels:
       - "traefik.enable=true"
+      # START OF FIX: Add basic auth middleware definition
+      - "traefik.http.middlewares.traefik-auth.basicauth.users={{ TRAEFIK_DASHBOARD_USERS }}"
+      # END OF FIX: Add basic auth middleware definition
       - "traefik.http.routers.traefik-dashboard-direct.entrypoints=dashboard"
       - "traefik.http.routers.traefik-dashboard-direct.service=api@internal"
       - "traefik.http.routers.traefik-dashboard-direct.rule=PathPrefix(`/`)"
+      # START OF FIX: Apply middleware to direct router
+      - "traefik.http.routers.traefik-dashboard-direct.middlewares=traefik-auth"
+      # END OF FIX: Apply middleware to direct router
       - "traefik.http.routers.traefik-dashboard-secure.rule=Host(`{{ DOMAIN_NAME }}`)"
       - "traefik.http.routers.traefik-dashboard-secure.entrypoints=websecure"
       - "traefik.http.routers.traefik-dashboard-secure.service=api@internal"
       - "traefik.http.routers.traefik-dashboard-secure.tls.certresolver=letsencrypt"
+      # START OF FIX: Apply middleware to secure router
+      - "traefik.http.routers.traefik-dashboard-secure.middlewares=traefik-auth"
+      # END OF FIX: Apply middleware to secure router
       - "traefik.http.routers.traefik-dashboard-http.rule=Host(`{{ DOMAIN_NAME }}`)"
       - "traefik.http.routers.traefik-dashboard-http.entrypoints=web"
 

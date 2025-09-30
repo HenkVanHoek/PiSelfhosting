@@ -17,3 +17,20 @@ def resource_path(relative_path):
         base_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 
     return os.path.join(base_path, relative_path)
+
+
+# START OF FIX: Add function to provide global template context for Jinja
+def get_global_template_context():
+    """
+    Provides the required context variables for the base Jinja templates
+    to access global macros and placeholder values (like DOTENV).
+    """
+    # NOTE: This is the minimal set required to prevent the 'DOTENV'
+    # is undefined error during editor_app rendering.
+    return {
+        "DOTENV": {},
+        "CONFIG_BASE_PATH": "/default/path",
+    }
+
+
+# END OF FIX: Add function to provide global template context for Jinja

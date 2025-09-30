@@ -3,6 +3,20 @@ from collections import defaultdict
 
 from flask import Blueprint, Response, current_app, jsonify, render_template, request
 
+# START OF FIX: Import the new generic authentication utility and
+# the template context provider
+from src.utils.auth_utils import generate_basic_auth_hash
+from src.utils.resource_utils import get_global_template_context
+
+# END OF FIX: Import the new generic authentication utility and
+# the template context provider
+
+
+# START OF FIX: Removed the temporary placeholder get_global_template_context function
+# The function is now correctly located in src/utils/resource_utils.py
+# END OF FIX: Removed the temporary placeholder get_global_template_context function
+
+
 editor_bp = Blueprint(
     "editor", __name__, template_folder="templates", static_folder="static"
 )
@@ -10,7 +24,50 @@ editor_bp = Blueprint(
 
 @editor_bp.route("/")
 def index():
-    return render_template("editor.html")
+    # START OF FIX: Call the imported function to get and
+    # pass the global template context
+    context = get_global_template_context()
+    return render_template("editor.html", **context)
+    # END OF FIX: Call the imported function to get and pass the global template context
+
+
+# START OF FIX: New route to generate the secure basic auth hash
+@editor_bp.route("/api/generate_auth_hash", methods=["POST"])
+def generate_auth_hash():
+    """
+    API endpoint to generate a secure 'username:hashed_password' string
+    for use in basic authentication systems like Traefik middleware.
+    """
+    try:
+        data = request.get_json(silent=True)
+        if not data:
+            return jsonify({"error": "Invalid or missing JSON payload"}), 400
+
+        # Unpack the inputs.
+        username = data.get("username")
+        password = data.get("password")
+
+        if not username or not password:
+            return jsonify({"error": "Username and password are required"}), 400
+
+        # Generate the secure user string
+        hashed_string = generate_basic_auth_hash(username, password)
+
+        # Traefik configuration in Docker Compose requires escaping the $
+        # in the hash, usually with a second $, but since the front-end
+        # will save this to an ENV variable which is then used in a Jinja
+        # template, we will leave the escaping to the final output phase
+        # if necessary, or rely on the user to understand this is an ENV
+        # value that gets interpolated as is.
+        # For a clean API response, we return the raw, unescaped string.
+        return jsonify({"hashed_user_string": hashed_string})
+
+    except Exception as e:
+        logging.error(f"Failed to generate auth hash: {e}", exc_info=True)
+        return jsonify({"error": "An unexpected server error occurred"}), 500
+
+
+# END OF FIX: New route to generate the secure basic auth hash
 
 
 def _sort_components(components, order_list):

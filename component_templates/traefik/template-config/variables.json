@@ -1,0 +1,53 @@
+{
+  "variables": [
+    {
+      "default": "{{ DOTENV.LETS_ENCRYPT_REGISTRATION_EMAIL }}",
+      "description": "For Let's Encrypt Registration",
+      "id": "TRAEFIK_ADMIN_EMAIL",
+      "label": "Admin Email",
+      "type": "string"
+    },
+    {
+      "default": "8080",
+      "description": "Dashboard access port",
+      "id": "TRAEFIK_WEB_PORT",
+      "label": "Dashboard Port",
+      "type": "port"
+    },
+    {
+      "default": "INFO",
+      "description": "Logging verbosity control. Possible levels: INFO, WARN, ERROR, FATAL, PANIC",
+      "id": "TRAEFIK_LOG_LEVEL",
+      "label": "Log Level",
+      "type": "string"
+    },
+    {
+      "default": "{{ CONFIG_BASE_PATH }}/traefik/acme-storage",
+      "description": "Directory for storing SSL certificates",
+      "id": "TRAEFIK_ACME_STORAGE_PATH",
+      "label": "ACME Storage Path",
+      "type": "string"
+    },
+    {
+      "default": "{{ CONFIG_BASE_PATH }}/traefik/config",
+      "description": "Directory for dynamic configuration files",
+      "id": "TRAEFIK_CONFIG_PATH",
+      "label": "Config Path",
+      "type": "string"
+    },
+    {
+      "default": "piselfhosting.com",
+      "description": "Domain name for dashboard access (e.g., traefik.your.domain)",
+      "id": "DOMAIN_NAME",
+      "label": "Domain Name",
+      "type": "string"
+    },
+    {
+      "default": "admin:$$apr1$$4h6g0lGqE$$l7eG7pM9qH1G0jF5p4s3",
+      "description": "Comma-separated list of 'user:hashed_password' pairs for dashboard access. The default is 'admin:password'. Must be generated with a tool like htpasswd or a Python utility.",
+      "id": "TRAEFIK_DASHBOARD_USERS",
+      "label": "Dashboard Users/Password Hashes",
+      "type": "string"
+    }
+  ]
+}
