@@ -170,12 +170,16 @@ def create_app():
             if error:
                 return jsonify({"error": error}), 400
             if snapshot:
+                # Extract RAM details robustly and outside the f-string definition
+                ram_total_mb = (
+                    snapshot.get("resources", {}).get("ram", {}).get("total_mb", 0)
+                )
+
                 # Adapt the rich snapshot to the simple details format the UI expects
                 details = {
                     "model": snapshot.get("model"),
                     "serial": snapshot.get("serial"),
-                    "ram": f"{snapshot.get('resources',
-                                           {}).get('ram', {}).get('total_mb', 0)} MB",
+                    "ram": f"{ram_total_mb} MB",
                     "disks": [
                         {
                             "mounted_on": "/",
