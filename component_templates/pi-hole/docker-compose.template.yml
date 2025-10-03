@@ -1,7 +1,6 @@
 services:
   pi-hole:
     container_name: piselfhosting-pihole
-    # --- DEFINITIVE FIX: Use the standardized 'component_version' variable ---
     image: pihole/pihole:{{ component_version }}
     restart: unless-stopped
     ports:

@@ -24,6 +24,14 @@
       "label": "Pi-hole DNS Port",
       "source": "",
       "type": "port"
+    },
+    {
+      "default": "",
+      "description": "test",
+      "id": "test",
+      "label": "",
+      "source": "",
+      "type": "string"
     }
   ]
 }

@@ -83,15 +83,24 @@ document.addEventListener('DOMContentLoaded', () => {
         const rows = document.querySelectorAll('#variables-list .card');
         rows.forEach(row => {
             const idEl = row.querySelector('[data-field="id"]');
-            if (idEl) {
+            // CRITICAL FIX: Add defensive checks for all variable fields.
+            // If querySelector returns null, accessing .value throws a TypeError.
+            const labelEl = row.querySelector('[data-field="label"]');
+            const descEl = row.querySelector('[data-field="description"]');
+            const typeEl = row.querySelector('[data-field="type"]');
+            const sourceEl = row.querySelector('[data-field="source"]');
+            const defaultEl = row.querySelector('[data-field="default"]');
+            const requiredEl = row.querySelector('[data-field="required"]');
+
+            if (idEl && idEl.value) {
                 newVariables.push({
                     id: idEl.value,
-                    label: row.querySelector('[data-field="label"]').value,
-                    description: row.querySelector('[data-field="description"]').value,
-                    type: row.querySelector('[data-field="type"]').value,
-                    source: row.querySelector('[data-field="source"]').value,
-                    default: row.querySelector('[data-field="default"]').value,
-                    required: row.querySelector('[data-field="required"]').value
+                    label: labelEl ? labelEl.value : '',
+                    description: descEl ? descEl.value : '',
+                    type: typeEl ? typeEl.value : 'text', // Default to 'text' if missing
+                    source: sourceEl ? sourceEl.value : '',
+                    default: defaultEl ? defaultEl.value : '',
+                    required: requiredEl ? requiredEl.value : ''
                 });
             }
         });
@@ -149,7 +158,8 @@ document.addEventListener('DOMContentLoaded', () => {
             has_ui: document.getElementById('comp-has-ui').checked,
             has_configuration: document.getElementById('comp-has-config').checked,
             has_traefik_support: document.getElementById('comp-has-traefik').checked,
-            traefik_internal_port: portInput.disabled ? null : portInput.value
+            // Ensure we send a valid number or null
+            traefik_internal_port: portInput.disabled ? null : parseInt(portInput.value) || null
         };
         await fetchJson(`/api/components/${componentId}`, {
             method: 'PUT',
@@ -159,6 +169,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const saveVariables = async (componentId) => {
+        // This relies on the fix to collectVariablesFromDOM being present
         const payload = { variables: collectVariablesFromDOM() };
         await fetchJson(`/api/components/${componentId}/variables`, {
             method: 'PUT',
@@ -331,10 +342,14 @@ document.addEventListener('DOMContentLoaded', () => {
             variables: currentVariables,
             renderAllRowsCallback: handleVariablesStateAndRender,
             markTabDirtyCallback: () => markTabAsDirty('variables-pane'),
+            onAddVariable: handleAddVariable, // Pass the handler
         });
 
         const addVariableBtn = document.getElementById('add-variable-btn');
         if (addVariableBtn) {
+            // FIX: Re-attach the handler cleanly to fix potential regression where
+            // the button event logic was relying on a dynamically attached handler
+            // inside renderVariablesPane that might not be firing correctly.
             addVariableBtn.onclick = handleAddVariable;
         }
 
@@ -719,6 +734,11 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const setupSortableGroups = () => {
+        // CRITICAL FIX: Add defensive check for Sortable library existence
+        if (typeof Sortable === 'undefined') {
+            console.error('Sortable.js library not loaded. Cannot set up group sorting.');
+            return;
+        }
         new Sortable(componentList, {
             animation: 150,
             handle: '.group-header',
@@ -826,13 +846,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     group.components.forEach(comp => collapseWrapper.appendChild(createComponentLink(comp)));
                     groupContainer.appendChild(collapseWrapper);
                     componentList.appendChild(groupContainer);
-                    new Sortable(collapseWrapper, {
-                        group: 'shared-components',
-                        animation: 150,
-                        onEnd: (evt) => {
-                           saveComponentOrder(evt.item, evt.from, evt.to);
-                        }
-                    });
+                    // CRITICAL FIX: Add defensive check for Sortable library existence
+                    if (typeof Sortable !== 'undefined') {
+                        new Sortable(collapseWrapper, {
+                            group: 'shared-components',
+                            animation: 150,
+                            onEnd: (evt) => {
+                               saveComponentOrder(evt.item, evt.from, evt.to);
+                            }
+                        });
+                    }
                 });
             }
         } catch (error) {
