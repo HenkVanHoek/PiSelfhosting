@@ -242,15 +242,18 @@
     },
     "pi-hole": {
       "component_version": "latest",
+      "conflicts_with": [],
       "depends_on": [],
       "description": "A network-wide ad blocker that acts as a DNS sinkhole.",
       "group": "dns_blocker",
       "has_configuration": true,
+      "has_traefik_support": true,
       "has_ui": true,
       "image_name": "pihole/pihole",
       "name": "Pi-hole",
       "project_url": "https://pi-hole.net/",
       "protocol": "http",
+      "traefik_internal_port": 80,
       "ui_port_variable": "PIHOLE_WEB_PORT"
     },
     "piselfhosting-backup-tool": {

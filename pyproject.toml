@@ -12,7 +12,8 @@ pythonpath = [
 norecursedirs = ["scripts", "test_scanner.py"]
 # START OF FIX: Use precise regex filter to ignore external 'crypt' deprecation warning
 filterwarnings = [
-    "ignore:.*'crypt' is deprecated and slated for removal in Python 3.13.*:DeprecationWarning"
+    "ignore:.*'crypt' is deprecated and slated for removal in Python 3.13.*:DeprecationWarning",
+    "ignore::DeprecationWarning:passlib.handlers.argon2"
 ]
 # END OF FIX: Use precise regex filter to ignore external 'crypt' deprecation warning
 

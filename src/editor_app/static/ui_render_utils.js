@@ -1,3 +1,5 @@
+// src/editor_app/static/ui_render_utils.js
+
 /**
  * @fileoverview Utility functions for rendering the PiSelfhosting Editor UI.
  * This file contains DOM creation and manipulation logic, separated from core
@@ -129,14 +131,19 @@ const renderVariableRow = (variable, index) => {
     descCol.appendChild(descTextarea);
     descRow.appendChild(descCol);
 
-    // START OF FIX: Add contextual hint for hash generation
+    // START OF FIX: Add contextual hint for hash generation and fix long line length
     if (variable.id === 'TRAEFIK_DASHBOARD_USERS') {
         const hashHint = document.createElement('div');
         hashHint.className = 'alert alert-sm alert-warning mt-2 mb-0 small';
-        hashHint.innerHTML = '<i class="bi bi-shield-lock-fill"></i> **Security Critical:** Use the **Generate Hash** button at the top right to create a secure password hash. Copy the result into your global `.env` file, and then reference it here using the macro <code>{{ DOTENV.YOUR_KEY }}</code>.';
+        hashHint.innerHTML = `
+            <i class="bi bi-shield-lock-fill"></i>
+            **Security Critical:** Use the **Generate Hash** button at the top right to create a secure
+            password hash. Copy the result into your global \`.env\` file, and then reference it
+            here using the macro <code>{{ DOTENV.YOUR_KEY }}</code>.
+        `;
         descCol.appendChild(hashHint);
     }
-    // END OF FIX: Add contextual hint for hash generation
+    // END OF FIX: Add contextual hint for hash generation and fix long line length
 
     // Remove button
     const removeButton = document.createElement('button');
@@ -253,6 +260,11 @@ export function renderEditor(details, componentData, markTabDirtyCallback, handl
     let dependsOn = Array.isArray(details.depends_on) ? details.depends_on : (details.depends_on ? [details.depends_on] : []);
     const dependsOnStr = dependsOn.join(', ');
 
+    // START OF NEW FEATURE: Conflicts With
+    let conflictsWith = Array.isArray(details.conflicts_with) ? details.conflicts_with : (details.conflicts_with ? [details.conflicts_with] : []);
+    const conflictsWithStr = conflictsWith.join(', ');
+    // END OF NEW FEATURE: Conflicts With
+
     // 1. Update Title
     document.getElementById('editor-title').textContent = details.name || componentId;
 
@@ -311,8 +323,8 @@ export function renderEditor(details, componentData, markTabDirtyCallback, handl
     metadataPane.appendChild(renderMetadataField('textarea', 'comp-desc', 'Description', details.description, false, false, 3));
 
     // --- Group and Depends On (Row layout) ---
-    const row = document.createElement('div');
-    row.className = 'row';
+    const rowGroupDeps = document.createElement('div');
+    rowGroupDeps.className = 'row';
 
     // Group Field (with Datalist)
     const colGroup = document.createElement('div');
@@ -324,31 +336,119 @@ export function renderEditor(details, componentData, markTabDirtyCallback, handl
     // Depends On Field
     const colDeps = document.createElement('div');
     colDeps.className = 'col-md-6 mb-3';
-    const depsField = renderMetadataField('text', 'comp-deps', 'Depends On', dependsOnStr);
+    const depsField = renderMetadataField('text', 'comp-deps', 'Depends On (comma-separated IDs)', dependsOnStr, false, false, 1, 'component-id-datalist');
     colDeps.appendChild(depsField.firstChild);
     colDeps.appendChild(depsField.lastChild);
 
-    row.appendChild(colGroup);
-    row.appendChild(colDeps);
-    metadataPane.appendChild(row);
+    rowGroupDeps.appendChild(colGroup);
+    rowGroupDeps.appendChild(colDeps);
+    metadataPane.appendChild(rowGroupDeps);
+
+    // --- Conflicts With (Row layout) ---
+    const rowConflicts = document.createElement('div');
+    rowConflicts.className = 'row';
+
+    // Conflicts With Field
+    const colConflicts = document.createElement('div');
+    colConflicts.className = 'col-md-6 mb-3';
+    const conflictsField = renderMetadataField('text', 'comp-conflicts', 'Conflicts With (comma-separated IDs)', conflictsWithStr, false, false, 1, 'component-id-datalist');
+    colConflicts.appendChild(conflictsField.firstChild);
+    colConflicts.appendChild(conflictsField.lastChild);
+
+    rowConflicts.appendChild(colConflicts);
+    metadataPane.appendChild(rowConflicts);
+
 
     // --- Datalist for Groups ---
-    const datalist = document.createElement('datalist');
-    datalist.id = 'group-datalist';
+    const datalistGroups = document.createElement('datalist');
+    datalistGroups.id = 'group-datalist';
     if (componentData && componentData.groups) {
         componentData.groups.forEach(group => {
             const option = document.createElement('option');
             option.value = group.id;
             option.textContent = group.name;
-            datalist.appendChild(option);
+            datalistGroups.appendChild(option);
         });
     }
-    // Append the datalist outside the row, where it will be found by the input
-    metadataPane.appendChild(datalist);
+    // Datalist for ALL Component IDs (for Conflicts With / Depends On)
+    const datalistComponents = document.createElement('datalist');
+    datalistComponents.id = 'component-id-datalist';
+    if (componentData && componentData.groups) {
+        componentData.groups.forEach(group => {
+            group.components.forEach(comp => {
+                const option = document.createElement('option');
+                option.value = comp.id;
+                option.textContent = comp.name;
+                datalistComponents.appendChild(option);
+            });
+        });
+    }
+
+    // Append the datalists outside the row, where they will be found by the input
+    metadataPane.appendChild(datalistGroups);
+    metadataPane.appendChild(datalistComponents);
+
 
     // --- Checkboxes ---
     metadataPane.appendChild(renderMetadataField('checkbox', 'comp-has-ui', 'Has Web UI', details.has_ui, false, true));
     metadataPane.appendChild(renderMetadataField('checkbox', 'comp-has-config', 'Has User Configuration', details.has_configuration, false, true));
+
+    // START OF FIX: Add Traefik Metadata Fields and Conditional Logic
+    // --- Traefik Support Checkbox ---
+    const hasTraefikSupportField = renderMetadataField(
+        'checkbox',
+        'comp-has-traefik',
+        'Has Traefik Support',
+        details.has_traefik_support || false,
+        false,
+        true
+    );
+    metadataPane.appendChild(hasTraefikSupportField);
+
+    // --- Traefik Internal Port (Number Input) ---
+    const traefikInternalPortField = renderMetadataField(
+        'number',
+        'comp-traefik-port',
+        'Traefik Internal Port',
+        details.traefik_internal_port || '',
+        false,
+        false,
+        1,
+        null
+    );
+    // Set an ID on the wrapping div for easy hiding/showing
+    traefikInternalPortField.id = 'traefik-port-wrapper';
+    const portInput = traefikInternalPortField.querySelector('#comp-traefik-port');
+    metadataPane.appendChild(traefikInternalPortField); // Append the whole block
+
+    const hasTraefikInput = hasTraefikSupportField.querySelector('#comp-has-traefik');
+
+    // Conditional visibility logic
+    if (hasTraefikInput && traefikInternalPortField && portInput) {
+        // Initial state setup for port visibility
+        if (!hasTraefikInput.checked) {
+            traefikInternalPortField.style.display = 'none';
+            // Disable the input so its value is not sent when support is off
+            portInput.disabled = true;
+        }
+
+        // Event listener to toggle visibility and state
+        hasTraefikInput.addEventListener('change', (e) => {
+            if (e.target.checked) {
+                traefikInternalPortField.style.display = ''; // Show
+                portInput.disabled = false; // Enable input
+                // Set a sensible default if the field is empty upon check
+                if (!portInput.value) {
+                    portInput.value = 80;
+                }
+            } else {
+                traefikInternalPortField.style.display = 'none'; // Hide
+                portInput.disabled = true; // Disable input
+            }
+            markTabDirtyCallback('metadata-pane');
+        });
+    }
+    // END OF FIX: Add Traefik Metadata Fields and Conditional Logic
 
     // 3. Setup Metadata Event Listener
     metadataPane.addEventListener('input', () => markTabDirtyCallback('metadata-pane'));

@@ -1,6 +1,6 @@
 # PiSelfhosting: Data Contracts
 
-**Version:** 1.0
+**Version:** 1.6
 **Status:** Active
 
 This document is the Single Source of Truth (SST) for the schema of all
@@ -28,3 +28,219 @@ array of variable objects, where each object has the following properties:
 | `options`     | `array`  | No       | An array of strings used to populate a `<select>` dropdown. If present, the `type` should be `select`.                                                                                                                                                                                                                                    |
 | `required`    | `string` | No       | Determines when the field is mandatory. Valid options are `always` or `clean-install`.                                                                                                                                                                                                                                                  |
 | `source`      | `string` | No       | **(New)** Specifies the source of the variable's value. If omitted, the value is expected from user input. The only valid option is: <ul><li>`dotenv`: Instructs the UI to render a disabled field, indicating the value is managed securely on the backend via the project's `.env` file. This prevents secrets from being entered in the UI.</li></ul> |
+
+---
+
+## Component Manager Contracts
+
+### Component Metadata Structure (`config/components_metadata.json` element)
+
+This contract defines the structure for a single component element within the
+`"components"` dictionary of `config/components_metadata.json`.
+
+| Property      | Type     | Required | Description                                                                                                                             |
+|---------------|----------|----------|-----------------------------------------------------------------------------------------------------------------------------------------|
+| `name`        | `string` | Yes      | A human-readable name for the component.                                                                                                |
+| `group`       | `string` | Yes      | The category ID this component belongs to (e.g., `network_management`, `media_servers`).                                                |
+| `description` | `string` | Yes      | A detailed description of the component's function for the UI.                                                                          |
+| `ports`       | `array<string>` | No | A list of port mappings used for live conflict checking (e.g., `80:80/tcp`, `8080`).                                                   |
+| `has_ui`      | `boolean`| No       | If true, the component has a web interface and the backend should attempt to generate a service link.                                     |
+| `ui_port_variable`| `string`| No     | The ID of the variable containing the component's external UI host port. Preferred over `ui_port`.                                       |
+| `ui_port`     | `integer`| No       | The default or fixed external UI host port, used if `ui_port_variable` is absent.                                                       |
+| `protocol`    | `string` | No       | The protocol for the UI link (`http` or `https`). Defaults to `http`.                                                                   |
+| `has_configuration`| `boolean`| Yes   | If true, a `template-config/variables.json` file is expected.                                                                           |
+| `docker_service_name`| `string`| No   | The primary service name in the docker-compose file. Used to distinguish main containers from init containers. Defaults to component ID. |
+| `depends_on`  | `array<string>`| No  | A list of component IDs this component depends on for ordering.                                                                         |
+| `conflicts_with` | `array<string>`| No | **(New)** A list of component IDs that this component conflicts with.                                                                 |
+| `has_traefik_support`| `boolean`| No  | If true, the component requires Traefik setup and has a unique `traefik_internal_port`.                                                 |
+| `traefik_internal_port`| `integer`| No| The internal port used for Traefik routing (e.g., `80`). Required if `has_traefik_support` is true.                                     |
+| `other_files` | `array<OtherFileConfig>`| No | A list of configuration files to be generated, other than the main Docker Compose file. (`OtherFileConfig` schema defined below). |
+
+### Component Details Output Contract (`get_all_components` / `get_component_details` return)
+
+This contract defines the enriched structure returned by `ComponentManager.get_all_components` and `ComponentManager.get_component_details`. This is the final data model consumed by the frontend to render the component selection and configuration UI.
+
+| Property      | Type     | Required | Description                                                                                                                             |
+|---------------|----------|----------|-----------------------------------------------------------------------------------------------------------------------------------------|
+| `id`          | `string` | Yes      | The unique, machine-readable ID of the component (the dictionary key from `components_metadata.json`).                                  |
+| `required_variables`| `array<object>`| Yes | **(Merged)** The content of the component's `template-config/variables.json` file, detailing all user-facing configuration fields. |
+| `name`        | `string` | Yes      | The human-readable name of the component (inherited from metadata).                                                                     |
+| **(All other metadata properties)**| *Varies*| *Varies*| All other properties from the Component Metadata Structure are included.                                                        |
+
+---
+
+## Setup Manager Contracts
+
+### Deployment Package Preparation Error Contract
+
+This defines the structure of the error reporting from `SetupManager.prepare_deployment_package`.
+
+| Property   | Type     | Required | Description                                                                                 |
+|------------|----------|----------|---------------------------------------------------------------------------------------------|
+| *Return*   | `Tuple<bool, List<string>>` | Yes | A tuple where the first element is `True` on success. The second element is a list of simple string error messages on failure, primarily for file generation and variable resolution issues. |
+
+### Other File Generation Sub-Contract (`OtherFileConfig`)
+
+This contract defines the structure of an element within the `other_files` list of a component's metadata, used to generate auxiliary configuration files.
+
+| Property   | Type     | Required | Description                                                                                 |
+|------------|----------|----------|---------------------------------------------------------------------------------------------|
+| `template` | `string` | Yes      | The name of the Jinja2 template file, relative to the component's template directory.         |
+| `destination`| `string`| Yes      | The relative path and file name for the rendered output within the main deployment package output directory. |
+
+---
+
+## Deployment Manager Contracts
+
+### Deployment Task Dictionary Structure
+
+The main task dictionary is returned by `/task-status/<task_id>` and contains all state, log, and result data.
+
+| Property        | Type          | Required | Description                                                                                                                             |
+|-----------------|---------------|----------|-----------------------------------------------------------------------------------------------------------------------------------------|
+| `status`        | `string`      | Yes      | The current state of the task. Valid values include: `running`, `failed`, `completed`.                                                  |
+| `logs`          | `array<string>` | Yes      | A chronologically ordered list of raw log messages from the deployment process (for real-time console display).                         |
+| `errors`        | `array<ReportError>` | Yes | A list of structured error objects (`ReportError` schema defined below) generated during pre-flight or runtime. This list is empty on success. |
+| `service_links` | `array<ServiceLink>` | No       | A list of web UI links (`ServiceLink` schema defined below) for successfully deployed services. Only present on a `completed` status.                         |
+
+### Structured Error Contract (`ReportError`)
+
+This is the canonical structure for all validation and runtime errors reported
+by the `DeploymentManager`.
+
+| Property      | Type     | Required | Description                                                                                                                                                                                                                                                                                                                               |
+|---------------|----------|----------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `type`        | `string` | Yes      | A standardized, machine-readable category for the error. Format is `Category:Subtype` (e.g., `Validation:DuplicatePort`, `SSH:Connect`, `Deployment:Runtime`). This allows the front end to apply specific UI styling or help text. |
+| `summary`     | `string` | Yes      | A short, user-facing description of the problem (e.g., "Host port conflict detected.").                                                                                                                                                   |
+| `details`     | `string` | Yes      | A detailed, technical explanation of the issue, including command output or conflicting values (e.g., "Ports 80 are already in use by other running Docker containers..."). This is for developer-level inspection.                                                                                                                             |
+| `component_id`| `string` | Yes      | The unique ID of the component that triggered the error (e.g., `pi-hole`). Defaults to `N/A` for global or device-level errors (e.g., SSH connection failure).                                                                                                                                                                       |
+| `timestamp`   | `string` | Yes      | The exact time the error was recorded, in `YYYY-MM-DD HH:MM:SS` format.                                                                                                                                                                                                                                                                     |
+
+### Target Device Contract (`managed_devices` list element)
+
+This structure defines a single device object expected in the `managed_devices`
+list passed to `start_deployment` (and used in various request bodies).
+
+| Property   | Type     | Required | Description                                                                                 |
+|------------|----------|----------|---------------------------------------------------------------------------------------------|
+| `ip`       | `string` | Yes      | The IP address or hostname of the target device.                                            |
+| `username` | `string` | Yes      | The SSH username to connect with (e.g., `pi`).                                              |
+| `password` | `string` | Yes      | The SSH password for the connection.                                                        |
+
+### Service Link Contract (`ServiceLink`)
+
+This structure defines the objects within the `service_links` array.
+
+| Property   | Type     | Required | Description                                                                                 |
+|------------|----------|----------|---------------------------------------------------------------------------------------------|
+| `name`     | `string` | Yes      | The human-readable name of the service (e.g., "Traefik Proxy").                             |
+| `url`      | `string` | Yes      | The full, constructed URL to access the service (e.g., `http://192.168.1.100:8080`).       |
+
+### SSH Manager I/O Contracts
+
+The return signatures for the SSH utility methods:
+
+#### `connect()` Return
+
+| Type | Description |
+|---|---|
+| `Tuple<bool, string>` | `(success_status, message)` where `message` is a connection error description on failure. |
+
+#### `execute_command()` Return
+
+| Type | Description |
+|---|---|
+| `Tuple<int, string>` | `(exit_code, full_stdout_content)` where `exit_code` is the remote command exit status and `full_stdout_content` is the command standard output. |
+
+#### `upload_content()` Return
+
+| Type | Description |
+|---|---|
+| `Tuple<bool, string>` | `(success_status, message)` where `message` is an error description on failure. |
+
+---
+
+## Configurator Application Contracts (API Payloads)
+
+### System Details Contract (Response from `/get-device-details`)
+
+This is the simplified device resource summary retrieved for the UI.
+
+| Property   | Type     | Required | Description                                                                                 |
+|------------|----------|----------|---------------------------------------------------------------------------------------------|
+| `model`    | `string` | No       | The device model (e.g., "Raspberry Pi 4 Model B").                                          |
+| `serial`   | `string` | No       | The device serial number.                                                                   |
+| `ram`      | `string` | Yes      | The total RAM, formatted with units (e.g., "4096 MB").                                      |
+| `disks`    | `array<object>`| Yes | A list of disk information objects.                                                         |
+
+**Disk Object Sub-Contract**
+
+| Property   | Type     | Required | Description                                                                                 |
+|------------|----------|----------|---------------------------------------------------------------------------------------------|
+| `mounted_on`| `string` | Yes      | The mount point (e.g., `/`).                                                                |
+| `size`     | `string` | No       | Total disk size, formatted with units.                                                      |
+| `pcent`    | `string` | No       | Disk utilization percentage (e.g., `45.2%`).                                                |
+
+### Software Groups Contract (Response from `/get-software-groups`)
+
+This defines the structure used to categorize and display selectable components.
+
+| Property   | Type     | Required | Description                                                                                 |
+|------------|----------|----------|---------------------------------------------------------------------------------------------|
+| `groups`   | `object` | Yes      | A dictionary mapping a **Group Display Name** (string) to an array of **Component IDs** (string). |
+
+### Required Variables Contract (Response from `/get-required-variables`)
+
+This is the component-level view of variables for the configuration step.
+
+| Property   | Type     | Required | Description                                                                                 |
+|------------|----------|----------|---------------------------------------------------------------------------------------------|
+| `components`| `object` | Yes      | A dictionary mapping a **Component ID** (string) to a details object.                       |
+
+**Component Details Sub-Contract**
+
+| Property   | Type     | Required | Description                                                                                 |
+|------------|----------|----------|---------------------------------------------------------------------------------------------|
+| `name`     | `string` | Yes      | The component's human-readable name.                                                        |
+| `variables`| `array<object>`| Yes | The `template-config/variables.json` contract (already defined).                            |
+
+### System Analyze Conflict Contract (Element of `external_conflicts.ports` from `/api/v1/system/analyze`)
+
+This structure describes a conflict on a host port.
+
+| Property   | Type     | Required | Description                                                                                 |
+|------------|----------|----------|---------------------------------------------------------------------------------------------|
+| `port`     | `integer`| Yes      | The host port in conflict.                                                                  |
+| `conflict_type`| `string`| Yes     | Category of conflict (e.g., `DANGEROUS_NATIVE_PROCESS_CONFLICT`, `EXPECTED_REINSTALLATION`).|
+| `conflicting_service`| `string`| Yes | Name of the service currently using the port.                                               |
+| `proposed_service`| `string`| Yes   | Name of the service that wants to use the port.                                             |
+
+### System Analyze Conflict Contract (Element of `external_conflicts.volumes` from `/api/v1/system/analyze`)
+
+This structure describes a conflict on a host volume/path.
+
+| Property   | Type     | Required | Description                                                                                 |
+|------------|----------|----------|---------------------------------------------------------------------------------------------|
+| `volume_path`| `string`| Yes      | The host path in conflict (e.g., `/mnt/data`).                                              |
+| `conflict_type`| `string`| Yes     | Category of conflict (`EXISTING_VOLUME_CONFLICT`).                                          |
+| `proposed_service`| `string`| Yes   | Name of the service that wants to use the volume.                                           |
+
+### System Analyze Warning Contract (Element of `resource_warnings` from `/api/v1/system/analyze`)
+
+This structure describes a general resource warning.
+
+| Property   | Type     | Required | Description                                                                                 |
+|------------|----------|----------|---------------------------------------------------------------------------------------------|
+| `type`     | `string` | Yes      | The resource type (e.g., `RAM`).                                                            |
+| `message`  | `string` | Yes      | The human-readable warning message.                                                         |
+
+### Deployment Request Contract (Request to `/deploy-configuration`)
+
+This is the final payload sent to initiate the deployment.
+
+| Property   | Type     | Required | Description                                                                                 |
+|------------|----------|----------|---------------------------------------------------------------------------------------------|
+| `output_path`| `string`| Yes      | The local file system path where configuration artifacts were generated.                      |
+| `devices`  | `array<Target Device Contract>`| Yes | The list of target devices.                                                         |
+| `components_to_clean`| `array<string>`| No | List of component IDs whose containers should be stopped and removed pre-deployment.        |
+| `components_to_restart`| `array<string>`| No | List of component IDs whose containers should be gracefully restarted (TBD).                |```

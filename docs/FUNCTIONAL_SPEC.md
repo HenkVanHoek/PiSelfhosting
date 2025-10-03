@@ -91,7 +91,6 @@ self-hosted services that are available to the end-user.
 
 ---
 
-<!-- START OF ADDITION: New Story for Group Management -->
 #### Story: Managing Component Groups
 
 > As a Developer (Charlie), I want to manage the component groups,
@@ -110,9 +109,7 @@ self-hosted services that are available to the end-user.
 -   **When** I then open the "Manage Groups" modal,
 -   **Then** the system must recognize that "Old Group" is now empty, and
     the "Delete" button for it **must be enabled**.
-<!-- END OF ADDITION -->
 
-<!-- START OF ADDITION: New Story for UI Usability -->
 ---
 
 #### Story: Improving Editor Usability
@@ -129,7 +126,6 @@ self-hosted services that are available to the end-user.
 -   **Then** the "Create New Component" button and the "Search
     components..." input field **must remain fixed** at the top of the
     sidebar and always be visible.
-<!-- END OF ADDITION -->
 
 ### Epic 2: End-User - System Configuration
 
@@ -183,6 +179,8 @@ services I want to run on my Raspberry Pi.
 -   **Then** I see a list under "Access Your Services".
 -   **And** this list contains a correctly formatted URL for each service
     I selected that is known to have a web interface (e.g., Uptime Kuma).
+-   **And** I can navigate back to the previous configuration step or cancel
+    the overall process at any time, even after deployment has started.
 
 ### Epic 3: Configurator - Advanced Selection Logic
 
@@ -244,3 +242,39 @@ conflicting software or forgetting to install a required dependency.
 -   **When** I click on that same option ("Homer") again,
 -   **Then** it should become deselected.
 -   **And** no other option in that exclusive group should be selected.
+-   **And** a manually selected component must always be deselectable,
+    regardless of whether its group is defined as mutually exclusive.
+
+---
+
+#### Story: Pre-Deployment Conflict Gatekeeper
+
+> As an End-User (Alex), before the system attempts to install any services,
+> I want it to check for configuration conflicts (ports, volumes, resources)
+> on the target Pi and immediately stop the process if critical issues
+> are found, so that I can resolve the problem before any changes are made
+> to the remote system.
+
+**Acceptance Criteria:**
+
+-   **Given** I have completed service configuration and proceed to the
+    deployment step.
+-   **And** the client has successfully retrieved the pre-flight analysis
+    from `/api/v1/system/analyze`.
+-   **When** I initiate the deployment by calling `/deploy-configuration`,
+-   **Then** the backend must use the provided analysis to determine if any
+    of the following critical issues exist:
+    *   **DANGEROUS_NATIVE_PROCESS_CONFLICT**
+    *   **EXISTING_VOLUME_CONFLICT**
+    *   **UNEXPECTED_DOCKER_CONFLICT**
+-   **And** if any of the critical issues listed above exist, the deployment
+    **must be gated and prevented from starting**.
+-   **And** the backend must return a `400 Bad Request` with an array of
+    `ReportError` objects (as defined in `Deployment Manager Contracts`)
+    to the client.
+-   **And** all other conflict types (specifically `EXPECTED_REINSTALLATION`)
+    and `resource_warnings` are treated as non-blocking information or warnings,
+    which do not stop the deployment.
+-   **And** the client must display the details from the `ReportError`
+    objects and provide an explicit path for the user to return to the
+    configuration step to resolve the issue.

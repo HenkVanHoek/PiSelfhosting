@@ -1,8 +1,6 @@
 // src/editor_app/static/editor.v2.js
 
-// START OF FIX: Reverting to local relative path which is the correct standard for same-folder modules.
 import { renderEditor, renderVariablesPane } from './ui_render_utils.js';
-// END OF FIX: Reverting to local relative path which is the correct standard for same-folder modules.
 
 document.addEventListener('DOMContentLoaded', () => {
     const componentList = document.getElementById('component-list');
@@ -86,9 +84,6 @@ document.addEventListener('DOMContentLoaded', () => {
         rows.forEach(row => {
             const idEl = row.querySelector('[data-field="id"]');
             if (idEl) {
-                // START OF FIX:
-                // Now reads the value from the new 'source' dropdown to ensure
-                // the complete variable definition is collected from the DOM.
                 newVariables.push({
                     id: idEl.value,
                     label: row.querySelector('[data-field="label"]').value,
@@ -98,10 +93,143 @@ document.addEventListener('DOMContentLoaded', () => {
                     default: row.querySelector('[data-field="default"]').value,
                     required: row.querySelector('[data-field="required"]').value
                 });
-                // END OF FIX:
             }
         });
         return newVariables;
+    };
+
+    // --- Utility Functions ---
+
+    async function fetchJson(url, options = {}) {
+        const response = await fetch(url, options);
+        if (!response.ok) {
+            let errorMsg = `Request failed with status ${response.status}`;
+            try {
+                const errorData = await response.json();
+                errorMsg = errorData.error || errorMsg;
+            } catch (e) { /* Ignore non-JSON errors */
+            }
+            throw new Error(errorMsg);
+        }
+        return response.json();
+    }
+
+    async function fetchText(url, options = {}) {
+        const response = await fetch(url, options);
+        if (!response.ok) {
+            throw new Error(`Request failed with status ${response.status}`);
+        }
+        return response.text();
+    }
+
+    const showAlert = (message, type = 'success') => {
+        if (!feedbackAlert) {
+            console.error('Feedback alert element not found');
+            return;
+        }
+        feedbackAlert.className = `alert alert-${type} alert-dismissible fade show`;
+        const closeButton = '<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>';
+        feedbackAlert.innerHTML = `${message}${closeButton}`;
+        setTimeout(() => {
+            const alertInstance = bootstrap.Alert.getOrCreateInstance(feedbackAlert);
+            if (alertInstance) alertInstance.close();
+        }, 5000);
+    };
+
+    // --- Save Handlers (Including Conflict Gatekeeper) ---
+
+    const saveMetadata = async (componentId) => {
+        const portInput = document.getElementById('comp-traefik-port');
+        const payload = {
+            name: document.getElementById('comp-name').value,
+            description: document.getElementById('comp-desc').value,
+            group: document.getElementById('comp-group').value || null,
+            depends_on: document.getElementById('comp-deps').value.split(',').map(s => s.trim()).filter(Boolean),
+            conflicts_with: document.getElementById('comp-conflicts').value.split(',').map(s => s.trim()).filter(Boolean),
+            has_ui: document.getElementById('comp-has-ui').checked,
+            has_configuration: document.getElementById('comp-has-config').checked,
+            has_traefik_support: document.getElementById('comp-has-traefik').checked,
+            traefik_internal_port: portInput.disabled ? null : portInput.value
+        };
+        await fetchJson(`/api/components/${componentId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+    };
+
+    const saveVariables = async (componentId) => {
+        const payload = { variables: collectVariablesFromDOM() };
+        await fetchJson(`/api/components/${componentId}/variables`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+    };
+
+    const saveTemplate = async (componentId) => {
+        if (!codeEditor) return;
+        const content = codeEditor.getValue();
+        await fetchText(`/api/components/${componentId}/template`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'text/plain' },
+            body: content
+        });
+    };
+
+    /**
+     * CRITICAL: Calls the new backend API endpoint to validate the conflicts_with list.
+     * This relies on the already-tested Python logic for correctness.
+     * @param {string} componentId - The ID of the component being saved.
+     * @returns {Promise<boolean>} - True if validation succeeded (200), False otherwise (400).
+     */
+    const runConflictGatekeeper = async (componentId) => {
+        const conflictsWithList = document.getElementById('comp-conflicts').value
+            .split(',')
+            .map(s => s.trim())
+            .filter(Boolean);
+
+        try {
+            // New dedicated validation API call
+            await fetchJson(`/api/components/${componentId}/validate_metadata_conflicts`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ conflicts_with: conflictsWithList })
+            });
+
+            // If the API returns 200, validation is successful
+            return true;
+        } catch (error) {
+            // The API returns a 400 with the specific error message from ComponentManager
+            showAlert(`Conflict Validation Failed: ${error.message}`, 'danger');
+            return false;
+        }
+    };
+
+    const handleSaveChanges = async (componentId) => {
+        saveChangesBtn.disabled = true;
+        saveChangesBtn.innerHTML = `<span class="spinner-border spinner-border-sm"></span> Saving...`;
+
+        try {
+            // CRITICAL STEP: Run the new conflict gatekeeper before saving
+            if (!(await runConflictGatekeeper(componentId))) {
+                return; // Stop the save process if the gatekeeper fails
+            }
+
+            // Save is atomic after validation passes
+            await Promise.all([saveMetadata(componentId), saveVariables(componentId), saveTemplate(componentId)]);
+            showAlert('All changes saved successfully!', 'success');
+            clearAllDirtyState();
+            await loadComponents();
+            const selector = `.component-list-item[data-component-id="${componentId}"]`;
+            document.querySelector(selector)?.classList.add('active');
+        } catch (error) {
+            console.error('Error saving changes:', error);
+            showAlert(`Error: ${error.message}`, 'danger');
+        } finally {
+            saveChangesBtn.innerHTML = '<i class="bi bi-save"></i> Save All Changes';
+            updateUiForDirtyState();
+        }
     };
 
     const runValidation = async (componentId) => {
@@ -137,6 +265,153 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     };
+
+
+    const handleDeleteComponent = async (componentId) => {
+        if (confirm(`Are you sure you want to delete the component '${componentId}'? This action cannot be undone and will remove all associated files and data.`)) {
+            try {
+                await fetch(`/api/components/${componentId}`, { method: 'DELETE' });
+                showAlert(`Component '${componentId}' deleted successfully!`, 'success');
+                editorContent.classList.add('d-none');
+                placeholder.classList.remove('d-none');
+                await loadComponents();
+            } catch (error)
+            {
+                showAlert(`Error deleting component: ${error.message}`, 'danger');
+            }
+        }
+    };
+
+    // --- Variables Pane Handlers ---
+
+    /**
+     * Handles the state mutation for the variables pane and triggers a re-render.
+     * @param {number|undefined} [indexToRemove] - Optional index of a variable to remove.
+     */
+    const handleVariablesStateAndRender = (indexToRemove) => {
+        // If an index is provided, mutate the array
+        if (indexToRemove !== undefined) {
+            currentVariables.splice(indexToRemove, 1);
+        }
+
+        if (internalRenderVariablesRows) {
+            internalRenderVariablesRows();
+        }
+    };
+
+    const handleAddVariable = () => {
+        currentVariables.push({ id: '', label: '', description: '', type: 'text', source: '', default: '', required: '' });
+        handleVariablesStateAndRender();
+        markTabAsDirty('variables-pane');
+    };
+
+    // --- Component Loading & Rendering ---
+
+    /**
+     * @param {object} details - The component details object from the API.
+     * @param {string} details.id
+     * @param {string[]|string} [details.conflicts_with]
+     * @param {ComponentVariable[]} [details.required_variables]
+     */
+    const applicationRenderEditor = async (details) => {
+        const componentId = details.id;
+        currentVariables = details.required_variables || [];
+
+        // 1. Render Metadata
+        renderEditor(
+            details,
+            componentData,
+            markTabAsDirty,
+            handleSaveChanges,
+            handleDeleteComponent
+        );
+
+        // 2. Render Variables Pane
+        internalRenderVariablesRows = renderVariablesPane({
+            variables: currentVariables,
+            renderAllRowsCallback: handleVariablesStateAndRender,
+            markTabDirtyCallback: () => markTabAsDirty('variables-pane'),
+        });
+
+        const addVariableBtn = document.getElementById('add-variable-btn');
+        if (addVariableBtn) {
+            addVariableBtn.onclick = handleAddVariable;
+        }
+
+        // 3. Setup CodeMirror
+        if (!codeEditor) {
+            const selectedTheme = document.getElementById('theme-selector').value;
+            codeEditor = CodeMirror.fromTextArea(document.getElementById('template-editor'), {
+                lineNumbers: true, mode: 'yaml', theme: selectedTheme, tabSize: 2
+            });
+        }
+        if (codeEditor.dirtyMarker) codeEditor.off('change', codeEditor.dirtyMarker);
+        const dirtyMarker = () => markTabAsDirty('template-pane');
+        codeEditor.on('change', dirtyMarker);
+        codeEditor.dirtyMarker = dirtyMarker;
+
+        // 4. Final Setup
+        setupEditorImportFeatures();
+
+        const validateBtn = document.getElementById('validate-template-btn');
+        if (validateBtn) {
+            validateBtn.onclick = () => runValidation(componentId);
+        }
+
+        placeholder.classList.add('d-none');
+        editorContent.classList.remove('d-none');
+        setTimeout(() => codeEditor.setSize("100%", "100%"), 50);
+        await loadTemplateContent(componentId);
+    };
+
+    const loadTemplateContent = async (componentId) => {
+        if (!codeEditor) return;
+
+        if (codeEditor.dirtyMarker) codeEditor.off('change', codeEditor.dirtyMarker);
+
+        try {
+            const templateText = await fetchText(`/api/components/${componentId}/template`);
+            codeEditor.setValue(templateText);
+        } catch (error) {
+            console.error(`Failed to load template for ${componentId}:`, error);
+            codeEditor.setValue(`# Error: Failed to load template.\n# ${error.message}`);
+        } finally {
+            if (codeEditor.dirtyMarker) codeEditor.on('change', codeEditor.dirtyMarker);
+        }
+    };
+
+    const loadComponentDetails = async (componentId, force = false) => {
+        if (dirtyTabs.size > 0 && !force) {
+            if (!confirm('You have unsaved changes that will be lost. Are you sure you want to load a new component?')) {
+                return;
+            }
+        }
+        clearAllDirtyState();
+
+        document.querySelectorAll('.component-list-item.active').forEach(item => item.classList.remove('active'));
+        const selector = `.component-list-item[data-component-id="${componentId}"]`;
+        document.querySelector(selector)?.classList.add('active');
+        placeholder.classList.add('d-none');
+        editorContent.classList.add('d-none');
+        if (!document.getElementById('loading-indicator')) {
+            editorPane.insertAdjacentHTML('afterbegin', '<div id="loading-indicator" class="text-center text-muted"><p>Loading...</p></div>');
+        }
+        try {
+            const details = await fetchJson(`/api/components/${componentId}`);
+            details.id = componentId;
+            await applicationRenderEditor(details);
+        } catch (error) {
+            console.error('Error loading component details:', error);
+            editorPane.innerHTML = `<p class="text-center text-danger">Failed to load details: ${error.message}</p>`;
+        } finally {
+            document.getElementById('loading-indicator')?.remove();
+            clearAllDirtyState();
+        }
+    };
+
+    // --- Setup & Lifecycle Functions (Cleaned) ---
+
+    // (runValidation is defined above for scope, though it was in the original context)
 
     const setupResizableSidebar = () => {
         const sidebar = document.getElementById('sidebar');
@@ -204,42 +479,6 @@ document.addEventListener('DOMContentLoaded', () => {
             reader.onerror = () => showAlert('Error reading the file.', 'danger');
             reader.readAsText(file);
         };
-    };
-
-    async function fetchJson(url, options = {}) {
-        const response = await fetch(url, options);
-        if (!response.ok) {
-            let errorMsg = `Request failed with status ${response.status}`;
-            try {
-                const errorData = await response.json();
-                errorMsg = errorData.error || errorMsg;
-            } catch (e) { /* Ignore non-JSON errors */
-            }
-            throw new Error(errorMsg);
-        }
-        return response.json();
-    }
-
-    async function fetchText(url, options = {}) {
-        const response = await fetch(url, options);
-        if (!response.ok) {
-            throw new Error(`Request failed with status ${response.status}`);
-        }
-        return response.text();
-    }
-
-    const showAlert = (message, type = 'success') => {
-        if (!feedbackAlert) {
-            console.error('Feedback alert element not found');
-            return;
-        }
-        feedbackAlert.className = `alert alert-${type} alert-dismissible fade show`;
-        const closeButton = '<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>';
-        feedbackAlert.innerHTML = `${message}${closeButton}`;
-        setTimeout(() => {
-            const alertInstance = bootstrap.Alert.getOrCreateInstance(feedbackAlert);
-            if (alertInstance) alertInstance.close();
-        }, 5000);
     };
 
     const setupThemeSelector = () => {
@@ -363,7 +602,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ name: newName })
                         });
-                        showAlert(`Group renamed to '${newName}' successfully.`, 'success');
+                        showAlert(`Group renamed to '${newName}' successfully!`, 'success');
                         modal.hide();
                         await loadComponents();
                     } catch (error) {
@@ -380,7 +619,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (confirm(`Are you sure you want to delete the group '${groupId}'? This cannot be undone.`)) {
                     try {
                         await fetchJson(`/api/groups/${groupId}`, { method: 'DELETE' });
-                        showAlert(`Group '${groupId}' deleted successfully.`, 'success');
+                        showAlert(`Group '${groupId}' deleted successfully!`, 'success');
                         modal.hide();
                         await loadComponents();
                     } catch (error) {
@@ -391,9 +630,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     };
 
-    // START OF FIX: Re-insert setupHashGenerator function body and fix Linter issues
     const setupHashGenerator = () => {
-        // Element selection for hash generator (assuming from earlier context)
         const hashGeneratorModalEl = document.getElementById('hashGeneratorModal');
         const hashGeneratorForm = document.getElementById('hash-generator-form');
         const hashUsernameInput = document.getElementById('hash-username');
@@ -406,12 +643,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const copyHashBtn = document.getElementById('copy-hash-btn');
         const generateHashBtn = document.getElementById('generate-hash-btn');
 
-        // Return if any of the critical elements for the feature are missing
         if (!hashGeneratorModalEl || !generateHashBtn) return;
 
         const hashGeneratorModal = new bootstrap.Modal(hashGeneratorModalEl);
 
-        // 1. Button click opens the modal
         generateHashBtn.addEventListener('click', () => {
             hashGeneratorForm.reset();
             hashPasswordInput.classList.remove('is-invalid');
@@ -420,7 +655,6 @@ document.addEventListener('DOMContentLoaded', () => {
             hashGeneratorModal.show();
         });
 
-        // 2. Form submission handles the API call
         hashGeneratorForm.addEventListener('submit', async (e) => {
             e.preventDefault();
 
@@ -428,7 +662,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const password = hashPasswordInput.value;
             const passwordConfirm = hashPasswordConfirmInput.value;
 
-            // Basic validation
             if (password !== passwordConfirm) {
                 hashPasswordInput.classList.add('is-invalid');
                 hashPasswordConfirmInput.classList.add('is-invalid');
@@ -470,7 +703,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        // 3. Copy to clipboard functionality - FIX: Deprecated execCommand
         copyHashBtn.addEventListener('click', async () => {
             const textToCopy = hashOutputInput.value;
             try {
@@ -484,215 +716,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 showAlert('Hash string copied to clipboard (Legacy fallback)!', 'success');
             }
         });
-    };
-    // END OF FIX: Re-insert setupHashGenerator function body and fix Linter issues
-
-    const saveMetadata = async (componentId) => {
-        const payload = {
-            name: document.getElementById('comp-name').value,
-            description: document.getElementById('comp-desc').value,
-            group: document.getElementById('comp-group').value || null,
-            depends_on: document.getElementById('comp-deps').value.split(',').map(s => s.trim()).filter(Boolean),
-            has_ui: document.getElementById('comp-has-ui').checked,
-            has_configuration: document.getElementById('comp-has-config').checked
-        };
-        await fetchJson(`/api/components/${componentId}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
-    };
-
-    const saveVariables = async (componentId) => {
-        // CRITICAL: currentVariables must be updated from DOM before saving
-        const payload = { variables: collectVariablesFromDOM() };
-        await fetchJson(`/api/components/${componentId}/variables`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
-    };
-
-    const saveTemplate = async (componentId) => {
-        if (!codeEditor) return;
-        const content = codeEditor.getValue();
-        await fetchText(`/api/components/${componentId}/template`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'text/plain' },
-            body: content
-        });
-    };
-
-    const handleSaveChanges = async (componentId) => {
-        saveChangesBtn.disabled = true;
-        saveChangesBtn.innerHTML = `<span class="spinner-border spinner-border-sm"></span> Saving...`;
-
-        // The saveVariables function now calls collectVariablesFromDOM() internally
-
-        try {
-            await Promise.all([saveMetadata(componentId), saveVariables(componentId), saveTemplate(componentId)]);
-            showAlert('All changes saved successfully!', 'success');
-            clearAllDirtyState();
-            await loadComponents();
-            const selector = `.component-list-item[data-component-id="${componentId}"]`;
-            document.querySelector(selector)?.classList.add('active');
-        } catch (error) {
-            console.error('Error saving changes:', error);
-            showAlert(`Error: ${error.message}`, 'danger');
-        } finally {
-            saveChangesBtn.innerHTML = '<i class="bi bi-save"></i> Save All Changes';
-            updateUiForDirtyState();
-        }
-    };
-
-    const handleDeleteComponent = async (componentId) => {
-        if (confirm(`Are you sure you want to delete the component '${componentId}'? This action cannot be undone and will remove all associated files and data.`)) {
-            try {
-                await fetch(`/api/components/${componentId}`, { method: 'DELETE' });
-                showAlert(`Component '${componentId}' deleted successfully!`, 'success');
-                editorContent.classList.add('d-none');
-                placeholder.classList.remove('d-none');
-                await loadComponents();
-            } catch (error)
-            {
-                showAlert(`Error deleting component: ${error.message}`, 'danger');
-            }
-        }
-    };
-
-    /**
-     * Handles the state mutation for the variables pane and triggers a re-render.
-     * @param {number|undefined} [indexToRemove] - Optional index of a variable to remove.
-     */
-    const handleVariablesStateAndRender = (indexToRemove) => {
-        // If an index is provided, mutate the array
-        if (indexToRemove !== undefined) {
-            currentVariables.splice(indexToRemove, 1);
-        } else {
-            // For general re-render when a field changes, we update the state
-            // by collecting from DOM, which is not what we want here as it's an
-            // expensive way to update. For simplicity in the refactor, we stick
-            // to the original files mutation pattern.
-        }
-
-        if (internalRenderVariablesRows) {
-            internalRenderVariablesRows();
-        }
-    };
-
-    const handleAddVariable = () => {
-        // START OF FIX:
-        // Added 'source' to the new variable object to ensure data consistency.
-        currentVariables.push({ id: '', label: '', description: '', type: 'string', source: '', default: '', required: '' });
-        // END OF FIX:
-        handleVariablesStateAndRender();
-        markTabAsDirty('variables-pane');
-    };
-
-    /**
-     * @param {object} details
-     * @param {string} details.id
-     * @param {string} [details.name]
-     * @param {string} [details.description]
-     * @param {string} [details.group]
-     * @param {string[]|string} [details.depends_on]
-     * @param {boolean} [details.has_ui]
-     * @param {boolean} [details.has_configuration]
-     * @param {ComponentVariable[]} [details.required_variables]
-     */
-    const applicationRenderEditor = async (details) => { // Renamed from renderEditor to avoid confusion with imported function
-        const componentId = details.id;
-        // CRITICAL: Update the state array from the fetched details
-        currentVariables = details.required_variables || [];
-
-        // 1. Render Metadata
-        renderEditor(
-            details,
-            componentData,
-            markTabAsDirty,
-            handleSaveChanges,
-            handleDeleteComponent
-        );
-
-        // 2. Render Variables Pane
-        // START OF FIX: Simplified parameter passing for markTabDirtyCallback to resolve 'Unused property' warning.
-        internalRenderVariablesRows = renderVariablesPane({
-            variables: currentVariables,
-            renderAllRowsCallback: handleVariablesStateAndRender, // Pass a function that triggers re-render after splice
-            markTabDirtyCallback: () => markTabAsDirty('variables-pane'),
-            onAddVariable: handleAddVariable
-        });
-        // END OF FIX: Simplified parameter passing for markTabDirtyCallback to resolve 'Unused property' warning.
-
-        // 3. Setup CodeMirror
-        if (!codeEditor) {
-            const selectedTheme = document.getElementById('theme-selector').value;
-            codeEditor = CodeMirror.fromTextArea(document.getElementById('template-editor'), {
-                lineNumbers: true, mode: 'yaml', theme: selectedTheme, tabSize: 2
-            });
-        }
-        if (codeEditor.dirtyMarker) codeEditor.off('change', codeEditor.dirtyMarker);
-        const dirtyMarker = () => markTabAsDirty('template-pane');
-        codeEditor.on('change', dirtyMarker);
-        codeEditor.dirtyMarker = dirtyMarker;
-
-        // 4. Final Setup
-        setupEditorImportFeatures();
-
-        const validateBtn = document.getElementById('validate-template-btn');
-        if (validateBtn) {
-            validateBtn.onclick = () => runValidation(componentId);
-        }
-
-        placeholder.classList.add('d-none');
-        editorContent.classList.remove('d-none');
-        setTimeout(() => codeEditor.setSize("100%", "100%"), 50);
-        await loadTemplateContent(componentId);
-    };
-
-    const loadTemplateContent = async (componentId) => {
-        if (!codeEditor) return;
-
-        if (codeEditor.dirtyMarker) codeEditor.off('change', codeEditor.dirtyMarker);
-
-        try {
-            const templateText = await fetchText(`/api/components/${componentId}/template`);
-            codeEditor.setValue(templateText);
-        } catch (error) {
-            console.error(`Failed to load template for ${componentId}:`, error);
-            codeEditor.setValue(`# Error: Failed to load template.\n# ${error.message}`);
-        } finally {
-            if (codeEditor.dirtyMarker) codeEditor.on('change', codeEditor.dirtyMarker);
-        }
-    };
-
-    const loadComponentDetails = async (componentId, force = false) => {
-        if (dirtyTabs.size > 0 && !force) {
-            if (!confirm('You have unsaved changes that will be lost. Are you sure you want to load a new component?')) {
-                return;
-            }
-        }
-        clearAllDirtyState();
-
-        document.querySelectorAll('.component-list-item.active').forEach(item => item.classList.remove('active'));
-        const selector = `.component-list-item[data-component-id="${componentId}"]`;
-        document.querySelector(selector)?.classList.add('active');
-        placeholder.classList.add('d-none');
-        editorContent.classList.add('d-none');
-        if (!document.getElementById('loading-indicator')) {
-            editorPane.insertAdjacentHTML('afterbegin', '<div id="loading-indicator" class="text-center text-muted"><p>Loading...</p></div>');
-        }
-        try {
-            const details = await fetchJson(`/api/components/${componentId}`);
-            details.id = componentId;
-            await applicationRenderEditor(details);
-        } catch (error) {
-            console.error('Error loading component details:', error);
-            editorPane.innerHTML = `<p class="text-center text-danger">Failed to load details: ${error.message}</p>`;
-        } finally {
-            document.getElementById('loading-indicator')?.remove();
-            clearAllDirtyState();
-        }
     };
 
     const setupSortableGroups = () => {
@@ -855,6 +878,8 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     };
+
+    // --- Main Initialization ---
 
     (async () => {
         await loadComponents();

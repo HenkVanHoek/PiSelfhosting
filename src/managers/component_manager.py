@@ -3,6 +3,8 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from jinja2 import Template
+
 logger = logging.getLogger(__name__)
 
 
@@ -75,6 +77,16 @@ class ComponentManager:
             return None
         details = component_data.copy()
         details["required_variables"] = self._variables_cache.get(component_id, [])
+        # ADDED: Defensive retrieval of optional Traefik metadata fields (Issue #2)
+        details["has_traefik_support"] = component_data.get(
+            "has_traefik_support", False
+        )
+        details["traefik_internal_port"] = component_data.get(
+            "traefik_internal_port", None
+        )
+        # START OF NEW FEATURE: Conflicts With
+        details["conflicts_with"] = component_data.get("conflicts_with", [])
+        # END OF NEW FEATURE: Conflicts With
         return details
 
     def validate_component_configuration(
@@ -82,9 +94,50 @@ class ComponentManager:
     ) -> None:
         """
         Validates a component's template and variables.
-        This is a placeholder and currently does not validate.
+        This is a placeholder for future validation logic.
         """
         # Placeholder for future validation logic
+
+    def validate_metadata_conflicts(
+        self, component_id: str, conflicts_with_list: List[str]
+    ) -> None:
+        """
+        CRITICAL: Validates the 'conflicts_with' list for a component.
+
+        This method checks for two critical metadata errors:
+        1. Self-conflict: A component cannot conflict with itself.
+        2. Non-existent ID: A conflict must refer to an actual component ID.
+
+        Raises:
+            ValueError: If a conflict rule is invalid.
+        """
+        # 1. Self-Conflict Check
+        if component_id in conflicts_with_list:
+            raise ValueError(
+                f"Self-Conflict Error: Component '{component_id}' cannot "
+                "conflict with itself. Please remove it from the list."
+            )
+
+        # 2. Non-existent ID Check
+        all_component_ids = set(self._components_data.get("components", {}).keys())
+
+        non_existent_conflicts = [
+            cid for cid in conflicts_with_list if cid not in all_component_ids
+        ]
+
+        if non_existent_conflicts:
+            non_existent_str = ", ".join(non_existent_conflicts)
+            raise ValueError(
+                "Non-Existent ID Error: The following component ID(s) "
+                f"listed in 'Conflicts With' do not exist in the system: "
+                f"{non_existent_str}. Please correct them."
+            )
+
+        # NOTE: Symmetrical conflict checks
+        # (if A conflicts with B, B must conflict with A)
+        # are intentionally omitted here to favor a simpler,
+        # more flexible data contract.
+        # This one-way check is sufficient for developer-facing validation.
 
     def create_component(self, component_id: str, component_name: str):
         """Creates the folder structure and initial files for a new component."""
@@ -109,6 +162,7 @@ class ComponentManager:
             "has_ui": False,
             "has_configuration": True,
             "depends_on": [],
+            "conflicts_with": [],  # Initialize the new field
         }
         self._save_metadata()
         self._variables_cache[component_id] = []
@@ -185,7 +239,6 @@ class ComponentManager:
             piselfhosting_meta["group_order"].remove(group_id)
         self._save_metadata()
 
-    # START OF FIX:
     def rename_group(self, group_id: str, new_name: str):
         """Renames the display name of an existing group."""
         piselfhosting_meta = self._components_data.setdefault("_piselfhosting", {})
@@ -196,8 +249,6 @@ class ComponentManager:
 
         group_rules[group_id]["name"] = new_name
         self._save_metadata()
-
-    # END OF FIX:
 
     def _get_component_config_path(self, component_id: str) -> Path:
         return self.templates_path / component_id / "template-config"
@@ -252,3 +303,79 @@ class ComponentManager:
                 self._save_metadata()
                 raise e
         self._save_metadata()
+
+    def _get_traefik_labels(
+        self,
+        component_id: str,
+        traefik_host: str,
+        fqdn_suffix: str,
+        traefik_internal_port: int,
+    ) -> List[str]:
+        """
+        Generates the standard Traefik labels for a service, substituting
+        the component-specific and global variables.
+        """
+        # CRITICAL: Note the use of backticks in the rule template
+        # for `{{ TRAEFIK_HOST }}.{{ FQDN_SUFFIX }}`.
+        return [
+            "traefik.enable=true",
+            f"traefik.http.routers.{component_id}.entrypoints=" f"websecure",
+            (
+                f"traefik.http.routers.{component_id}.rule="
+                f"Host(`{traefik_host}.{fqdn_suffix}`)"
+            ),
+            f"traefik.http.routers.{component_id}.tls=true",
+            (
+                f"traefik.http.services.{component_id}.loadbalancer."
+                f"server.port={traefik_internal_port}"
+            ),
+        ]
+
+    def render_component_template(
+        self,
+        component_id: str,
+        context: Dict[str, Any],
+    ) -> str:
+        """
+        Loads a component's docker-compose template, injects the necessary
+        Traefik labels into the context if supported, and renders the template.
+        """
+        component_details = self.get_component_details(component_id)
+        if not component_details:
+            logger.error(f"Component '{component_id}' not found for rendering.")
+            return f"# ERROR: Component '{component_id}' not found."
+
+        template_content = self.get_component_template_content(component_id)
+        template = Template(template_content)
+
+        # 1. Prepare Traefik Labels if supported
+        has_traefik_support = component_details.get("has_traefik_support", False)
+        traefik_internal_port = component_details.get("traefik_internal_port")
+        traefik_host = context.get("TRAEFIK_HOST")
+        fqdn_suffix = context.get("FQDN_SUFFIX")
+
+        if (
+            has_traefik_support
+            and isinstance(traefik_internal_port, int)
+            and traefik_host is not None
+            and fqdn_suffix is not None
+        ):
+            traefik_labels = self._get_traefik_labels(
+                component_id=component_id,
+                traefik_host=str(traefik_host),
+                fqdn_suffix=str(fqdn_suffix),
+                traefik_internal_port=traefik_internal_port,
+            )
+            # Add to the context for the Jinja template to use
+            context["traefik_labels"] = traefik_labels
+        else:
+            # Ensure traefik_labels is present but empty if not supported
+            context["traefik_labels"] = []
+
+        # 2. Render the template
+        try:
+            rendered_content = template.render(context)
+            return rendered_content
+        except Exception as e:
+            logger.error(f"Error rendering template for {component_id}: {e}")
+            return f"# ERROR: Template rendering failed for {component_id}: {e}"

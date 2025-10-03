@@ -5,6 +5,10 @@ import pytest
 
 from src.managers.component_manager import ComponentManager
 
+# Import Template for mocking in tests if needed, but not strictly required yet
+# from jinja2 import Template
+#
+
 
 @pytest.fixture
 def manager_with_initial_data(tmp_path: Path):
@@ -16,36 +20,67 @@ def manager_with_initial_data(tmp_path: Path):
     metadata_content = {
         "_piselfhosting": {
             "components_order": ["comp-b", "comp-a"],
-            # START OF FIX:
             "group_order": ["group_one"],
             "group_rules": {
                 "group_one": {"name": "Original Group Name", "is_exclusive": False}
             },
-            # END OF FIX
         },
         "components": {
             "comp-a": {
                 "name": "Component A",
                 "docker_service_name": "service-a-special",
-                # START OF FIX:
                 "group": "group_one",
-                # END OF FIX
+                # START OF FIX: Add Traefik fields for testing the positive case
+                "has_traefik_support": True,
+                "traefik_internal_port": 8080,
+                # END OF FIX:
             },
-            "comp-b": {"name": "Component B"},
+            "comp-b": {
+                "name": "Component B",
+                # START OF FIX: Explicitly set Traefik fields for the negative case
+                "has_traefik_support": False,
+                "traefik_internal_port": None,
+                # END OF FIX:
+            },
+            # START OF FIX: Add comp-c without explicit Traefik fields (defaults)
+            "comp-c": {"name": "Component C"},
+            # END OF FIX:
         },
     }
     metadata_file.write_text(json.dumps(metadata_content))
 
-    # Setup variables for comp-a
-    comp_a_config_path = templates_dir / "comp-a" / "template-config"
+    # Setup component files: comp-a
+    comp_a_path = templates_dir / "comp-a"
+    comp_a_config_path = comp_a_path / "template-config"
     comp_a_config_path.mkdir(parents=True)
     variables_content = {"variables": [{"id": "VAR_A", "label": "Variable A"}]}
     (comp_a_config_path / "variables.json").write_text(json.dumps(variables_content))
+    # START OF FIX: Add dummy docker-compose.template.yml for render tests
+    (comp_a_path / "docker-compose.template.yml").write_text(
+        "version: '3'\nservices:\n  service-a:\n    labels: {{ traefik_labels }}"
+    )
+    # END OF FIX:
 
-    # Setup empty variables for comp-b
-    comp_b_config_path = templates_dir / "comp-b" / "template-config"
+    # Setup component files: comp-b
+    comp_b_path = templates_dir / "comp-b"
+    comp_b_config_path = comp_b_path / "template-config"
     comp_b_config_path.mkdir(parents=True)
     (comp_b_config_path / "variables.json").write_text(json.dumps({"variables": []}))
+    # START OF FIX: Add dummy docker-compose.template.yml for render tests
+    (comp_b_path / "docker-compose.template.yml").write_text(
+        "version: '3'\nservices:\n  service-b:\n    ports: ['8080:80']"
+    )
+    # END OF FIX:
+
+    # START OF FIX: Setup component files: comp-c (defaults)
+    comp_c_path = templates_dir / "comp-c"
+    comp_c_config_path = comp_c_path / "template-config"
+    comp_c_config_path.mkdir(parents=True)
+    (comp_c_config_path / "variables.json").write_text(json.dumps({"variables": []}))
+    (comp_c_path / "docker-compose.template.yml").write_text(
+        "version: '3'\nservices:\n  service-c: {}"
+    )
+    # END OF FIX:
 
     manager = ComponentManager(
         templates_path=str(templates_dir), metadata_file_path=str(metadata_file)
@@ -65,17 +100,25 @@ class TestComponentManager:
         details_a = manager.get_component_details("comp-a")
         assert details_a is not None
         assert details_a["name"] == "Component A"
+        assert details_a["has_traefik_support"] is True
+        assert details_a["traefik_internal_port"] == 8080
         assert isinstance(details_a["required_variables"], list)
         assert len(details_a["required_variables"]) == 1
-        # START OF FIX: Access the first element of the list
+        # Unpacking-First Mandate
         first_variable = details_a["required_variables"][0]
-        # END OF FIX
         assert first_variable["id"] == "VAR_A"
 
         details_b = manager.get_component_details("comp-b")
         assert details_b is not None
         assert details_b["name"] == "Component B"
+        assert details_b["has_traefik_support"] is False
         assert details_b["required_variables"] == []
+
+        details_c = manager.get_component_details("comp-c")
+        assert details_c is not None
+        assert details_c["name"] == "Component C"
+        # Test default value for missing keys
+        assert details_c["has_traefik_support"] is False
 
     def test_update_component_variables_enforces_sst(self, manager_with_initial_data):
         """
@@ -103,9 +146,8 @@ class TestComponentManager:
 
         details = manager.get_component_details("comp-a")
         assert len(details["required_variables"]) == 1
-        # START OF FIX: Access the first element of the list
+        # Unpacking-First Mandate
         updated_variable = details["required_variables"][0]
-        # END OF FIX
         assert updated_variable["id"] == "NEW_VAR"
 
     def test_get_docker_service_name(self, manager_with_initial_data):
@@ -133,7 +175,6 @@ class TestComponentManager:
         )
         assert sorted_ids_with_new == ["comp-b", "comp-a", "new-comp"]
 
-    # START OF FIX:
     def test_rename_group_success(self, manager_with_initial_data):
         """Verify that renaming a group updates the metadata file correctly."""
         manager, tmp_path = manager_with_initial_data
@@ -152,4 +193,74 @@ class TestComponentManager:
         with pytest.raises(ValueError, match="Group 'nonexistent-group' not found."):
             manager.rename_group("nonexistent-group", "Some Name")
 
-    # END OF FIX:
+    # START OF FIX: Add tests for Traefik label generation and rendering logic
+    def test_render_component_template_with_traefik_support(
+        self, manager_with_initial_data
+    ):
+        """
+        Verify that Traefik labels are correctly generated, injected into the
+        context, and rendered when the component has support.
+        """
+        manager, _ = manager_with_initial_data
+        context = {
+            "TRAEFIK_HOST": "comp-a-host",
+            "FQDN_SUFFIX": "mypi.local",
+            "USER_VARIABLE": "some_value",
+        }
+        rendered_content = manager.render_component_template(
+            "comp-a", context.copy()
+        )  # Use copy to check modifications
+
+        # Assert the rendered content contains the correct labels as a list string
+        expected_labels = [
+            "traefik.enable=true",
+            "traefik.http.routers.comp-a.entrypoints=websecure",
+            "traefik.http.routers.comp-a.rule=Host(`comp-a-host.mypi.local`)",
+            "traefik.http.routers.comp-a.tls=true",
+            "traefik.http.services.comp-a.loadbalancer.server.port=8080",
+        ]
+        expected_line = f"    labels: {expected_labels}"
+        assert expected_line in rendered_content
+        assert (
+            "some_value" not in rendered_content
+        )  # Check that only necessary context is passed
+        assert context.get("traefik_labels") is None  # Original context is not modified
+
+        # Check the context inside render_component_template was correct
+        # Since we cannot check the internal context, we rely on the rendered output.
+
+    def test_render_component_template_without_traefik_support(
+        self, manager_with_initial_data
+    ):
+        """
+        Verify that Traefik labels are an empty list in the context and do not
+        appear when the component explicitly does not have support.
+        """
+        manager, _ = manager_with_initial_data
+        context = {
+            "TRAEFIK_HOST": "comp-b-host",
+            "FQDN_SUFFIX": "mypi.local",
+        }
+        rendered_content = manager.render_component_template("comp-b", context.copy())
+
+        # The template for comp-b is different and should not contain 'labels: []'
+        # The logic ensures 'traefik_labels' is an empty list in the context.
+        # Check that no Traefik-related labels appear in the output.
+        assert "traefik.enable=true" not in rendered_content
+        assert "ports: ['8080:80']" in rendered_content
+
+    def test_render_component_template_traefik_support_missing_variables(
+        self, manager_with_initial_data
+    ):
+        """
+        Verify that Traefik labels are NOT generated if critical context
+        variables (like FQDN_SUFFIX) are missing, even if the component supports it.
+        """
+        manager, _ = manager_with_initial_data
+        # Missing FQDN_SUFFIX
+        context = {"TRAEFIK_HOST": "comp-a-host"}
+        rendered_content = manager.render_component_template("comp-a", context.copy())
+
+        # Labels should be an empty list in the context, resulting in 'labels: []'
+        assert "labels: []" in rendered_content
+        assert "traefik.enable=true" not in rendered_content

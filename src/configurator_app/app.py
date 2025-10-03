@@ -4,6 +4,7 @@ import re
 import threading
 import time
 import uuid
+from datetime import datetime
 from pathlib import Path
 
 from appdirs import user_data_dir
@@ -88,6 +89,101 @@ def _analyze_snapshot(components, snapshot, is_reinstallation):
     return conflicts, warnings
 
 
+def _map_analysis_to_report_errors(
+    analysis_results: dict, target_ip: str
+) -> list[dict]:
+    """
+    Maps analysis conflicts and warnings into the canonical ReportError contract.
+    The ReportError contract includes: type, summary, details, component_id,
+    timestamp.
+    """
+    errors = []
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    conflicts = analysis_results.get("external_conflicts", {})
+
+    # 1. Map Port Conflicts
+    port_conflicts = conflicts.get("ports", [])
+    for conflict in port_conflicts:
+        port = conflict.get("port")
+        conflict_type = conflict.get("conflict_type")
+        conflicting_service = conflict.get("conflicting_service")
+        # DEFENSIVE CODING: Use "N/A" if proposed_service is missing
+        proposed_service = conflict.get("proposed_service", "N/A")
+
+        error_type = f"Validation:PortConflict:{conflict_type}"
+        summary = f"Host port {port} conflict detected."
+        details = (
+            f"Port {port} is already in use by: '{conflicting_service}'. "
+            f"The service '{proposed_service}' requires this port. "
+            f"Conflict Type: {conflict_type}."
+        )
+        component_id = proposed_service.lower().replace(" ", "-")
+
+        errors.append(
+            {
+                "type": error_type,
+                "summary": summary,
+                "details": details,
+                "component_id": component_id,
+                "timestamp": timestamp,
+            }
+        )
+
+    # 2. Map Volume Conflicts
+    volume_conflicts = conflicts.get("volumes", [])
+    for conflict in volume_conflicts:
+        volume_path = conflict.get("volume_path")
+        conflict_type = conflict.get("conflict_type")
+        # DEFENSIVE CODING: Use "N/A" if proposed_service is missing
+        proposed_service = conflict.get("proposed_service", "N/A")
+
+        error_type = f"Validation:VolumeConflict:{conflict_type}"
+        summary = f"Host volume path conflict detected at '{volume_path}'."
+        details = (
+            f"The path '{volume_path}' already exists on the target system "
+            f"({target_ip}) and is required for volume mounting by the service "
+            f"'{proposed_service}'. Conflict Type: {conflict_type}. "
+            f"This may lead to data corruption or permission issues."
+        )
+        component_id = proposed_service.lower().replace(" ", "-")
+
+        errors.append(
+            {
+                "type": error_type,
+                "summary": summary,
+                "details": details,
+                "component_id": component_id,
+                "timestamp": timestamp,
+            }
+        )
+
+    # 3. Map Resource Warnings
+    resource_warnings = analysis_results.get("resource_warnings", [])
+    for warning in resource_warnings:
+        warning_type = warning.get("type")
+        message = warning.get("message")
+
+        error_type = f"Warning:Resource:{warning_type}"
+        summary = f"Resource warning detected: {warning_type}"
+        details = (
+            f"The resource analysis on {target_ip} generated a warning: "
+            f"{message}. Deployment may proceed, but performance may be "
+            f"impacted."
+        )
+
+        errors.append(
+            {
+                "type": error_type,
+                "summary": summary,
+                "details": details,
+                "component_id": "N/A",
+                "timestamp": timestamp,
+            }
+        )
+
+    return errors
+
+
 def create_app():
     """Factory function to create and configure the Flask application."""
     flask_app = Flask(__name__, static_folder="static", static_url_path="/static")
@@ -105,7 +201,12 @@ def create_app():
     output_dir = app_data_dir / "output"
     setup_manager = SetupManager(component_manager, output_dir=output_dir)
     deployment_manager = DeploymentManager(component_manager=component_manager)
-    deployment_tasks = {}
+
+    # 1. ATTACH THE TASK DICTIONARY TO THE APP INSTANCE
+    flask_app.deployment_tasks = {}
+
+    # 2. ATTACH THE HELPER FUNCTION TO THE APP INSTANCE
+    flask_app._map_analysis_to_report_errors = _map_analysis_to_report_errors
 
     @flask_app.route("/", methods=["GET"])
     def index():
@@ -402,15 +503,86 @@ def create_app():
         managed_devices = data.get("devices")
         components_to_clean = data.get("components_to_clean", [])
         components_to_restart = data.get("components_to_restart", [])
+        analysis_results = data.get("analysis_results", {})
+
         if not output_path or not managed_devices:
             return jsonify({"error": "Missing output_path or devices"}), 400
+
+        # Unpack the first device for IP. Uses the Unpacking-First Mandate.
+        first_device = next(iter(managed_devices), None)
+        if first_device is None:
+            return (
+                jsonify({"error": "No target device provided for deployment"}),
+                400,
+            )
+        target_ip = first_device.get("ip")
+
+        # 1. Gatekeeping Logic: Map conflicts to ReportErrors
+        # Use the attached helper function
+        all_errors = flask_app._map_analysis_to_report_errors(
+            analysis_results, target_ip
+        )
+
+        # 2. Check for blocking conflicts
+        blocking_types = [
+            "Validation:PortConflict:DANGEROUS_NATIVE_PROCESS_CONFLICT",
+            "Validation:VolumeConflict:EXISTING_VOLUME_CONFLICT",
+            "Validation:PortConflict:UNEXPECTED_DOCKER_CONFLICT",
+        ]
+
+        blocking_errors = [err for err in all_errors if err["type"] in blocking_types]
+
+        if blocking_errors:
+            # Deployment is gated. Return 400 with structured errors.
+            logging.error(
+                f"Blocking pre-deployment conflicts detected: "
+                f"{len(blocking_errors)} errors."
+            )
+            return (
+                jsonify(
+                    {
+                        "error": "Pre-deployment conflicts detected.",
+                        "details": (
+                            "Critical port or volume conflicts must be resolved "
+                            "before deployment can start."
+                        ),
+                        "errors": blocking_errors,
+                    }
+                ),
+                400,
+            )
+
+        # 3. If no blocking errors, proceed with deployment
         task_id = str(uuid.uuid4())
-        deployment_tasks[task_id] = {"status": "running", "logs": []}
+
+        # All non-blocking errors (e.g., warnings and expected reinstallations)
+        # are added to the task's errors list for later status check, and
+        # logged to the stream immediately.
+        non_blocking_errors = [
+            err for err in all_errors if err["type"] not in blocking_types
+        ]
+        logs_start = [
+            f"WARNING/INFO: {err['summary']}. See task status for details."
+            for err in non_blocking_errors
+        ]
+
+        # Use the attached deployment_tasks dictionary
+        flask_app.deployment_tasks[task_id] = {
+            "status": "running",
+            "logs": logs_start,
+            "errors": non_blocking_errors,
+        }
+
+        # Log that deployment is starting after checks
+        flask_app.deployment_tasks[task_id]["logs"].append(
+            "Starting deployment process..."
+        )
+
         thread = threading.Thread(
             target=deployment_manager.start_deployment,
             args=(
                 task_id,
-                deployment_tasks,
+                flask_app.deployment_tasks,  # Use the attached dictionary
                 output_path,
                 managed_devices,
                 components_to_clean,
@@ -425,7 +597,8 @@ def create_app():
         def generate():
             last_sent_index = 0
             while True:
-                task = deployment_tasks.get(task_id)
+                # Use the attached deployment_tasks dictionary
+                task = flask_app.deployment_tasks.get(task_id)
                 if not task:
                     break
                 logs_to_send = task["logs"][last_sent_index:]
@@ -440,7 +613,8 @@ def create_app():
 
     @flask_app.route("/task-status/<task_id>")
     def task_status(task_id):
-        task = deployment_tasks.get(task_id)
+        # Use the attached deployment_tasks dictionary
+        task = flask_app.deployment_tasks.get(task_id)
         if not task:
             return jsonify({"error": "Task not found"}), 404
         return jsonify(task)
