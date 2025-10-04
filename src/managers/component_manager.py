@@ -1,8 +1,9 @@
 import json
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set
 
+import yaml  # <-- IMPORTED: PyYAML for YAML parsing
 from jinja2 import Template
 
 logger = logging.getLogger(__name__)
@@ -90,13 +91,45 @@ class ComponentManager:
         return details
 
     def validate_component_configuration(
-        self, component_id: str, template_content: str, variables: List[Dict[str, Any]]
+        self,
+        _component_id: str,
+        template_content: str,
+        _variables: List[Dict[str, Any]],
     ) -> None:
         """
         Validates a component's template and variables.
-        This is a placeholder for future validation logic.
+
+        CRITICAL VALIDATION: Ensures explicit 'container_name' fields adhere
+        to the 'piselfhosting-' naming convention.
         """
-        # Placeholder for future validation logic
+        # 1. TEMPLATE VALIDATION: Enforce Naming Convention
+        try:
+            # Use safe_load to parse Jinja-templated YAML content
+            data = yaml.safe_load(template_content)
+        except yaml.YAMLError as e:
+            # This is a critical parsing failure, indicating malformed YAML syntax
+            raise ValueError(
+                f"YAML Parsing Failed: The template content is not valid YAML. "
+                f"Error: {e}"
+            )
+
+        services = data.get("services", {})
+        for service_name, service_data in services.items():
+            container_name = service_data.get("container_name")
+
+            # Enforce the convention only if container_name is explicitly set
+            if container_name:
+                mandatory_prefix = "piselfhosting-"
+                if not container_name.lower().startswith(mandatory_prefix):
+                    raise ValueError(
+                        f"Naming Violation: The container_name '{container_name}' "
+                        f"for service '{service_name}' must begin with the "
+                        f"mandatory prefix '{mandatory_prefix}'."
+                        f" Please correct the template."
+                    )
+
+        # 2. Variable Validation (Placeholder)
+        # Placeholder for future variable validation logic (e.g., checking types)
 
     def validate_metadata_conflicts(
         self, component_id: str, conflicts_with_list: List[str]
@@ -133,10 +166,10 @@ class ComponentManager:
                 f"{non_existent_str}. Please correct them."
             )
 
-        # NOTE: Symmetrical conflict checks
-        # (if A conflicts with B, B must conflict with A)
-        # are intentionally omitted here to favor a simpler,
-        # more flexible data contract.
+        # NOTE: Symmetrical conflict checks (if A conflicts with B, B must
+        # conflict with A)
+        # are intentionally omitted here to favor a simpler, more
+        # flexible data contract.
         # This one-way check is sufficient for developer-facing validation.
 
     def create_component(self, component_id: str, component_name: str):
@@ -354,11 +387,44 @@ class ComponentManager:
         traefik_host = context.get("TRAEFIK_HOST")
         fqdn_suffix = context.get("FQDN_SUFFIX")
 
+        # NEW LOGIC: Check for Port Exclusion based on new variable type
+        excluded_ports: Set[int] = set()
+        component_vars = component_details.get("required_variables", [])
+
+        for var in component_vars:
+            if var.get("type") == "port_exclude_traefik":
+                var_id = var.get("id")
+                # Attempt to retrieve the resolved value from the context
+                resolved_value = context.get(var_id)
+
+                # Attempt to parse the resolved value as an integer port number
+                try:
+                    if resolved_value is not None:
+                        excluded_ports.add(int(resolved_value))
+                except (ValueError, TypeError):
+                    logger.warning(
+                        f"Skipping non-integer port value '{resolved_value}' for "
+                        f"excluded Traefik "
+                        f"variable '{var_id}' in component '{component_id}'"
+                    )
+
+        is_internal_port_excluded = (
+            isinstance(traefik_internal_port, int)
+            and traefik_internal_port in excluded_ports
+        )
+
+        if is_internal_port_excluded:
+            logger.info(
+                f"Traefik port {traefik_internal_port} for {component_id} is "
+                "excluded by user variable and will not receive labels."
+            )
+
         if (
             has_traefik_support
             and isinstance(traefik_internal_port, int)
             and traefik_host is not None
             and fqdn_suffix is not None
+            and not is_internal_port_excluded  # <-- CRITICAL CHECK
         ):
             traefik_labels = self._get_traefik_labels(
                 component_id=component_id,
@@ -369,7 +435,7 @@ class ComponentManager:
             # Add to the context for the Jinja template to use
             context["traefik_labels"] = traefik_labels
         else:
-            # Ensure traefik_labels is present but empty if not supported
+            # Ensure traefik_labels is present but empty if not supported or excluded
             context["traefik_labels"] = []
 
         # 2. Render the template

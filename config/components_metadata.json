@@ -152,16 +152,19 @@
     },
     "homarr": {
       "component_version": "latest",
+      "conflicts_with": [],
       "default": true,
       "depends_on": [],
       "description": "A simple, yet powerful dashboard for your server.",
       "group": "dashboard & Homepages",
       "has_configuration": true,
+      "has_traefik_support": false,
       "has_ui": true,
       "image_name": "ghcr.io/ajnart/homarr",
       "name": "Homarr",
       "project_url": "https://homarr.dev/",
       "protocol": "http",
+      "traefik_internal_port": null,
       "ui_port_variable": "HOMARR_WEB_PORT"
     },
     "homeassistant": {

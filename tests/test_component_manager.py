@@ -1,5 +1,10 @@
 import json
 from pathlib import Path
+from typing import (  # FIX: Added List, Dict, Any imports for type hinting in tests
+    Any,
+    Dict,
+    List,
+)
 
 import pytest
 
@@ -45,6 +50,12 @@ def manager_with_initial_data(tmp_path: Path):
             # START OF FIX: Add comp-c without explicit Traefik fields (defaults)
             "comp-c": {"name": "Component C"},
             # END OF FIX:
+            # NEW FIX: Add comp-validate for validation tests
+            "comp-validate": {
+                "name": "Component Validate",
+                "has_traefik_support": True,
+                "traefik_internal_port": 9000,
+            },
         },
     }
     metadata_file.write_text(json.dumps(metadata_content))
@@ -53,7 +64,9 @@ def manager_with_initial_data(tmp_path: Path):
     comp_a_path = templates_dir / "comp-a"
     comp_a_config_path = comp_a_path / "template-config"
     comp_a_config_path.mkdir(parents=True)
-    variables_content = {"variables": [{"id": "VAR_A", "label": "Variable A"}]}
+    variables_content: Dict[str, List[Dict[str, Any]]] = {
+        "variables": [{"id": "VAR_A", "label": "Variable A"}]
+    }
     (comp_a_config_path / "variables.json").write_text(json.dumps(variables_content))
     # START OF FIX: Add dummy docker-compose.template.yml for render tests
     (comp_a_path / "docker-compose.template.yml").write_text(
@@ -81,6 +94,28 @@ def manager_with_initial_data(tmp_path: Path):
         "version: '3'\nservices:\n  service-c: {}"
     )
     # END OF FIX:
+
+    # NEW FIX: Setup component files: comp-validate for validation and exclusion tests
+    comp_validate_path = templates_dir / "comp-validate"
+    comp_validate_config_path = comp_validate_path / "template-config"
+    comp_validate_config_path.mkdir(parents=True)
+
+    # NEW FIX: Add variable for Traefik exclusion test
+    vars_content: Dict[str, List[Dict[str, str]]] = {
+        "variables": [
+            {"id": "UI_PORT", "type": "port"},
+            {"id": "EXCLUDE_PORT", "type": "port_exclude_traefik"},
+        ]
+    }
+    (comp_validate_config_path / "variables.json").write_text(json.dumps(vars_content))
+
+    # NEW FIX: Add template for Traefik exclusion test
+    template_content = (
+        "version: '3'\nservices:\n  app:\n"
+        '    ports:\n      - "{{ UI_PORT }}:80"\n'
+        "    labels: {{ traefik_labels }}"
+    )
+    (comp_validate_path / "docker-compose.template.yml").write_text(template_content)
 
     manager = ComponentManager(
         templates_path=str(templates_dir), metadata_file_path=str(metadata_file)
@@ -133,7 +168,7 @@ class TestComponentManager:
 
         original_metadata_content = metadata_file.read_text()
 
-        new_variables_payload = {
+        new_variables_payload: Dict[str, List[Dict[str, str]]] = {
             "variables": [{"id": "NEW_VAR", "label": "New Variable"}]
         }
 
@@ -192,6 +227,101 @@ class TestComponentManager:
         manager, _ = manager_with_initial_data
         with pytest.raises(ValueError, match="Group 'nonexistent-group' not found."):
             manager.rename_group("nonexistent-group", "Some Name")
+
+    # NEW TEST: Validation for mandatory container naming convention
+    def test_validate_component_configuration_container_name_enforcement(
+        self, manager_with_initial_data
+    ):
+        """
+        Verify that validate_component_configuration raises an error when a
+        container_name is explicitly set but lacks the piselfhosting- prefix.
+        """
+        manager, _ = manager_with_initial_data
+
+        # 1. Test case: Invalid container_name
+        invalid_template = (
+            "version: '3'\n"
+            "services:\n"
+            "  app:\n"
+            "    container_name: wrong-prefix-app\n"
+        )
+        with pytest.raises(ValueError, match="Naming Violation"):
+            manager.validate_component_configuration(
+                "comp-validate", invalid_template, []
+            )
+
+        # 2. Test case: Valid container_name
+        valid_template = (
+            "version: '3'\n"
+            "services:\n"
+            "  app:\n"
+            "    container_name: piselfhosting-correct-app\n"
+        )
+        try:
+            manager.validate_component_configuration(
+                "comp-validate", valid_template, []
+            )
+        except ValueError as e:
+            pytest.fail(f"Valid template raised unexpected error: {e}")
+
+        # 3. Test case: No container_name (should pass and use implicit name)
+        implicit_template = "version: '3'\nservices:\n  app:\n    image: test/image"
+        try:
+            manager.validate_component_configuration(
+                "comp-validate", implicit_template, []
+            )
+        except ValueError as e:
+            pytest.fail(f"Implicit template raised unexpected error: {e}")
+
+    # NEW TEST: Traefik exclusion via a new variable type
+    def test_render_component_template_traefik_port_is_excluded(
+        self, manager_with_initial_data
+    ):
+        """
+        Verify that Traefik labels are NOT generated if the traefik_internal_port
+        is matched by a variable of type 'port_exclude_traefik'.
+        """
+        manager, _ = manager_with_initial_data
+
+        # 1. Setup Component for Exclusion Test (comp-validate)
+        # Metadata: has_traefik_support: True, traefik_internal_port: 9000
+        # Variables: EXCLUDE_PORT (type: port_exclude_traefik)
+
+        # Context where the EXCLUDE_PORT variable is set to the same value as the
+        # component's traefik_internal_port (9000).
+        context = {
+            "TRAEFIK_HOST": "test",
+            "FQDN_SUFFIX": "local",
+            "UI_PORT": "9001",
+            "EXCLUDE_PORT": "9000",
+        }
+
+        # Act: Render the template
+        rendered_content = manager.render_component_template(
+            "comp-validate", context.copy()
+        )
+
+        # Assert: The labels should NOT have been generated
+        assert "labels: []" in rendered_content
+        assert "traefik.enable=true" not in rendered_content
+
+        # 2. Test case: Exclusion variable is set to a DIFFERENT port
+        context_no_exclusion = {
+            "TRAEFIK_HOST": "test",
+            "FQDN_SUFFIX": "local",
+            "UI_PORT": "9001",
+            "EXCLUDE_PORT": "9999",
+        }
+        rendered_content_no_exclusion = manager.render_component_template(
+            "comp-validate", context_no_exclusion.copy()
+        )
+
+        # Assert: The labels SHOULD have been generated
+        expected_label_part = (
+            "traefik.http.services.comp-validate.loadbalancer.server.port=9000"
+        )
+        assert expected_label_part in rendered_content_no_exclusion
+        assert "traefik.enable=true" in rendered_content_no_exclusion
 
     # START OF FIX: Add tests for Traefik label generation and rendering logic
     def test_render_component_template_with_traefik_support(

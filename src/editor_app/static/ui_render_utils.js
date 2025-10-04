@@ -7,7 +7,8 @@
  */
 
 // Define the mandatory and supported variable types and sources for the UI
-const VARIABLE_TYPES = ['string', 'port', 'path', 'password'];
+// FIX: Added the new 'port_exclude_traefik' variable type
+const VARIABLE_TYPES = ['string', 'port', 'path', 'password', 'port_exclude_traefik'];
 const VARIABLE_SOURCES = [
     { value: '', label: 'User Input' },
     { value: 'dotenv', label: 'DotEnv' }
@@ -28,7 +29,8 @@ const VARIABLE_REQUIRED_OPTIONS = [
 const createOption = (value, text, isSelected) => {
     const option = document.createElement('option');
     option.value = value;
-    option.textContent = text;
+    // FIX: Improve display label for the new type
+    option.textContent = value.replace(/_/g, ' ').replace('port', 'Port').replace('exclude traefik', '(Exclude Traefik)');
     if (isSelected) {
         option.selected = true;
     }

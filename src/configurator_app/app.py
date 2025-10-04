@@ -21,7 +21,7 @@ logging.basicConfig(
 )
 
 
-def _analyze_snapshot(components, snapshot, is_reinstallation):
+def analyze_snapshot(components, snapshot, is_reinstallation):
     """
     Helper function to analyze the system snapshot against the requested
     components and return a categorized list of conflicts and warnings.
@@ -45,17 +45,37 @@ def _analyze_snapshot(components, snapshot, is_reinstallation):
                     existing_volumes.add(host_path)
     for component in components:
         comp_name = component.get("name")
+        # Use component ID for reliable string matching
+        comp_id = component.get("id", comp_name).lower()
+
+        # DEFINITIVE FIX: Create a clean ID for robust,
+        # cross-version container name matching
+        comp_id_clean = comp_id.replace("-", "")
+
         for port_str in component.get("ports", []):
             match = re.match(r"(\d+):", port_str)
             if match:
                 port = int(match.group(1))
                 if port in used_ports:
                     conflicting_service = used_ports[port]
+
+                    # Store a clean version of the conflicting service string for
+                    # comparison
+                    conflicting_service_clean = conflicting_service.lower().replace(
+                        "-", ""
+                    )
+
                     conflict_type = "UNEXPECTED_DOCKER_CONFLICT"
                     if "docker" not in conflicting_service:
                         conflict_type = "DANGEROUS_NATIVE_PROCESS_CONFLICT"
+                    # CRITICAL FIX: Robust Re-use check for PiSelfhosting containers.
+                    # 1. Check if it is a docker container.
+                    # 2. Check if the clean component ID is in the clean
+                    # conflicting service name.
+                    # 3. Check if we are in a reinstallation context.
                     elif (
-                        comp_name.lower() in conflicting_service.lower()
+                        "docker container" in conflicting_service.lower()
+                        and comp_id_clean in conflicting_service_clean
                         and is_reinstallation
                     ):
                         conflict_type = "EXPECTED_REINSTALLATION"
@@ -89,9 +109,7 @@ def _analyze_snapshot(components, snapshot, is_reinstallation):
     return conflicts, warnings
 
 
-def _map_analysis_to_report_errors(
-    analysis_results: dict, target_ip: str
-) -> list[dict]:
+def map_analysis_to_report_errors(analysis_results: dict, target_ip: str) -> list[dict]:
     """
     Maps analysis conflicts and warnings into the canonical ReportError contract.
     The ReportError contract includes: type, summary, details, component_id,
@@ -206,7 +224,8 @@ def create_app():
     flask_app.deployment_tasks = {}
 
     # 2. ATTACH THE HELPER FUNCTION TO THE APP INSTANCE
-    flask_app._map_analysis_to_report_errors = _map_analysis_to_report_errors
+    # FIX: Renaming for PEP 8 compliance (no protected access outside class)
+    flask_app.map_analysis_to_report_errors = map_analysis_to_report_errors
 
     @flask_app.route("/", methods=["GET"])
     def index():
@@ -451,7 +470,8 @@ def create_app():
         snapshot, err = scanner.get_system_snapshot(device.get("ip"))
         if err:
             return jsonify({"error": f"Failed to get system snapshot: {err}"}), 500
-        external_conflicts, resource_warnings = _analyze_snapshot(
+        # FIX: Call the renamed function
+        external_conflicts, resource_warnings = analyze_snapshot(
             components, snapshot, is_reinstallation
         )
         return (
@@ -505,6 +525,10 @@ def create_app():
         components_to_restart = data.get("components_to_restart", [])
         analysis_results = data.get("analysis_results", {})
 
+        # CRITICAL FIX: Retrieve the two missing arguments from the request body
+        selected_components_data = data.get("selected_components_data", [])
+        global_vars = data.get("global_vars", {})
+
         if not output_path or not managed_devices:
             return jsonify({"error": "Missing output_path or devices"}), 400
 
@@ -519,7 +543,8 @@ def create_app():
 
         # 1. Gatekeeping Logic: Map conflicts to ReportErrors
         # Use the attached helper function
-        all_errors = flask_app._map_analysis_to_report_errors(
+        # FIX: Call the renamed function
+        all_errors = flask_app.map_analysis_to_report_errors(
             analysis_results, target_ip
         )
 
@@ -587,6 +612,9 @@ def create_app():
                 managed_devices,
                 components_to_clean,
                 components_to_restart,
+                # CRITICAL FIX: Pass the missing arguments to the thread
+                selected_components_data,
+                global_vars,
             ),
         )
         thread.start()

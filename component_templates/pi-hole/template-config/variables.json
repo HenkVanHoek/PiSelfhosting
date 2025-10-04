@@ -23,15 +23,7 @@
       "id": "PIHOLE_DNS_PORT",
       "label": "Pi-hole DNS Port",
       "source": "",
-      "type": "port"
-    },
-    {
-      "default": "",
-      "description": "test",
-      "id": "test",
-      "label": "",
-      "source": "",
-      "type": "string"
+      "type": "port_exclude_traefik"
     }
   ]
 }

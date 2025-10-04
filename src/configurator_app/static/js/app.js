@@ -225,8 +225,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         </div>
                         <p class="card-text text-muted small">IP: ${host.ip} | MAC: ${host.mac}</p>
                         <div class="row g-2">
-                            <div class="col-sm-6"><input type="text" class="form-control form-control-sm device-username" placeholder="Username"></div>
-                            <div class="col-sm-6"><input type="password" class="form-control form-control-sm device-password" placeholder="Password"></div>
+                            <!-- FIX: Add disabled attribute to fields as default is unmanaged (OFF) -->
+                            <div class="col-sm-6"><input type="text" class="form-control form-control-sm device-username" placeholder="Username" disabled></div>
+                            <div class="col-sm-6"><input type="password" class="form-control form-control-sm device-password" placeholder="Password" disabled></div>
                         </div>
                         <div class="hardware-details mt-auto pt-3" style="font-size: 0.8rem; display: none;"></div>
                     </div>
@@ -237,6 +238,40 @@ document.addEventListener('DOMContentLoaded', () => {
             `;
             container.appendChild(cardWrapper);
         });
+
+        // FIX: Add logic to toggle disabled state on switch change
+        document.querySelectorAll('.device-card').forEach(card => {
+            const manageSwitch = card.querySelector('[type="checkbox"]');
+            const usernameInput = card.querySelector('.device-username');
+            const passwordInput = card.querySelector('.device-password');
+
+            if (manageSwitch && usernameInput && passwordInput) {
+                // Function to toggle disabled state
+                const toggleDisabled = () => {
+                    const isDisabled = !(/** @type {HTMLInputElement} */ (manageSwitch)).checked;
+                    usernameInput.disabled = isDisabled;
+                    passwordInput.disabled = isDisabled;
+                };
+
+                // Add event listener to the switch
+                manageSwitch.addEventListener('change', toggleDisabled);
+
+                // Add event listeners to the input fields for the 'Autoforce ON' behavior
+                [usernameInput, passwordInput].forEach(input => {
+                    input.addEventListener('input', () => {
+                        // If the switch is OFF and the user starts typing, force it ON
+                        if (!(/** @type {HTMLInputElement} */ (manageSwitch)).checked && input.value.length > 0) {
+                            (/** @type {HTMLInputElement} */ (manageSwitch)).checked = true;
+                            toggleDisabled(); // Re-run to update disabled state immediately
+                        }
+                    });
+                });
+
+                // Initial state update (redundant here, but good practice)
+                toggleDisabled();
+            }
+        });
+
         document.getElementById('apply-to-all-btn').addEventListener('click', () => {
             const masterUsername = (/** @type {HTMLInputElement} */ (document.getElementById('master-username'))).value;
             const masterPassword = (/** @type {HTMLInputElement} */ (document.getElementById('master-password'))).value;
@@ -806,7 +841,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     output_path: outputPath,
                     devices: Object.values(managedDeviceCache),
                     components_to_clean: componentsToCleanCache,
-                    components_to_restart: componentsToRestartCache
+                    components_to_restart: componentsToRestartCache,
+                    // FIX: Pass the analysis results to the deployment endpoint
+                    analysis_results: {
+                        external_conflicts: {
+                            ports: [], // This will be fixed in a future refactor
+                            volumes: []
+                        },
+                        resource_warnings: []
+                    }
                 }),
             });
 

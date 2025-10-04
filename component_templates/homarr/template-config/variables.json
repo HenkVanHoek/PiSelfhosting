@@ -5,6 +5,7 @@
       "description": "The external port to access the Homarr web UI.",
       "id": "HOMARR_WEB_PORT",
       "label": "Homar web port",
+      "source": "",
       "type": "port"
     },
     {
@@ -12,6 +13,7 @@
       "description": "The path to the Homarr configuration files.",
       "id": "HOMARR_CONFIG_PATH",
       "label": "Homar Configuration path",
+      "source": "",
       "type": "string"
     }
   ]
