@@ -609,7 +609,6 @@ class DeploymentManager:
             tasks_dict[task_id]["status"] = "failed"
             return
 
-        # FIX: Removed unused local variable overall_success
         ssh = SSHManager(hostname=ip, username=user, password=pwd)
         log_callback(f"--- Processing device: {ip} ---", is_step=True)
         try:
@@ -638,23 +637,21 @@ class DeploymentManager:
             self._perform_cleanup(ssh, components_to_clean, log_callback)
 
             # ARCHITECTURAL PEER-NOTE: The next step, file generation, is logically
-            # part of the ComponentManager, not DeploymentManager. Assuming a method
-            # for this exists in ComponentManager to write to output_path.
+            # part of the ComponentManager, not DeploymentManager.
             log_callback(
                 "Configuration validated. Requesting artifact generation from "
                 "ComponentManager...",
                 is_step=True,
             )
             try:
-                # Placeholder for the actual file generation call in ComponentManager.
-                # self.component_manager.generate_deployment_artifacts(
-                #     deployment_data["selected_components_data"],
-                #     deployment_data["global_vars"],
-                #     Path(output_path),
-                # )
+                # The actual file generation call in ComponentManager.
+                self.component_manager.generate_deployment_artifacts(
+                    deployment_data["selected_components_data"],
+                    deployment_data["global_vars"],
+                    Path(output_path),
+                )
                 log_callback(
-                    "INFO: Artifact generation delegated to "
-                    "ComponentManager (logic pending).",
+                    "INFO: Deployment artifacts generated successfully.",
                     is_step=False,
                 )
             except Exception as e:
@@ -726,8 +723,6 @@ class DeploymentManager:
                 tasks_dict[task_id]["service_links"] = links
             # Note: _discover_service_links reports its own error on exception.
             # We don't need to check its return value for failure here.
-
-            # FIX: Removed unused local variable overall_success
 
         except Exception as e:
             logger.error(f"Unexpected deployment error: {e}", exc_info=True)

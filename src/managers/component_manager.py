@@ -1,7 +1,7 @@
 import json
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set, cast
 
 import yaml  # <-- IMPORTED: PyYAML for YAML parsing
 from jinja2 import Template
@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 class ComponentManager:
-    """Manages component metadata and template files."""
+    """MAnages component metadata and template files."""
 
     def __init__(self, templates_path: str, metadata_file_path: str):
         self.templates_path = Path(templates_path)
@@ -77,6 +77,7 @@ class ComponentManager:
         if not component_data:
             return None
         details = component_data.copy()
+        details["id"] = component_id
         details["required_variables"] = self._variables_cache.get(component_id, [])
         # ADDED: Defensive retrieval of optional Traefik metadata fields (Issue #2)
         details["has_traefik_support"] = component_data.get(
@@ -350,9 +351,11 @@ class ComponentManager:
         """
         # CRITICAL: Note the use of backticks in the rule template
         # for `{{ TRAEFIK_HOST }}.{{ FQDN_SUFFIX }}`.
+        # The Traefik router/service ID must be the canonical component ID
+        # to ensure unique routing.
         return [
             "traefik.enable=true",
-            f"traefik.http.routers.{component_id}.entrypoints=" f"websecure",
+            f"traefik.http.routers.{component_id}.entrypoints=websecure",
             (
                 f"traefik.http.routers.{component_id}.rule="
                 f"Host(`{traefik_host}.{fqdn_suffix}`)"
@@ -364,6 +367,25 @@ class ComponentManager:
             ),
         ]
 
+    def _get_traefik_labels_yaml_block(
+        self,
+        component_id: str,
+        traefik_host: str,
+        fqdn_suffix: str,
+        traefik_internal_port: int,
+    ) -> str:
+        """
+        Generates the standard Traefik labels as a fully formatted,
+        indented YAML block string suitable for direct injection into a template.
+        """
+        labels = self._get_traefik_labels(
+            component_id, traefik_host, fqdn_suffix, traefik_internal_port
+        )
+        # Indentation: The template adds the initial indentation for 'labels:'
+        # We need to add '      - ' before each label.
+        yaml_block = "\n".join(f"      - {label}" for label in labels)
+        return yaml_block
+
     def render_component_template(
         self,
         component_id: str,
@@ -373,10 +395,14 @@ class ComponentManager:
         Loads a component's docker-compose template, injects the necessary
         Traefik labels into the context if supported, and renders the template.
         """
+        logger.debug(f"Attempting to render template for component ID: {component_id}")
         component_details = self.get_component_details(component_id)
         if not component_details:
             logger.error(f"Component '{component_id}' not found for rendering.")
-            return f"# ERROR: Component '{component_id}' not found."
+            # CRITICAL FIX (v6.7): Return a valid, minimal YAML document
+            # (no version, just empty services) to prevent the ValueError crash
+            # in generate_deployment_artifacts's yaml.safe_load.
+            return "services: {}"
 
         template_content = self.get_component_template_content(component_id)
         template = Template(template_content)
@@ -392,20 +418,21 @@ class ComponentManager:
         component_vars = component_details.get("required_variables", [])
 
         for var in component_vars:
+            # Check the variable type for a Traefik exclusion flag.
             if var.get("type") == "port_exclude_traefik":
                 var_id = var.get("id")
-                # Attempt to retrieve the resolved value from the context
+                # Attempt to retrieve the resolved value from the context.
                 resolved_value = context.get(var_id)
 
-                # Attempt to parse the resolved value as an integer port number
+                # Attempt to parse the resolved value as an integer port number.
                 try:
                     if resolved_value is not None:
                         excluded_ports.add(int(resolved_value))
                 except (ValueError, TypeError):
                     logger.warning(
                         f"Skipping non-integer port value '{resolved_value}' for "
-                        f"excluded Traefik "
-                        f"variable '{var_id}' in component '{component_id}'"
+                        f"excluded Traefik variable '{var_id}' in component "
+                        f"'{component_id}'"
                     )
 
         is_internal_port_excluded = (
@@ -419,29 +446,190 @@ class ComponentManager:
                 "excluded by user variable and will not receive labels."
             )
 
-        if (
+        # Perform the final check to determine if labels should be generated.
+        should_generate_labels = (
             has_traefik_support
             and isinstance(traefik_internal_port, int)
             and traefik_host is not None
             and fqdn_suffix is not None
-            and not is_internal_port_excluded  # <-- CRITICAL CHECK
-        ):
-            traefik_labels = self._get_traefik_labels(
+            and not is_internal_port_excluded
+        )
+
+        # CRITICAL FIX: Generate the entire YAML block in Python
+        if should_generate_labels:
+            my_casted_traefik_internal_port = cast(int, traefik_internal_port)
+            yaml_block = self._get_traefik_labels_yaml_block(
                 component_id=component_id,
                 traefik_host=str(traefik_host),
                 fqdn_suffix=str(fqdn_suffix),
-                traefik_internal_port=traefik_internal_port,
+                traefik_internal_port=my_casted_traefik_internal_port,
             )
             # Add to the context for the Jinja template to use
-            context["traefik_labels"] = traefik_labels
+            context["traefik_labels_yaml"] = yaml_block
+            logger.debug(
+                f"Generated labels YAML block for {component_id}: " f"'{yaml_block}'"
+            )
         else:
-            # Ensure traefik_labels is present but empty if not supported or excluded
-            context["traefik_labels"] = []
+            # Ensure the placeholder is present but empty if not supported or excluded
+            context["traefik_labels_yaml"] = ""
+            logger.debug(
+                f"No labels generated for {component_id}. traefik_labels_yaml=''"
+            )
 
         # 2. Render the template
         try:
+            # We now rely on the template to use the 'safe' filter on the already
+            # formatted traefik_labels_yaml string.
             rendered_content = template.render(context)
+            logger.debug(
+                f"Successfully rendered {component_id}. Content size: "
+                f"{len(rendered_content)}"
+            )
             return rendered_content
         except Exception as e:
-            logger.error(f"Error rendering template for {component_id}: {e}")
+            logger.error(
+                f"Error rendering template for {component_id}: {e}", exc_info=True
+            )
             return f"# ERROR: Template rendering failed for {component_id}: {e}"
+
+    # NEW METHOD: Deployment Artifact Generation
+    def generate_deployment_artifacts(
+        self,
+        selected_components_data: List[Dict[str, Any]],
+        global_vars: Dict[str, Any],
+        output_path: Path,
+    ) -> None:
+        """
+        Orchestrates the rendering of all selected component templates, merges
+        them into a single docker-compose.yml, and saves the final context.
+
+        Raises:
+            ValueError: If a component's template cannot be parsed or merged.
+        """
+        logger.info("Starting deployment artifact generation.")
+        # Ensure output directory exists
+        output_path.mkdir(parents=True, exist_ok=True)
+
+        # Initialize the final docker-compose structure
+        docker_compose_data: Dict[str, Any] = {
+            # CRITICAL FIX (v6.7): Removing the version key entirely from the base
+            # dictionary as per the latest architectural vision.
+            "services": {},
+            "networks": {"piselfhosting-network": {"external": True}},
+        }
+        # The deployment context is a single source of truth for all resolved
+        # variables, used later by Discovery methods.
+        deployment_context = global_vars.copy()
+
+        # 1. Sort the components by master order before processing
+        component_ids = [
+            comp_id
+            for comp in selected_components_data
+            if (comp_id := comp.get("id")) is not None
+        ]
+        logger.debug(f"Component IDs to process (unsorted): {component_ids}")
+        sorted_ids = self.sort_components_by_master_order(component_ids)
+        logger.debug(f"Component IDs to process (sorted): {sorted_ids}")
+
+        # Create a map for quick lookup of component data
+        comp_data_map = {comp.get("id"): comp for comp in selected_components_data}
+
+        # 2. Iterate, Render, and Merge
+        for component_id in sorted_ids:
+            logger.debug(f"Processing component: {component_id}")
+
+            component_data = comp_data_map.get(component_id)
+            if not component_data:
+                logger.warning(
+                    f"Skipping component ID '{component_id}' as data is missing."
+                )
+                continue
+
+            # Merge component's user-provided variables into the global context
+            # The 'global_vars' passed in contains the resolved values for ALL
+            # variables (component-specific or global).
+            # We simply use the component_data (from the configurator's summary)
+            # as a source of truth for the *resolved* variables for this component.
+            # Variables for this component are assumed to be in the 'global_vars'
+            # (which is deployment_context).
+
+            # The full deployment context for rendering this component:
+            render_context = deployment_context.copy()
+
+            # Pass the full context to the renderer to get a component-specific YAML
+            rendered_yaml = self.render_component_template(component_id, render_context)
+
+            # TEMPORARY DEBUG PRINT:
+            # Show the exact YAML string being passed to the parser
+            # This is critical to see why yaml.safe_load() is returning None/{}
+            if component_id in ["comp-b", "comp-a", "comp-validate"]:
+                print(f"\nDEBUG: RENDERED YAML for {component_id}:")
+                print("--- START RENDERED ---")
+                print(rendered_yaml)
+                print("--- END RENDERED ---\n")
+
+            logger.debug(f"Rendered YAML for {component_id}: {rendered_yaml[:100]}...")
+
+            # Parse the rendered YAML content
+            try:
+                comp_compose = yaml.safe_load(rendered_yaml)
+                if not isinstance(comp_compose, dict):
+                    # This happens if a generic error string is returned
+                    logger.error(
+                        f"Rendered content for '{component_id}' is not a valid "
+                        f"YAML dictionary. Content: {rendered_yaml}"
+                    )
+                    # NOTE: We do not raise ValueError here, because any non-dict
+                    # result is treated as a component with no services/networks
+                    # to merge, which is a safer default. If we need to fail-fast
+                    # we must reintroduce a catchable custom error.
+                    comp_compose = {}
+            except yaml.YAMLError as e:
+                # The service merging loop MUST NOT crash if a single component fails.
+                # Inject a debug print to capture the specific YAML error
+                print(f"CRITICAL YAML PARSING ERROR for '{component_id}': {e}")
+                logger.error(
+                    f"FATAL: Failed to parse YAML for '{component_id}'. Skipping. "
+                    f"Error: {e}",
+                    exc_info=True,
+                )
+                continue
+
+            # 3. Merge services and networks
+            new_services = comp_compose.get("services", {})
+            new_networks = comp_compose.get("networks", {})
+
+            # CRITICAL: Check and merge the version key if it exists in the component
+            # template, otherwise, the top-level version remains absent.
+            if "version" in comp_compose:
+                docker_compose_data["version"] = comp_compose["version"]
+
+            # CRITICAL: Merge services
+            docker_compose_data["services"].update(new_services)
+            logger.debug(
+                f"Merged {len(new_services)} services. Total services: "
+                f"{len(docker_compose_data['services'])}"
+            )
+
+            # CRITICAL: Merge networks (ensuring we don't overwrite
+            # the base piselfhosting-network)
+            for network_name, network_def in new_networks.items():
+                if network_name not in docker_compose_data.get("networks", {}):
+                    # Default to not external if not explicitly defined
+                    network_def.setdefault("external", False)
+                    docker_compose_data["networks"][network_name] = network_def
+
+        # 4. Save Artifacts
+        logger.info("Writing final artifacts.")
+        # Save docker-compose.yml
+        compose_path = output_path / "docker-compose.yml"
+        with open(compose_path, "w", encoding="utf-8") as f:
+            # Do not sort keys, as services order matters for legibility/TDD
+            yaml.dump(docker_compose_data, f, sort_keys=False)
+
+        # Save deployment_context.json (the full variable list)
+        context_path = output_path / "deployment_context.json"
+        with open(context_path, "w", encoding="utf-8") as f:
+            json.dump(deployment_context, f, indent=2, sort_keys=True)
+
+        logger.info("Artifact generation completed.")
