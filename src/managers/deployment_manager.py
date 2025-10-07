@@ -8,8 +8,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Set
 
-import yaml
-
 from managers.component_manager import ComponentManager
 from managers.ssh_manager import SSHManager
 
@@ -64,12 +62,6 @@ class DeploymentManager:
         log_text = f"FATAL: [{error_type}] {summary}. Details: {details}"
         self._log_update(tasks_dict, task_id, log_text, is_step=True)
 
-        # 3. Mark for failure (this will be handled in the calling function's return)
-        # We explicitly set status to failed only when returning from start_deployment
-        # to ensure the finally block is responsible for the final status.
-
-    # START OF NEW METHODS FOR PRE-FLIGHT VALIDATION:
-
     @staticmethod
     def _extract_requested_ports(
         components: List[Dict[str, Any]],
@@ -88,14 +80,8 @@ class DeploymentManager:
                 continue
 
             for port_map_str in ports_list:
-                # Port format is typically 'HOST_PORT:CONTAINER_PORT' or
-                # 'HOST_PORT'. We only care about HOST_PORT.
-                # Example: '80:80/tcp' or '8080'
                 try:
-                    # Unpacking-First Mandate: Get the first element (HOST_PORT)
-                    # from the split string, if it exists.
                     host_port_str, *_ = port_map_str.split(":", 1)
-                    # Remove protocol suffix if present (e.g., '/tcp')
                     host_port = int(host_port_str.split("/")[0])
                     requested_ports.add(host_port)
                 except (ValueError, TypeError):
@@ -120,14 +106,9 @@ class DeploymentManager:
         Returns True if conflicts are found, False otherwise.
         """
         found_conflicts = False
-
-        # 1. Gather Requested Resources
         requested_ports = self._extract_requested_ports(requested_components)
-        # FIX: Removed unused local variable requested_service_names
-
         log_callback("Checking for live service conflicts...", is_step=True)
 
-        # 2. Check for Port Conflicts (against ALL running containers)
         port_check_cmd = "docker ps --format '{{.Names}}|{{.Ports}}'"
         exit_code, output = ssh.execute_command(
             port_check_cmd, log_callback, check_exit_code=False
@@ -138,7 +119,6 @@ class DeploymentManager:
             for line in output.splitlines():
                 if not line or "|" not in line:
                     continue
-                # Unpacking-First Mandate: Split into name and ports string
                 container_name, ports_str, *_ = line.split("|", 1)
 
                 for match in re.finditer(r":(\d+)->", ports_str):
@@ -169,8 +149,6 @@ class DeploymentManager:
             )
             found_conflicts = True
 
-        # 3. Check for Service Name Conflicts (against ALL existing
-        # PiSelfhosting containers)
         name_check_cmd = (
             "docker ps -a --format '{{.Names}}' --filter "
             "'label=com.docker.compose.project=piselfhosting'"
@@ -188,7 +166,6 @@ class DeploymentManager:
 
             for component in requested_components:
                 requested_id = component.get("id")
-                # Use ComponentManager logic to get the correct service name
                 requested_name = (
                     self.component_manager.get_docker_service_name(requested_id)
                     if requested_id
@@ -215,7 +192,6 @@ class DeploymentManager:
                         "LiveConflict:Name",
                         summary,
                         details,
-                        # FIX: Cast to str to satisfy mypy (Any | None -> str)
                         str(component.get("id")),
                     )
                     found_conflicts = True
@@ -254,13 +230,11 @@ class DeploymentManager:
 
         for component in components:
             component_id = component.get("id", "unknown-id")
-            # FIX: Removed unused local variable component_name
             has_traefik = component.get("has_traefik_support")
 
             if not has_traefik:
                 continue
 
-            # 1. Check for duplicate internal ports (required for Traefik)
             traefik_port = component.get("traefik_internal_port")
             if not traefik_port:
                 errors.append(
@@ -274,7 +248,7 @@ class DeploymentManager:
                         "component_id": component_id,
                     }
                 )
-                continue  # Cannot proceed with this component
+                continue
 
             if traefik_port in used_internal_ports:
                 errors.append(
@@ -290,13 +264,8 @@ class DeploymentManager:
                 )
             used_internal_ports.add(traefik_port)
 
-            # 2. Check for duplicate Traefik-derived hostnames (if variables are set)
             if traefik_host_prefix and fqdn_suffix:
-                # FIX: Default to component_id if docker_service_name is not present.
                 hostname_prefix = component.get("docker_service_name", component_id)
-
-                # Hostname is constructed as:
-                # hostname_prefix.TRAEFIK_HOST.FQDN_SUFFIX
                 hostname = (
                     f"{hostname_prefix}.{traefik_host_prefix}.{fqdn_suffix}"
                 ).lower()
@@ -335,14 +304,10 @@ class DeploymentManager:
         if validation_errors:
             return validation_errors
 
-        # Validation passed. Return the required data for the artifact
-        # generation step in ComponentManager.
         return {
             "selected_components_data": selected_components_data,
             "global_vars": global_vars,
         }
-
-    # END OF NEW METHODS FOR PRE-FLIGHT VALIDATION
 
     def _perform_cleanup(
         self,
@@ -376,71 +341,44 @@ class DeploymentManager:
         self,
         ip: str,
         local_output_path: Path,
-        tasks_dict: Dict[str, Any],
-        task_id: str,
+        selected_components_data: List[Dict[str, Any]],
         log_callback: Callable[..., None],
     ) -> List[Dict[str, str]]:
         """
-        Reads deployment artifacts to discover and construct web UI links
-        using the architecturally correct 'ui_port_variable' pointer.
+        Constructs web UI links by using the component metadata and the final
+        resolved variables from the deployment context.
         """
         log_callback("Discovering web interfaces for services...", is_step=True)
+        service_links = []
+
         try:
             context_path = local_output_path / "deployment_context.json"
             with open(context_path, "r", encoding="utf-8") as f:
                 deployment_context = json.load(f)
 
-            compose_path = local_output_path / "docker-compose.yml"
-            with open(compose_path, "r", encoding="utf-8") as f:
-                compose_data = yaml.safe_load(f)
-
-            all_components_map = {
-                c["id"]: c for c in self.component_manager.get_all_components()
-            }
-
-            service_links = []
-            for service_name, s_def in compose_data.get("services", {}).items():
-                component_id = next(
-                    (
-                        label.split("=", 1)[1]
-                        for label in s_def.get("labels", [])
-                        if label.startswith("piselfhosting.component.id=")
-                    ),
-                    None,
-                )
-
-                if not (
-                    component_id
-                    and (comp_meta := all_components_map.get(component_id))
-                    and comp_meta.get("has_ui")
-                ):
+            for component_meta in selected_components_data:
+                if not component_meta.get("has_ui"):
                     continue
 
-                primary_service = comp_meta.get("docker_service_name")
-                if primary_service and primary_service != service_name:
-                    continue
-
-                port_variable_name = comp_meta.get("ui_port_variable")
+                port_variable_name = component_meta.get("ui_port_variable")
                 port = None
 
                 if port_variable_name:
                     port = deployment_context.get(port_variable_name)
-                elif "ui_port" in comp_meta:
-                    port = comp_meta.get("ui_port")
+                elif "ui_port" in component_meta:
+                    port = component_meta.get("ui_port")
 
                 if port:
-                    protocol = comp_meta.get("protocol", "http")
+                    protocol = component_meta.get("protocol", "http")
                     url = f"{protocol}://{ip}:{port}"
-                    service_links.append({"name": comp_meta.get("name"), "url": url})
-
-            # --- DEFINITIVE FIX: De-duplicate the list to solve the user's issue ---
-            unique_links = []
-            seen_urls = set()
-            for link in service_links:
-                if link["url"] not in seen_urls:
-                    unique_links.append(link)
-                    seen_urls.add(link["url"])
-            service_links = unique_links
+                    # START OF MYPY FIX
+                    # Use the component's ID as a fallback for the name to guarantee
+                    # a string value, which satisfies the function's return type.
+                    component_name = component_meta.get("name") or component_meta.get(
+                        "id", "Unknown Service"
+                    )
+                    service_links.append({"name": str(component_name), "url": url})
+                    # END OF MYPY FIX
 
             log_text = (
                 f"SUCCESS: Found {len(service_links)} web UIs."
@@ -450,15 +388,19 @@ class DeploymentManager:
             log_callback(log_text, is_step=True)
             return service_links
 
-        except Exception as e:
+        except (FileNotFoundError, json.JSONDecodeError) as e:
             logger.error(f"Error discovering service links: {e}", exc_info=True)
-            # Refactor: Report error instead of just logging FATAL
-            self._report_error(
-                tasks_dict,
-                task_id,
-                "Discovery:Fatal",
-                "UI Link Discovery Failed",
-                f"Unexpected error while parsing artifacts: {e}",
+            log_callback(
+                f"FATAL: UI Link Discovery Failed. Could not read "
+                f"'deployment_context.json'. Error: {e}",
+                is_step=True,
+            )
+            return []
+        except Exception as e:
+            logger.error(f"Unexpected error discovering links: {e}", exc_info=True)
+            log_callback(
+                f"FATAL: An unexpected error occurred during UI link discovery: {e}",
+                is_step=True,
             )
             return []
 
@@ -473,14 +415,12 @@ class DeploymentManager:
     ) -> bool:
         """Creates, uploads, and extracts the deployment tarball."""
         log_callback("Creating and uploading deployment archive...", is_step=True)
-        # nosec B108 is tolerated here for a temporary file
         remote_tmp_tarball = f"/tmp/deployment-{task_id}.tar.gz"  # nosec B108
         tarball_path = local_path / f"deployment-{task_id}.tar.gz"
 
         try:
             with tarfile.open(tarball_path, "w:gz") as tar:
                 tar.add(local_path, arcname=os.path.basename(local_path))
-            # Refactor: Check for upload success and report error
             success, msg = ssh.upload_content(
                 Path(tarball_path).read_bytes(), remote_tmp_tarball
             )
@@ -536,24 +476,35 @@ class DeploymentManager:
         components_to_clean: List[str],
         components_to_restart: List[str],
         selected_components_data: List[Dict[str, Any]],
-        global_vars: Dict[str, Any],
     ) -> None:
         """Main entry point to orchestrate the deployment process."""
-
-        # Initialize structured error reporting
         tasks_dict[task_id]["errors"] = []
 
         def log_callback(text: str, is_step: bool = False) -> None:
             self._log_update(tasks_dict, task_id, text, is_step)
 
-        # START OF PRE-FLIGHT LOGIC (Local Validation)
+        resolved_context = {}
+        try:
+            context_path = Path(output_path) / "deployment_context.json"
+            with open(context_path, "r", encoding="utf-8") as f:
+                resolved_context = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError) as e:
+            self._report_error(
+                tasks_dict,
+                task_id,
+                "Artifact:ContextMissing",
+                "Failed to load the deployment context.",
+                f"Could not read 'deployment_context.json': {e}",
+            )
+            tasks_dict[task_id]["status"] = "failed"
+            return
+
         log_callback("Starting pre-flight configuration validation...", is_step=True)
         deployment_data = self._prepare_deployment_context(
-            selected_components_data, global_vars
+            selected_components_data, resolved_context
         )
 
         if isinstance(deployment_data, list):
-            # Refactor: Use structured reporting for validation failures
             log_callback(
                 "FATAL: Pre-flight validation failed with the following errors:",
                 is_step=True,
@@ -569,7 +520,6 @@ class DeploymentManager:
                 )
             tasks_dict[task_id]["status"] = "failed"
             return
-        # END OF PRE-FLIGHT LOGIC (Local Validation)
 
         log_callback("Deployment process initiated...", is_step=True)
         if components_to_restart:
@@ -590,9 +540,7 @@ class DeploymentManager:
             tasks_dict[task_id]["status"] = "failed"
             return
 
-        # Unpacking-First Mandate: Retrieve the single device from the list.
         device, *_ = managed_devices
-
         ip, user, pwd = (
             device.get("ip"),
             device.get("username"),
@@ -623,31 +571,23 @@ class DeploymentManager:
                 )
                 return
 
-            # START OF LIVE CONFLICT CHECK (Post-Connection)
-            # Refactor: Pass task info to the helper
             found_conflicts = self._check_live_service_conflicts(
                 ssh, selected_components_data, tasks_dict, task_id, log_callback
             )
             if found_conflicts:
-                # Errors were reported internally by the helper
                 return
-            # END OF LIVE CONFLICT CHECK
 
-            # The live conflict check passed, proceed with cleanup and deployment.
             self._perform_cleanup(ssh, components_to_clean, log_callback)
 
-            # ARCHITECTURAL PEER-NOTE: The next step, file generation, is logically
-            # part of the ComponentManager, not DeploymentManager.
             log_callback(
                 "Configuration validated. Requesting artifact generation from "
                 "ComponentManager...",
                 is_step=True,
             )
             try:
-                # The actual file generation call in ComponentManager.
                 self.component_manager.generate_deployment_artifacts(
                     deployment_data["selected_components_data"],
-                    deployment_data["global_vars"],
+                    resolved_context,
                     Path(output_path),
                 )
                 log_callback(
@@ -665,9 +605,6 @@ class DeploymentManager:
                 return
 
             exit_code, home_output = ssh.execute_command("echo $HOME", log_callback)
-            # Defensive Coding for Safety: Get the home directory from output.
-            # FIX: Use strip() and check the stripped string to
-            # avoid subtle splitlines bugs
             home = home_output.strip() if home_output else None
 
             if exit_code != 0 or not home:
@@ -681,11 +618,9 @@ class DeploymentManager:
                 return
 
             remote_dir = Path(home) / "piselfhosting_deployment"
-            # Refactor: Pass task info to the helper
             if not self._transfer_and_extract_archive(
                 ssh, Path(output_path), remote_dir, task_id, tasks_dict, log_callback
             ):
-                # Errors were reported internally by the helper
                 return
 
             log_callback("Executing deployment...", is_step=True)
@@ -715,14 +650,11 @@ class DeploymentManager:
                 )
                 return
 
-            # Refactor: Pass task info to the helper
             links = self._discover_service_links(
-                ip, Path(output_path), tasks_dict, task_id, log_callback
+                ip, Path(output_path), selected_components_data, log_callback
             )
             if links:
                 tasks_dict[task_id]["service_links"] = links
-            # Note: _discover_service_links reports its own error on exception.
-            # We don't need to check its return value for failure here.
 
         except Exception as e:
             logger.error(f"Unexpected deployment error: {e}", exc_info=True)
@@ -736,7 +668,6 @@ class DeploymentManager:
         finally:
             log_callback("Closing SSH connection.", is_step=True)
             ssh.close()
-            # Final status update ensures the structured errors are accounted for.
             if tasks_dict[task_id]["errors"]:
                 tasks_dict[task_id]["status"] = "failed"
             else:

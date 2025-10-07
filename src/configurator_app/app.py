@@ -525,9 +525,7 @@ def create_app():
         components_to_restart = data.get("components_to_restart", [])
         analysis_results = data.get("analysis_results", {})
 
-        # CRITICAL FIX: Retrieve the two missing arguments from the request body
         selected_components_data = data.get("selected_components_data", [])
-        global_vars = data.get("global_vars", {})
 
         if not output_path or not managed_devices:
             return jsonify({"error": "Missing output_path or devices"}), 400
@@ -612,9 +610,7 @@ def create_app():
                 managed_devices,
                 components_to_clean,
                 components_to_restart,
-                # CRITICAL FIX: Pass the missing arguments to the thread
                 selected_components_data,
-                global_vars,
             ),
         )
         thread.start()

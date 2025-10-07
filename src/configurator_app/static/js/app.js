@@ -107,11 +107,21 @@ document.addEventListener('DOMContentLoaded', () => {
      */
 
     /**
+     * @typedef {object} ReportError
+     * @property {string} type
+     * @property {string} summary
+     * @property {string} details
+     * @property {string} component_id
+     * @property {string} timestamp
+     */
+
+    /**
      * @typedef {object} TaskStatus
      * @property {string} status
      * @property {string[]} logs
      * @property {number} last_update
      * @property {ServiceLink[]} service_links
+     * @property {ReportError[]} errors
      */
 
     /**
@@ -167,6 +177,10 @@ document.addEventListener('DOMContentLoaded', () => {
     let finalVariablesCache = {};
     let componentsToCleanCache = [];
     let componentsToRestartCache = [];
+    // START OF FIX: Cache for analysis results
+    /** @type {SystemAnalysisResponse | {}} */
+    let analysisResultsCache = {};
+    // END OF FIX
 
     /** @param {ScanData} scanData */
     const renderStep2_ConfigureDevices = (scanData) => {
@@ -714,6 +728,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     errorDiv.style.display = 'block';
                 }
             } else {
+                // START OF FIX: Cache the analysis results
+                analysisResultsCache = analysisData;
+                // END OF FIX
                 displayAnalysisResults(analysisData);
             }
         } catch (error) {
@@ -833,6 +850,12 @@ document.addEventListener('DOMContentLoaded', () => {
         logOutput.innerHTML = '';
 
         try {
+            // START OF FIX: Construct the full component data payload
+            const selectedComponentsData = selectedComponentsCache
+                .map(id => allSoftwareCache.find(c => c.id === id))
+                .filter(Boolean); // Filter out any potential nulls
+            // END OF FIX
+
             /** @type {DeploymentResponse} */
             const data = await fetchAPI('/deploy-configuration', {
                 method: 'POST',
@@ -842,14 +865,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     devices: Object.values(managedDeviceCache),
                     components_to_clean: componentsToCleanCache,
                     components_to_restart: componentsToRestartCache,
-                    // FIX: Pass the analysis results to the deployment endpoint
-                    analysis_results: {
-                        external_conflicts: {
-                            ports: [], // This will be fixed in a future refactor
-                            volumes: []
-                        },
-                        resource_warnings: []
-                    }
+                    // START OF FIX: Pass the required data to the backend
+                    analysis_results: analysisResultsCache,
+                    selected_components_data: selectedComponentsData,
+                    global_vars: finalVariablesCache
+                    // END OF FIX
                 }),
             });
 
@@ -869,7 +889,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 const line = event.data;
                 let className = 'text-light';
                 if (line.includes('SUCCESS:')) className = 'text-success';
-                if (line.includes('ERROR:')) { className = 'text-danger'; hasErrors = true; }
+                if (line.includes('ERROR:') || line.includes('FATAL:')) {
+                    className = 'text-danger';
+                    hasErrors = true;
+                }
                 if (line.includes('WARN:')) className = 'text-warning';
                 if (line.includes('---')) className = 'text-info fw-bold';
                 const span = document.createElement('span');
@@ -883,8 +906,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 clearTimeout(watchdogTimer);
                 eventSource.close();
                 if (hasErrors) {
-                    setButtonState(deployButton, false, { text: '<i class="fa-solid fa-triangle-exclamation me-2"></i>Finished with Errors' });
+                    // START OF FIX: Re-assign the button's click handler to show errors
+                    setButtonState(deployButton, false, { text: '<i class="fa-solid fa-triangle-exclamation me-2"></i>Show Error Report' });
                     updateWizardFooter('Deployment completed, but some steps failed.', 'warning');
+                    deployButton.onclick = () => showErrorSummary(taskId);
+                    // END OF FIX
                 } else {
                     setButtonState(deployButton, false, { text: '<i class="fa-solid fa-circle-check me-2"></i>Deployment Finished' });
                     updateWizardFooter('Deployment process completed successfully.', 'success');
@@ -905,6 +931,63 @@ document.addEventListener('DOMContentLoaded', () => {
             updateWizardFooter('Could not start deployment process.', 'danger');
         }
     };
+
+    // START OF FIX: New function to display a modal with the structured error report
+    /** @param {string} taskId */
+    const showErrorSummary = async (taskId) => {
+        const errorBtn = document.getElementById('deploy-button');
+        setButtonState(errorBtn, true, { loadingText: 'Fetching Report...' });
+        try {
+            /** @type {TaskStatus} */
+            const taskData = await fetchAPI(`/task-status/${taskId}`);
+            let errorsHTML = '';
+            if (taskData.errors && taskData.errors.length > 0) {
+                errorsHTML = taskData.errors.map(err => `
+                    <div class="list-group-item">
+                        <div class="d-flex w-100 justify-content-between">
+                            <h6 class="mb-1">${err.summary}</h6>
+                            <small class="text-muted">${err.timestamp}</small>
+                        </div>
+                        <p class="mb-1 small"><strong>Type:</strong> ${err.type}</p>
+                        <p class="mb-1 small"><strong>Details:</strong> ${err.details}</p>
+                        <small class="text-muted">Component: ${err.component_id}</small>
+                    </div>
+                `).join('');
+            } else {
+                errorsHTML = '<p class="text-center">No detailed error information was found for this task.</p>';
+            }
+
+            document.getElementById('error-report-modal')?.remove();
+            const modalHTML = `
+                <div class="modal fade" id="error-report-modal" tabindex="-1" aria-labelledby="errorReportModalLabel" aria-hidden="true">
+                  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+                    <div class="modal-content">
+                      <div class="modal-header">
+                        <h5 class="modal-title" id="errorReportModalLabel">Deployment Error Report</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                      </div>
+                      <div class="modal-body">
+                        <p>The following errors occurred during the deployment process:</p>
+                        <div class="list-group">${errorsHTML}</div>
+                      </div>
+                      <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>`;
+            document.body.insertAdjacentHTML('beforeend', modalHTML);
+            const errorModal = new bootstrap.Modal(document.getElementById('error-report-modal'));
+            errorModal.show();
+        } catch (error) {
+            console.error('Failed to fetch error summary:', error);
+            updateWizardFooter('Could not retrieve the error report.', 'danger');
+        } finally {
+            setButtonState(errorBtn, false, { text: '<i class="fa-solid fa-triangle-exclamation me-2"></i>Show Error Report' });
+        }
+    };
+    // END OF FIX
+
     /** @param {string} taskId */
     const showServicesSummary = async (taskId) => {
         const summaryBtn = document.getElementById('show-summary-btn');

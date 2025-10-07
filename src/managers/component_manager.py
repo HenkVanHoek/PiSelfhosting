@@ -510,13 +510,14 @@ class ComponentManager:
         # Ensure output directory exists
         output_path.mkdir(parents=True, exist_ok=True)
 
-        # Initialize the final docker-compose structure
+        # START OF FIX: Initialize volumes block
         docker_compose_data: Dict[str, Any] = {
-            # CRITICAL FIX (v6.7): Removing the version key entirely from the base
-            # dictionary as per the latest architectural vision.
             "services": {},
             "networks": {"piselfhosting-network": {"external": True}},
+            "volumes": {},
         }
+        # END OF FIX
+
         # The deployment context is a single source of truth for all resolved
         # variables, used later by Discovery methods.
         deployment_context = global_vars.copy()
@@ -545,49 +546,19 @@ class ComponentManager:
                 )
                 continue
 
-            # Merge component's user-provided variables into the global context
-            # The 'global_vars' passed in contains the resolved values for ALL
-            # variables (component-specific or global).
-            # We simply use the component_data (from the configurator's summary)
-            # as a source of truth for the *resolved* variables for this component.
-            # Variables for this component are assumed to be in the 'global_vars'
-            # (which is deployment_context).
-
-            # The full deployment context for rendering this component:
             render_context = deployment_context.copy()
-
-            # Pass the full context to the renderer to get a component-specific YAML
             rendered_yaml = self.render_component_template(component_id, render_context)
-
-            # TEMPORARY DEBUG PRINT:
-            # Show the exact YAML string being passed to the parser
-            # This is critical to see why yaml.safe_load() is returning None/{}
-            if component_id in ["comp-b", "comp-a", "comp-validate"]:
-                print(f"\nDEBUG: RENDERED YAML for {component_id}:")
-                print("--- START RENDERED ---")
-                print(rendered_yaml)
-                print("--- END RENDERED ---\n")
-
             logger.debug(f"Rendered YAML for {component_id}: {rendered_yaml[:100]}...")
 
-            # Parse the rendered YAML content
             try:
                 comp_compose = yaml.safe_load(rendered_yaml)
                 if not isinstance(comp_compose, dict):
-                    # This happens if a generic error string is returned
                     logger.error(
                         f"Rendered content for '{component_id}' is not a valid "
                         f"YAML dictionary. Content: {rendered_yaml}"
                     )
-                    # NOTE: We do not raise ValueError here, because any non-dict
-                    # result is treated as a component with no services/networks
-                    # to merge, which is a safer default. If we need to fail-fast
-                    # we must reintroduce a catchable custom error.
                     comp_compose = {}
             except yaml.YAMLError as e:
-                # The service merging loop MUST NOT crash if a single component fails.
-                # Inject a debug print to capture the specific YAML error
-                print(f"CRITICAL YAML PARSING ERROR for '{component_id}': {e}")
                 logger.error(
                     f"FATAL: Failed to parse YAML for '{component_id}'. Skipping. "
                     f"Error: {e}",
@@ -595,39 +566,41 @@ class ComponentManager:
                 )
                 continue
 
-            # 3. Merge services and networks
+            # 3. Merge services, networks, and volumes
             new_services = comp_compose.get("services", {})
             new_networks = comp_compose.get("networks", {})
+            # START OF FIX: Extract volumes from component's parsed YAML
+            new_volumes = comp_compose.get("volumes", {})
+            # END OF FIX
 
-            # CRITICAL: Check and merge the version key if it exists in the component
-            # template, otherwise, the top-level version remains absent.
             if "version" in comp_compose:
                 docker_compose_data["version"] = comp_compose["version"]
 
-            # CRITICAL: Merge services
             docker_compose_data["services"].update(new_services)
             logger.debug(
                 f"Merged {len(new_services)} services. Total services: "
                 f"{len(docker_compose_data['services'])}"
             )
 
-            # CRITICAL: Merge networks (ensuring we don't overwrite
-            # the base piselfhosting-network)
             for network_name, network_def in new_networks.items():
                 if network_name not in docker_compose_data.get("networks", {}):
-                    # Default to not external if not explicitly defined
                     network_def.setdefault("external", False)
                     docker_compose_data["networks"][network_name] = network_def
 
+            # START OF FIX: Merge the extracted volumes
+            docker_compose_data["volumes"].update(new_volumes)
+            logger.debug(
+                f"Merged {len(new_volumes)} volumes. Total volumes: "
+                f"{len(docker_compose_data['volumes'])}"
+            )
+            # END OF FIX
+
         # 4. Save Artifacts
         logger.info("Writing final artifacts.")
-        # Save docker-compose.yml
         compose_path = output_path / "docker-compose.yml"
         with open(compose_path, "w", encoding="utf-8") as f:
-            # Do not sort keys, as services order matters for legibility/TDD
             yaml.dump(docker_compose_data, f, sort_keys=False)
 
-        # Save deployment_context.json (the full variable list)
         context_path = output_path / "deployment_context.json"
         with open(context_path, "w", encoding="utf-8") as f:
             json.dump(deployment_context, f, indent=2, sort_keys=True)
