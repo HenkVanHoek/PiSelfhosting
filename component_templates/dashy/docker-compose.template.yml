@@ -16,8 +16,6 @@ services:
       - "PGID={{ PGID | default('1000') }}"
       - "TZ={{ TZ | default('Europe/Amsterdam') }}"
       - NODE_ENV=production
-    extra_hosts:
-      - "{{ DOMAIN | default('home.arpa') }}:{{ PISelfhosting_HOST_IP | default('127.0.0.1') }}"
     networks:
       - piselfhosting_net
 networks:

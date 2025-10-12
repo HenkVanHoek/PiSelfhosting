@@ -15,8 +15,6 @@ services:
       - "{{DATA_ROOT}}/downloads:/downloads"
     ports:
       - "8989:8989"
-    extra_hosts:
-      - "{{DOMAIN}}:{{ HOST_IP | default('127.0.0.1') }}"
     networks:
       - piselfhosting_net
 

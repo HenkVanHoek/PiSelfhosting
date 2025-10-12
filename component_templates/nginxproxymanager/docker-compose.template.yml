@@ -20,8 +20,6 @@ services:
       - "DB_MYSQL_NAME=npm_database"
     depends_on:
       - mariadb
-    extra_hosts:
-      - "{{DOMAIN}}:{{ HOST_IP | default('127.0.0.1') }}"
     networks:
       - piselfhosting_net
 

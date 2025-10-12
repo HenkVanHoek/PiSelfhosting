@@ -36,7 +36,8 @@ dependencies = [
     "appdirs",
     "paramiko",
     "argon2-cffi",
-    "passlib"
+    "passlib",
+    "cryptography"
 ]
 
 [tool.setuptools]

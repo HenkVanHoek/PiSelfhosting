@@ -29,17 +29,13 @@ def generate_auth_hash() -> tuple[Response, int]:
         if not isinstance(data, dict):
             return jsonify({"error": "Invalid or missing JSON payload"}), 400
 
-        # Unpack the inputs.
         username = data.get("username")
         password = data.get("password")
 
         if not username or not password:
             return jsonify({"error": "Username and password are required"}), 400
 
-        # Generate the secure user string
         hashed_string = generate_basic_auth_hash(username, password)
-
-        # For a clean API response, we return the raw, unescaped string.
         return jsonify({"hashed_user_string": hashed_string}), 200
 
     except Exception as e:
@@ -54,7 +50,6 @@ def _sort_components(
     ordered = [c for c in components if c["id"] in order_map]
     unordered = [c for c in components if c["id"] not in order_map]
     ordered.sort(key=lambda c: order_map[c["id"]])
-    # Using 'or c.get("id") or ""' ensures the final return is always a str.
     unordered.sort(key=lambda c: c.get("name") or c.get("id") or "")
     return ordered + unordered
 
@@ -166,7 +161,6 @@ def validate_metadata_conflicts(component_id: str) -> tuple[Response, int]:
         if not data:
             return jsonify({"error": "Invalid or missing JSON payload"}), 400
 
-        # Unpacking from payload, defaulting to an empty list
         conflicts_with = data.get("conflicts_with", [])
         if not isinstance(conflicts_with, list):
             return jsonify({"error": "Payload 'conflicts_with' must be a list."}), 400
@@ -175,7 +169,6 @@ def validate_metadata_conflicts(component_id: str) -> tuple[Response, int]:
 
         return jsonify({"message": "Metadata conflict validation successful!"}), 200
     except ValueError as e:
-        # ValueError is raised by ComponentManager on failed conflict check
         return jsonify({"error": str(e)}), 400
     except Exception as e:
         logging.error(
@@ -215,7 +208,6 @@ def delete_group(group_id: str) -> tuple[Response, int]:
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
     except KeyError:
-        # Group not found in metadata
         return jsonify({"error": "Group not found"}), 404
     except Exception as e:
         logging.error(f"Failed to delete group {group_id}: {e}", exc_info=True)
@@ -289,9 +281,7 @@ def component_details(component_id: str) -> Union[tuple[Response, int], Response
             if update_data is None:
                 return jsonify({"error": "Invalid payload"}), 400
 
-            # Safely cast new Traefik metadata fields from string to correct type
             if "has_traefik_support" in update_data:
-                # Ensure boolean conversion: "true" -> True, anything else -> False
                 support_str = update_data["has_traefik_support"]
                 is_supported = str(support_str).lower() == "true"
                 update_data["has_traefik_support"] = is_supported
@@ -299,11 +289,9 @@ def component_details(component_id: str) -> Union[tuple[Response, int], Response
             if "traefik_internal_port" in update_data:
                 port_val = update_data["traefik_internal_port"]
                 try:
-                    # 'null' or None means no specific port is set
                     if port_val is None or str(port_val).lower() == "null":
                         update_data["traefik_internal_port"] = None
                     else:
-                        # Ensure port is an integer
                         update_data["traefik_internal_port"] = int(port_val)
                 except ValueError:
                     return (
@@ -364,15 +352,41 @@ def update_component_variables(component_id: str) -> tuple[Response, int]:
         if payload is None:
             return jsonify({"error": "Invalid payload"}), 400
 
-        # To keep the final variables.json file clean, we remove the 'required'
-        # key if its value is empty/falsey.
-        variables_data = payload.get("variables", [])
-        for var in variables_data:
-            if "required" in var and not var["required"]:
-                del var["required"]
+        # This is the list of simplified variable objects from the frontend
+        new_vars_from_frontend = payload.get("variables", [])
+
+        # --- START OF FIX: NON-DESTRUCTIVE MERGE ---
+        # 1. Read the original, complete variable data for the component.
+        original_details = component_manager.get_component_details(component_id)
+        if not original_details:
+            return jsonify({"error": "Component not found"}), 404
+
+        original_vars_list = original_details.get("required_variables", [])
+        original_vars_map = {v["id"]: v for v in original_vars_list}
+
+        # 2. Intelligently merge the new data into the old data.
+        merged_vars_list = []
+        for new_var in new_vars_from_frontend:
+            var_id = new_var.get("id")
+            if not var_id:
+                continue  # Skip any malformed variables without an ID
+
+            # Get the original, complete variable object if it exists.
+            original_var = original_vars_map.get(var_id, {})
+
+            # Update the original object with new values from the frontend.
+            # This preserves keys like 'options' and 'depends_on'.
+            original_var.update(new_var)
+
+            # Perform cleanup from the original implementation.
+            if "required" in original_var and not original_var["required"]:
+                del original_var["required"]
+
+            merged_vars_list.append(original_var)
+        # --- END OF FIX ---
 
         component_manager.update_component_variables(
-            component_id, {"variables": variables_data}
+            component_id, {"variables": merged_vars_list}
         )
         return jsonify({"message": "Variables updated successfully"}), 200
     except KeyError:

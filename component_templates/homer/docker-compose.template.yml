@@ -8,8 +8,6 @@ services:
     volumes:
       - "{{DATA_ROOT}}/homer/assets:/www/assets"
     # Homer is simple and does not need PUID/PGID/TZ
-    extra_hosts:
-      - "{{DOMAIN}}:{{ HOST_IP | default('127.0.0.1') }}"
     networks:
       - piselfhosting_net
 

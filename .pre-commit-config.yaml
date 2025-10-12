@@ -1,4 +1,4 @@
-# .pre-commit-config.yaml
+# file: .pre-commit-config.yaml
 
 # Exclusion: Directories containing old scripts or generated files.
 # The regex matches any path starting with 'scripts_oud/' OR 'docker/'.
@@ -15,6 +15,9 @@ repos:
     -   id: trailing-whitespace
     # Checks for YAML syntax validity.
     -   id: check-yaml
+        # FIX: Exclude the component_templates directory, as it contains
+        # Jinja2-templated YAML files that are not valid raw YAML.
+        exclude: '^component_templates/'
     # Checks for JSON syntax validity.
     -   id: check-json
     # Checks for TOML syntax validity (good for pyproject.toml).

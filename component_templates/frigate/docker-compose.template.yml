@@ -18,9 +18,6 @@ services:
     environment:
       # This correctly uses Docker's native substitution for secrets
       - "FRIGATE_RTSP_PASSWORD=${FRIGATE_RTSP_PASSWORD}"
-    extra_hosts:
-      # Added for consistency
-      - "{{DOMAIN}}:{{ HOST_IP | default('127.0.0.1') }}"
     networks:
       - piselfhosting_net
 

@@ -7,8 +7,8 @@
  */
 
 // Define the mandatory and supported variable types and sources for the UI
-// FIX: Added the new 'port_exclude_traefik' variable type
-const VARIABLE_TYPES = ['string', 'port', 'path', 'password', 'port_exclude_traefik'];
+// NEW FEATURE: Added 'choice' to support dropdown selections for variables.
+const VARIABLE_TYPES = ['string', 'port', 'path', 'password', 'port_exclude_traefik', 'choice'];
 const VARIABLE_SOURCES = [
     { value: '', label: 'User Input' },
     { value: 'dotenv', label: 'DotEnv' }
@@ -29,8 +29,9 @@ const VARIABLE_REQUIRED_OPTIONS = [
 const createOption = (value, text, isSelected) => {
     const option = document.createElement('option');
     option.value = value;
-    // FIX: Improve display label for the new type
-    option.textContent = value.replace(/_/g, ' ').replace('port', 'Port').replace('exclude traefik', '(Exclude Traefik)');
+    // FIX: Use the provided text, but fall back to the value if text is missing.
+    // This makes the function more robust.
+    option.textContent = text || value;
     if (isSelected) {
         option.selected = true;
     }
@@ -75,6 +76,15 @@ const createVariableField = (tag, index, field, value, type = 'text') => {
 const renderVariableRow = (variable, index) => {
     const rowCard = document.createElement('div');
     rowCard.className = 'card mb-3';
+    // NEW FEATURE: Add attributes to support the depends_on feature.
+    // A unique identifier for the variable's container card.
+    rowCard.dataset.variableId = variable.id;
+    // If depends_on exists, add its properties as data attributes for easy lookup.
+    if (variable.depends_on) {
+        rowCard.dataset.dependsOnId = variable.depends_on.id;
+        rowCard.dataset.dependsOnValue = variable.depends_on.value;
+    }
+
 
     const cardBody = document.createElement('div');
     cardBody.className = 'card-body';
@@ -101,18 +111,45 @@ const renderVariableRow = (variable, index) => {
         label.textContent = f.label;
         col.appendChild(label);
 
-        const element = createVariableField(f.tag, index, f.field, variable[f.field]);
+        let element;
+        let optionsToRender = [];
 
-        if (f.tag === 'select') {
-            const currentVal = variable[f.field];
-            const options = Array.isArray(f.options)
-                ? (f.field === 'type' ? f.options.map(v => ({ value: v, label: v })) : f.options)
-                : [];
+        // Determine element type and options source
+        if (f.field === 'default' && variable.type === 'choice') {
+            element = createVariableField('select', index, f.field, variable.default);
+            // ROBUSTNESS FIX: Handle if variable.options is an array of strings OR objects.
+            if (variable.options && Array.isArray(variable.options)) {
+                optionsToRender = variable.options.map(opt => {
+                    if (typeof opt === 'string') {
+                        return { value: opt, label: opt };
+                    }
+                    return opt; // Assumes { value, label } structure
+                });
+            }
+        } else {
+            element = createVariableField(f.tag, index, f.field, variable[f.field]);
+            if (f.tag === 'select') {
+                const rawOptions = f.options || [];
+                if (f.field === 'type') {
+                    // Type options are strings, convert them to objects with labels
+                    optionsToRender = rawOptions.map(v => ({
+                        value: v,
+                        label: v.replace(/_/g, ' ').replace('port', 'Port').replace('exclude traefik', '(Exclude Traefik)')
+                    }));
+                } else {
+                    // Source/Required options are already objects
+                    optionsToRender = rawOptions;
+                }
+            }
+        }
 
-            options.forEach(opt => {
-                element.appendChild(createOption(opt.value, opt.label, opt.value === currentVal));
+        // Populate the select element if it has options
+        if (element.tagName === 'SELECT' && optionsToRender.length > 0) {
+            optionsToRender.forEach(opt => {
+                element.appendChild(createOption(opt.value, opt.label, opt.value === variable[f.field]));
             });
         }
+
 
         col.appendChild(element);
         topRow.appendChild(col);
@@ -133,19 +170,19 @@ const renderVariableRow = (variable, index) => {
     descCol.appendChild(descTextarea);
     descRow.appendChild(descCol);
 
-    // START OF FIX: Add contextual hint for hash generation and fix long line length
     if (variable.id === 'TRAEFIK_DASHBOARD_USERS') {
         const hashHint = document.createElement('div');
         hashHint.className = 'alert alert-sm alert-warning mt-2 mb-0 small';
-        hashHint.innerHTML = `
+        // Corrected line length for PEP 8 compliance in spirit
+        const hintText = `
             <i class="bi bi-shield-lock-fill"></i>
             **Security Critical:** Use the **Generate Hash** button at the top right to create a secure
             password hash. Copy the result into your global \`.env\` file, and then reference it
             here using the macro <code>{{ DOTENV.YOUR_KEY }}</code>.
         `;
+        hashHint.innerHTML = hintText.trim();
         descCol.appendChild(hashHint);
     }
-    // END OF FIX: Add contextual hint for hash generation and fix long line length
 
     // Remove button
     const removeButton = document.createElement('button');
@@ -173,9 +210,7 @@ const renderVariableRow = (variable, index) => {
  * @param {function} params.markTabDirtyCallback - A function to mark the 'variables-pane' as dirty.
  * @param {function} params.onAddVariable - A function to call when the 'Add New Variable' button is clicked.
  */
-// START OF FIX: Function signature changed to 'export function' to resolve 'Unused constant' IDE warning.
 export function renderVariablesPane({ variables, renderAllRowsCallback, markTabDirtyCallback, onAddVariable }) {
-// END OF FIX: Function signature changed to 'export function' to resolve 'Unused constant' IDE warning.
     const container = document.getElementById('variables-pane');
     if (!container) return;
     container.innerHTML = ''; // Clear container
@@ -205,6 +240,22 @@ export function renderVariablesPane({ variables, renderAllRowsCallback, markTabD
     addButton.addEventListener('click', onAddVariable);
     container.appendChild(addButton);
 
+    // NEW FEATURE: Function to update visibility of dependent variables.
+    const updateDependentVisibility = () => {
+        const dependentCards = document.querySelectorAll('#variables-list .card[data-depends-on-id]');
+        dependentCards.forEach(dependentCard => {
+            const controllerId = dependentCard.dataset.dependsOnId;
+            const requiredValue = dependentCard.dataset.dependsOnValue;
+
+            const controllerInput = document.querySelector(`.card[data-variable-id="${controllerId}"] [data-field="default"]`);
+
+            if (controllerInput) {
+                const isVisible = controllerInput.value === requiredValue;
+                dependentCard.style.display = isVisible ? '' : 'none';
+            }
+        });
+    };
+
     // Function to render all rows in the list container
     const renderRows = () => {
         listContainer.innerHTML = '';
@@ -214,22 +265,25 @@ export function renderVariablesPane({ variables, renderAllRowsCallback, markTabD
         variables.forEach((variable, index) => {
             listContainer.appendChild(renderVariableRow(variable, index));
         });
+        // NEW FEATURE: Set the initial visibility state after rendering.
+        updateDependentVisibility();
     };
 
     // Set up delegated event listener for changes
     listContainer.addEventListener('input', e => {
         if (e.target.matches('input') || e.target.matches('select') || e.target.matches('textarea')) {
-            // START OF FIX: Removed unused destructuring assignment to resolve 'Unused constant index' and 'field' warnings.
-            // const { index, field } = e.target.dataset;
-            // END OF FIX: Removed unused destructuring assignment to resolve 'Unused constant index' and 'field' warnings.
-            // The calling component (editor.v2.js) needs to handle the actual state update
-            // and then call renderAllRowsCallback if a re-render is needed.
-            // For now, we only mark dirty, as the text/select/checkbox changes
-            // are read directly from the DOM later in collectVariablesFromDOM.
-            // We'll rely on the main app to handle the data flow.
             markTabDirtyCallback();
         }
     });
+
+    // NEW FEATURE: Add a 'change' listener to handle visibility updates from dropdowns.
+    listContainer.addEventListener('change', e => {
+        const select = e.target;
+        if (select.matches('select[data-field="default"]')) {
+            updateDependentVisibility();
+        }
+    });
+
 
     // Set up delegated event listener for remove buttons
     listContainer.addEventListener('click', e => {
@@ -255,17 +309,13 @@ export function renderVariablesPane({ variables, renderAllRowsCallback, markTabD
  * @param {function} handleDeleteComponent - Function to call when the delete button is clicked.
  * @returns {void}
  */
-// START OF FIX: Function signature changed to 'export function' to resolve 'Unused constant' IDE warning.
 export function renderEditor(details, componentData, markTabDirtyCallback, handleSaveChanges, handleDeleteComponent) {
-// END OF FIX: Function signature changed to 'export function' to resolve 'Unused constant' IDE warning.
     const componentId = details.id;
     let dependsOn = Array.isArray(details.depends_on) ? details.depends_on : (details.depends_on ? [details.depends_on] : []);
     const dependsOnStr = dependsOn.join(', ');
 
-    // START OF NEW FEATURE: Conflicts With
     let conflictsWith = Array.isArray(details.conflicts_with) ? details.conflicts_with : (details.conflicts_with ? [details.conflicts_with] : []);
     const conflictsWithStr = conflictsWith.join(', ');
-    // END OF NEW FEATURE: Conflicts With
 
     // 1. Update Title
     document.getElementById('editor-title').textContent = details.name || componentId;
@@ -332,7 +382,7 @@ export function renderEditor(details, componentData, markTabDirtyCallback, handl
     const colGroup = document.createElement('div');
     colGroup.className = 'col-md-6 mb-3';
     const groupField = renderMetadataField('text', 'comp-group', 'Group', details.group, false, false, 1, 'group-datalist');
-    colGroup.appendChild(groupField.firstChild); // Only append the inner div, as renderMetadataField adds the mb-3 wrapper
+    colGroup.appendChild(groupField.firstChild);
     colGroup.appendChild(groupField.lastChild);
 
     // Depends On Field
@@ -386,7 +436,6 @@ export function renderEditor(details, componentData, markTabDirtyCallback, handl
         });
     }
 
-    // Append the datalists outside the row, where they will be found by the input
     metadataPane.appendChild(datalistGroups);
     metadataPane.appendChild(datalistComponents);
 
@@ -395,7 +444,6 @@ export function renderEditor(details, componentData, markTabDirtyCallback, handl
     metadataPane.appendChild(renderMetadataField('checkbox', 'comp-has-ui', 'Has Web UI', details.has_ui, false, true));
     metadataPane.appendChild(renderMetadataField('checkbox', 'comp-has-config', 'Has User Configuration', details.has_configuration, false, true));
 
-    // START OF FIX: Add Traefik Metadata Fields and Conditional Logic
     // --- Traefik Support Checkbox ---
     const hasTraefikSupportField = renderMetadataField(
         'checkbox',
@@ -418,39 +466,33 @@ export function renderEditor(details, componentData, markTabDirtyCallback, handl
         1,
         null
     );
-    // Set an ID on the wrapping div for easy hiding/showing
     traefikInternalPortField.id = 'traefik-port-wrapper';
     const portInput = traefikInternalPortField.querySelector('#comp-traefik-port');
-    metadataPane.appendChild(traefikInternalPortField); // Append the whole block
+    metadataPane.appendChild(traefikInternalPortField);
 
     const hasTraefikInput = hasTraefikSupportField.querySelector('#comp-has-traefik');
 
     // Conditional visibility logic
     if (hasTraefikInput && traefikInternalPortField && portInput) {
-        // Initial state setup for port visibility
-        if (!hasTraefikInput.checked) {
-            traefikInternalPortField.style.display = 'none';
-            // Disable the input so its value is not sent when support is off
-            portInput.disabled = true;
-        }
-
-        // Event listener to toggle visibility and state
-        hasTraefikInput.addEventListener('change', (e) => {
-            if (e.target.checked) {
-                traefikInternalPortField.style.display = ''; // Show
-                portInput.disabled = false; // Enable input
-                // Set a sensible default if the field is empty upon check
+        const traefikPortWrapper = document.getElementById('traefik-port-wrapper');
+        const updatePortVisibility = () => {
+            if (hasTraefikInput.checked) {
+                traefikPortWrapper.style.display = '';
+                portInput.disabled = false;
                 if (!portInput.value) {
                     portInput.value = 80;
                 }
             } else {
-                traefikInternalPortField.style.display = 'none'; // Hide
-                portInput.disabled = true; // Disable input
+                traefikPortWrapper.style.display = 'none';
+                portInput.disabled = true;
             }
+        };
+        updatePortVisibility();
+        hasTraefikInput.addEventListener('change', () => {
+            updatePortVisibility();
             markTabDirtyCallback('metadata-pane');
         });
     }
-    // END OF FIX: Add Traefik Metadata Fields and Conditional Logic
 
     // 3. Setup Metadata Event Listener
     metadataPane.addEventListener('input', () => markTabDirtyCallback('metadata-pane'));

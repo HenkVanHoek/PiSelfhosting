@@ -1,6 +1,7 @@
 # IDE / Editor / OS-specific files
 #-----------------------------------------
 .idea/
+!.idea/templates.xml
 *.swp
 *.swo
 *.bak

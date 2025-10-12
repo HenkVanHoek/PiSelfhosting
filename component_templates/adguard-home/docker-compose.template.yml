@@ -12,8 +12,6 @@ services:
     volumes:
       - "{{DATA_ROOT}}/adguard-home/work:/opt/adguardhome/work"
       - "{{DATA_ROOT}}/adguard-home/config:/opt/adguardhome/conf"
-    extra_hosts:
-      - "{{DOMAIN}}:{{ HOST_IP | default('127.0.0.1') }}"
     networks:
       - piselfhosting_net
 

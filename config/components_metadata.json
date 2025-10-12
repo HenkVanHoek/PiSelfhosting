@@ -256,6 +256,7 @@
       "name": "Pi-hole",
       "project_url": "https://pi-hole.net/",
       "protocol": "http",
+      "traefik_host_variable": "VIRTUAL_HOST",
       "traefik_internal_port": 80,
       "ui_port_variable": "PIHOLE_WEB_PORT"
     },
@@ -363,24 +364,29 @@
       "protocol": "http"
     },
     "test-playwright": {
+      "component_version": "latest",
       "depends_on": [],
       "description": "My first test of playwright",
       "group": "general",
       "has_configuration": true,
       "has_ui": false,
+      "image_name": "mcr.microsoft.com/playwright",
       "name": "Test Playwright"
     },
     "traefik": {
-      "component_version": "v3.0",
+      "component_version": "latest",
+      "conflicts_with": [],
       "depends_on": [],
       "description": "A modern, cloud-native reverse proxy and load balancer that automatically discovers services.",
       "group": "reverse_proxy",
       "has_configuration": true,
+      "has_traefik_support": false,
       "has_ui": true,
       "image_name": "traefik",
       "name": "Traefik",
       "project_url": "https://traefik.io/traefik/",
       "protocol": "http",
+      "traefik_internal_port": null,
       "ui_port_variable": "TRAEFIK_WEB_PORT"
     },
     "unbound": {
@@ -407,11 +413,13 @@
       "protocol": "https"
     },
     "uptime-kuma": {
+      "component_version": "latest",
       "depends_on": [],
       "description": " A self-hosted monitoring tool for proactive health checks and notifications via email, Telegram, and more",
       "group": "System Tools",
       "has_configuration": true,
       "has_ui": true,
+      "image_name": "louislam/uptime-kuma",
       "name": "Uptime Kuma",
       "ui_port_variable": "UPTIME_KUMA_WEB_PORT"
     },

@@ -1,6 +1,6 @@
 # PiSelfhosting: Data Contracts
 
-**Version:** 1.6
+**Version:** 1.7
 **Status:** Active
 
 This document is the Single Source of Truth (SST) for the schema of all
@@ -23,11 +23,13 @@ array of variable objects, where each object has the following properties:
 | `id`          | `string` | Yes      | The unique identifier for the variable. This is used as the key in the `.env` file and for template substitution (e.g., `{{ MY_VARIABLE_ID }}`). By convention, this should be uppercase.                                                                                                                                                   |
 | `label`       | `string` | No       | A short, human-readable name for the UI. If not provided, the UI will derive a title from the `id`.                                                                                                                                                                                                                                       |
 | `description` | `string` | Yes      | A detailed, user-facing explanation of what the variable is for, including any security implications, required formats, or default behaviors. This is a critical field for ensuring correct configuration.                                                                                                                             |
-| `type`        | `string` | Yes      | The data type of the input, which controls the UI rendering. Valid options are: `text`, `password`.                                                                                                                                                                                                                                     |
+| `type`        | `string` | Yes      | The data type of the input, which controls the UI rendering. Valid options are: `text`, `password`, `choice`.                                                                                                                                                                                                                                     |
 | `default`     | `string` | No       | The default value to pre-populate in the UI input field.                                                                                                                                                                                                                                                                                  |
-| `options`     | `array`  | No       | An array of strings used to populate a `<select>` dropdown. If present, the `type` should be `select`.                                                                                                                                                                                                                                    |
+| `options`     | `array`  | **Yes** (if `type` is `choice`) | An array of strings used to populate a `<select>` dropdown.                                                                                                                                                                                                                                    |
 | `required`    | `string` | No       | Determines when the field is mandatory. Valid options are `always` or `clean-install`.                                                                                                                                                                                                                                                  |
 | `source`      | `string` | No       | **(New)** Specifies the source of the variable's value. If omitted, the value is expected from user input. The only valid option is: <ul><li>`dotenv`: Instructs the UI to render a disabled field, indicating the value is managed securely on the backend via the project's `.env` file. This prevents secrets from being entered in the UI.</li></ul> |
+| `depends_on`  | `object` | No       | **(New)** An object that defines a conditional dependency for displaying this variable in the UI. The object must contain: `variable` (the `id` of the controlling variable) and `value` (the value the controlling variable must have for this field to be visible). |
+
 
 ---
 
@@ -243,4 +245,4 @@ This is the final payload sent to initiate the deployment.
 | `output_path`| `string`| Yes      | The local file system path where configuration artifacts were generated.                      |
 | `devices`  | `array<Target Device Contract>`| Yes | The list of target devices.                                                         |
 | `components_to_clean`| `array<string>`| No | List of component IDs whose containers should be stopped and removed pre-deployment.        |
-| `components_to_restart`| `array<string>`| No | List of component IDs whose containers should be gracefully restarted (TBD).                |```
+| `components_to_restart`| `array<string>`| No | List of component IDs whose containers should be gracefully restarted (TBD).                |

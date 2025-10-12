@@ -371,14 +371,10 @@ class DeploymentManager:
                 if port:
                     protocol = component_meta.get("protocol", "http")
                     url = f"{protocol}://{ip}:{port}"
-                    # START OF MYPY FIX
-                    # Use the component's ID as a fallback for the name to guarantee
-                    # a string value, which satisfies the function's return type.
                     component_name = component_meta.get("name") or component_meta.get(
                         "id", "Unknown Service"
                     )
                     service_links.append({"name": str(component_name), "url": url})
-                    # END OF MYPY FIX
 
             log_text = (
                 f"SUCCESS: Found {len(service_links)} web UIs."
@@ -604,18 +600,29 @@ class DeploymentManager:
                 )
                 return
 
-            exit_code, home_output = ssh.execute_command("echo $HOME", log_callback)
-            home = home_output.strip() if home_output else None
-
-            if exit_code != 0 or not home:
+            # FIX START: Use 'pwd' for a robust remote home directory check.
+            exit_code, home_output = ssh.execute_command("pwd", log_callback)
+            if exit_code != 0:
                 self._report_error(
                     tasks_dict,
                     task_id,
-                    "SSH:Runtime",
+                    "SSH:CommandFailed",
                     "Could not determine remote home directory.",
-                    f"'echo $HOME' failed with exit code {exit_code}.",
+                    f"The 'pwd' command failed with exit code {exit_code}.",
                 )
                 return
+
+            home = home_output.strip() if home_output else None
+            if not home:
+                self._report_error(
+                    tasks_dict,
+                    task_id,
+                    "SSH:EmptyResponse",
+                    "Could not determine remote home directory.",
+                    "The 'pwd' command succeeded but returned an empty path.",
+                )
+                return
+            # FIX END
 
             remote_dir = Path(home) / "piselfhosting_deployment"
             if not self._transfer_and_extract_archive(

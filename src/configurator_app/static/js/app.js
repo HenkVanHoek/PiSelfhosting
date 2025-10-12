@@ -88,6 +88,7 @@ document.addEventListener('DOMContentLoaded', () => {
      * @property {string[]} [depends_on]
      * @property {boolean} [post_install_restart_option]
      * @property {ComponentVariable[]} required_variables
+     * @property {boolean} has_traefik_support
      */
 
     /**
@@ -133,9 +134,11 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const response = await fetch(url, options);
             if (!response.ok) {
+                // Try to get detailed error, fall back to a generic one.
                 const errorData = await response.json().catch(() => ({}));
-                const message = errorData.error || `Request failed with status ${response.status}`;
-                return Promise.reject({ message });
+                // The backend now sends a rich error object. Prioritize the 'details' field.
+                const message = errorData.details || errorData.error || `Request failed with status ${response.status}`;
+                return Promise.reject({ message, details: errorData.details });
             }
             return response.json();
         } catch (networkError) {
@@ -177,18 +180,19 @@ document.addEventListener('DOMContentLoaded', () => {
     let finalVariablesCache = {};
     let componentsToCleanCache = [];
     let componentsToRestartCache = [];
-    // START OF FIX: Cache for analysis results
     /** @type {SystemAnalysisResponse | {}} */
     let analysisResultsCache = {};
-    // END OF FIX
 
     /** @param {ScanData} scanData */
     const renderStep2_ConfigureDevices = (scanData) => {
         wizardHeader.innerHTML = '<strong>Step 2 of 5: Configure Your Devices</strong>';
         updateWizardFooter('Enter the SSH credentials for the devices you want to manage.');
-        const popoverContent = `The scanner looks for two types of devices:
+        const popoverContent = `
+            The scanner looks for two types of devices:
             1. Physical Raspberry Pis by checking for a hardware model file.
-            2. PiSelfhosting Virtual Pis by checking for the '/etc/piselfhosting-virtual-pi-server' file inside the guest OS.`;
+            2. PiSelfhosting Virtual Pis by checking for the
+               '/etc/piselfhosting-virtual-pi-server' file inside the guest OS.
+        `.trim();
         wizardBody.innerHTML = `
             <div class="text-start">
                 <h2 class="h4 text-center">
@@ -204,12 +208,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 </p>
                 <div class="card card-body bg-light mb-4">
                     <h3 class="h6">Common Actions</h3>
-                    <p class="small text-muted">Use these fields to apply credentials to all devices, or to clear all selections.</p>
+                    <p class="small text-muted">
+                        Use these fields to apply credentials to all devices, or to clear all selections.
+                    </p>
                     <div class="row g-2">
-                        <div class="col-sm-4"><input type="text" class="form-control form-control-sm" id="master-username" placeholder="Username"></div>
-                        <div class="col-sm-4"><input type="password" class="form-control form-control-sm" id="master-password" placeholder="Password"></div>
-                        <div class="col-sm-2 d-grid"><button class="btn btn-secondary btn-sm" id="apply-to-all-btn">Apply</button></div>
-                        <div class="col-sm-2 d-grid"><button class="btn btn-outline-secondary btn-sm" id="deselect-all-btn">Clear All</button></div>
+                        <div class="col-sm-4">
+                            <input type="text" class="form-control form-control-sm" id="master-username" placeholder="Username">
+                        </div>
+                        <div class="col-sm-4">
+                            <input type="password" class="form-control form-control-sm" id="master-password" placeholder="Password">
+                        </div>
+                        <div class="col-sm-2 d-grid">
+                            <button class="btn btn-secondary btn-sm" id="apply-to-all-btn">Apply</button>
+                        </div>
+                        <div class="col-sm-2 d-grid">
+                            <button class="btn btn-outline-secondary btn-sm" id="deselect-all-btn">Clear All</button>
+                        </div>
                     </div>
                 </div>
                 <div id="device-cards-container" class="row row-cols-1 row-cols-md-2 row-cols-lg-3 row-cols-xl-4 g-4"></div>
@@ -229,7 +243,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="card h-100 device-card" data-ip="${host.ip}" data-hostname="${host.hostname || 'Unknown Host'}">
                     <div class="card-body d-flex flex-column">
                         <div class="d-flex justify-content-between align-items-start mb-2">
-                            <h5 class="card-title mb-0 me-3">
+                            <h5 class="card-title mb-0 me-3 text-break">
                                 <i class="fa-solid fa-server me-2"></i>${host.hostname || 'Unknown Host'}
                             </h5>
                             <div class="form-check form-switch text-nowrap">
@@ -239,9 +253,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         </div>
                         <p class="card-text text-muted small">IP: ${host.ip} | MAC: ${host.mac}</p>
                         <div class="row g-2">
-                            <!-- FIX: Add disabled attribute to fields as default is unmanaged (OFF) -->
-                            <div class="col-sm-6"><input type="text" class="form-control form-control-sm device-username" placeholder="Username" disabled></div>
-                            <div class="col-sm-6"><input type="password" class="form-control form-control-sm device-password" placeholder="Password" disabled></div>
+                            <div class="col-sm-6">
+                                <input type="text" class="form-control form-control-sm device-username" placeholder="Username" disabled>
+                            </div>
+                            <div class="col-sm-6">
+                                <input type="password" class="form-control form-control-sm device-password" placeholder="Password" disabled>
+                            </div>
                         </div>
                         <div class="hardware-details mt-auto pt-3" style="font-size: 0.8rem; display: none;"></div>
                     </div>
@@ -253,36 +270,31 @@ document.addEventListener('DOMContentLoaded', () => {
             container.appendChild(cardWrapper);
         });
 
-        // FIX: Add logic to toggle disabled state on switch change
         document.querySelectorAll('.device-card').forEach(card => {
-            const manageSwitch = card.querySelector('[type="checkbox"]');
-            const usernameInput = card.querySelector('.device-username');
-            const passwordInput = card.querySelector('.device-password');
+            const manageSwitch = /** @type {HTMLInputElement} */ (card.querySelector('[type="checkbox"]'));
+            const usernameInput = /** @type {HTMLInputElement} */ (card.querySelector('.device-username'));
+            const passwordInput = /** @type {HTMLInputElement} */ (card.querySelector('.device-password'));
 
             if (manageSwitch && usernameInput && passwordInput) {
-                // Function to toggle disabled state
-                const toggleDisabled = () => {
-                    const isDisabled = !(/** @type {HTMLInputElement} */ (manageSwitch)).checked;
+                const handleSwitchChange = () => {
+                    const isDisabled = !manageSwitch.checked;
                     usernameInput.disabled = isDisabled;
                     passwordInput.disabled = isDisabled;
+                    if (manageSwitch.checked) {
+                        usernameInput.focus();
+                    }
                 };
+                manageSwitch.addEventListener('change', handleSwitchChange);
 
-                // Add event listener to the switch
-                manageSwitch.addEventListener('change', toggleDisabled);
-
-                // Add event listeners to the input fields for the 'Autoforce ON' behavior
                 [usernameInput, passwordInput].forEach(input => {
                     input.addEventListener('input', () => {
-                        // If the switch is OFF and the user starts typing, force it ON
-                        if (!(/** @type {HTMLInputElement} */ (manageSwitch)).checked && input.value.length > 0) {
-                            (/** @type {HTMLInputElement} */ (manageSwitch)).checked = true;
-                            toggleDisabled(); // Re-run to update disabled state immediately
+                        if (!manageSwitch.checked && input.value.length > 0) {
+                            manageSwitch.checked = true;
+                            handleSwitchChange();
                         }
                     });
                 });
-
-                // Initial state update (redundant here, but good practice)
-                toggleDisabled();
+                handleSwitchChange();
             }
         });
 
@@ -338,7 +350,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     <hr class="my-2">
                     <span><i class="fa-solid fa-microchip me-1"></i> Serial: ${details.serial || 'N/A'}</span><br>
                     <span><i class="fa-solid fa-memory me-1"></i> RAM: ${details.ram || 'N/A'}</span><br>
-                    <span><i class="fa-solid fa-hard-drive me-1"></i> Disk: ${diskInfo ? `${diskInfo.size} (${diskInfo.pcent} used)` : 'N/A'}</span>
+                    <span>
+                        <i class="fa-solid fa-hard-drive me-1"></i>
+                        Disk: ${diskInfo ? `${diskInfo.size} (${diskInfo.pcent} used)` : 'N/A'}
+                    </span>
                 `;
                 detailsEl.style.display = 'block';
             })
@@ -354,7 +369,12 @@ document.addEventListener('DOMContentLoaded', () => {
         await Promise.allSettled(promises);
 
         if (Object.keys(managedDeviceCache).length > 0) {
-            actionArea.innerHTML = `<button id="proceed-to-step3-btn" class="btn btn-success btn-lg"><i class="fa-solid fa-arrow-right-to-bracket me-2"></i> Proceed to Software Selection</button>`;
+            actionArea.innerHTML = `
+                <button id="proceed-to-step3-btn" class="btn btn-success btn-lg">
+                    <i class="fa-solid fa-arrow-right-to-bracket me-2"></i>
+                    Proceed to Software Selection
+                </button>
+            `;
             updateWizardFooter(`Found ${Object.keys(managedDeviceCache).length} manageable device(s). Ready to proceed.`, 'success');
             document.getElementById('proceed-to-step3-btn').addEventListener('click', renderStep3_SelectSoftware);
         } else {
@@ -364,14 +384,15 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     /** @param {Component} component
-     * @param groupName
-     * @param type
+     * @param {string} groupName
+     * @param {string} type
      */
     const createComponentInput = (component, groupName, type) => {
         const inputName = type === 'radio' ? `group-${groupName}` : `component-${component.id}`;
         return `
             <div class="form-check mb-2">
-                <input class="form-check-input" type="${type}" name="${inputName}" value="${component.id}" id="comp-${component.id}" ${component.default ? 'checked' : ''}>
+                <input class="form-check-input" type="${type}" name="${inputName}"
+                       value="${component.id}" id="comp-${component.id}" ${component.default ? 'checked' : ''}>
                 <label class="form-check-label" for="comp-${component.id}"><strong>${component.name}</strong></label>
             </div>
             <p class="card-text small text-muted ms-4 mb-3">${component.description}</p>
@@ -380,7 +401,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const renderStep3_SelectSoftware = async () => {
         wizardHeader.innerHTML = '<strong>Step 3 of 5: Select Software</strong>';
-        wizardBody.innerHTML = `<div class="text-center"><i class="fa-solid fa-spinner fa-spin fa-2x text-muted"></i><p class="mt-2">Loading available software...</p></div>`;
+        wizardBody.innerHTML = `
+            <div class="text-center">
+                <i class="fa-solid fa-spinner fa-spin fa-2x text-muted"></i>
+                <p class="mt-2">Loading available software...</p>
+            </div>
+        `;
         updateWizardFooter('Choose software to install. Selections in a category are mutually exclusive.');
 
         try {
@@ -404,7 +430,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
             Object.keys(groups).forEach((groupName) => {
                 const tabId = `tab-${groupName.replace(/\s+/g, '-')}`;
-                tabNavHTML += `<li class="nav-item" role="presentation"><button class="nav-link ${active}" data-bs-toggle="tab" data-bs-target="#${tabId}" type="button">${groupName}</button></li>`;
+                tabNavHTML += `
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link ${active}" data-bs-toggle="tab" data-bs-target="#${tabId}" type="button">
+                            ${groupName}
+                        </button>
+                    </li>`;
                 tabContentHTML += `<div class="tab-pane fade show ${active} p-3" id="${tabId}" role="tabpanel">`;
                 groups[groupName].forEach(compId => {
                     const component = allSoftwareCache.find(c => c.id === compId);
@@ -414,7 +445,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 active = '';
             });
 
-            tabNavHTML += `<li class="nav-item" role="presentation"><button class="nav-link ${active}" data-bs-toggle="tab" data-bs-target="#tab-standalone" type="button">Standalone</button></li>`;
+            tabNavHTML += `
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link ${active}" data-bs-toggle="tab" data-bs-target="#tab-standalone" type="button">
+                        Standalone
+                    </button>
+                </li>
+            `;
             tabContentHTML += `<div class="tab-pane fade show ${active} p-3" id="tab-standalone" role="tabpanel">`;
             allSoftwareCache.forEach(component => {
                 if (!allGroupedComponents.has(component.id)) {
@@ -428,11 +465,15 @@ document.addEventListener('DOMContentLoaded', () => {
             wizardBody.innerHTML = `
                 <div class="text-start">
                     <h2 class="h4 text-center">Select Software</h2>
-                    <p class="text-muted text-center small mb-4">Select the software you wish to install on your ${Object.keys(managedDeviceCache).length} selected device(s).</p>
+                    <p class="text-muted text-center small mb-4">
+                        Select the software you wish to install on your ${Object.keys(managedDeviceCache).length} selected device(s).
+                    </p>
                     ${tabNavHTML}
                     ${tabContentHTML}
                     <div class="d-grid gap-2 col-8 mx-auto my-4">
-                        <button id="proceed-to-step4-btn" class="btn btn-primary btn-lg"><i class="fa-solid fa-sliders me-2"></i> Configure Services</button>
+                        <button id="proceed-to-step4-btn" class="btn btn-primary btn-lg">
+                            <i class="fa-solid fa-sliders me-2"></i> Configure Services
+                        </button>
                     </div>
                 </div>
             `;
@@ -547,7 +588,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         <h2 class="h4 text-center">Configure Services</h2>
                         <p class="text-center text-muted">The selected software requires no additional configuration.</p>
                         <div class="d-grid gap-2 col-8 mx-auto my-4">
-                           <button id="review-selection-btn" class="btn btn-primary btn-lg"><i class="fa-solid fa-clipboard-check me-2"></i> Review and Confirm</button>
+                           <button id="review-selection-btn" class="btn btn-primary btn-lg">
+                                <i class="fa-solid fa-clipboard-check me-2"></i> Review and Confirm
+                           </button>
                         </div>
                     </div>
                 `;
@@ -575,19 +618,28 @@ document.addEventListener('DOMContentLoaded', () => {
                     tabContentHTML += '<p class="text-center text-muted pt-4">This component requires no variable configuration.</p>';
                 }
 
-                tabContentHTML += `<hr>
+                tabContentHTML += `
+                    <hr>
                     <div class="form-check mt-3">
                         <input class="form-check-input clean-install-checkbox" type="checkbox" id="clean-install-checkbox-${compId}" data-comp-id="${compId}">
-                        <label class="form-check-label" for="clean-install-checkbox-${compId}"><strong>Perform a clean reinstallation</strong></label>
-                        <div class="form-text small">This will permanently delete all existing data and settings for this service before deploying.</div>
+                        <label class="form-check-label" for="clean-install-checkbox-${compId}">
+                            <strong>Perform a clean reinstallation</strong>
+                        </label>
+                        <div class="form-text small">
+                            This will permanently delete all existing data and settings for this service before deploying.
+                        </div>
                     </div>`;
 
                 if (fullComponentData.post_install_restart_option) {
                     tabContentHTML += `
                         <div class="form-check mt-3">
                             <input class="form-check-input restart-checkbox" type="checkbox" id="restart-checkbox-${compId}" data-comp-id="${compId}">
-                            <label class="form-check-label" for="restart-checkbox-${compId}"><strong>Restart container after installation</strong></label>
-                            <div class="form-text small">Recommended for services that require a restart to initialize properly.</div>
+                            <label class="form-check-label" for="restart-checkbox-${compId}">
+                                <strong>Restart container after installation</strong>
+                            </label>
+                            <div class="form-text small">
+                                Recommended for services that require a restart to initialize properly.
+                            </div>
                         </div>`;
                 }
                 tabContentHTML += '</div>';
@@ -600,14 +652,18 @@ document.addEventListener('DOMContentLoaded', () => {
             wizardBody.innerHTML = `
                 <div class="text-start">
                     <h2 class="h4 text-center">Configure Services</h2>
-                    <p class="text-muted text-center small mb-4">Provide the required settings for your selected software.</p>
+                    <p class="text-muted text-center small mb-4">
+                        Provide the required settings for your selected software.
+                    </p>
                     <div class="row">
                         <div class="col-md-3">${navPillsHTML}</div>
                         <div class="col-md-9"><div id="variables-container">${tabContentHTML}</div></div>
                     </div>
                     <div class="d-grid gap-2 col-8 mx-auto my-4">
                         <div id="config-error-display" class="alert alert-danger" style="display: none;" role="alert"></div>
-                        <button id="review-selection-btn" class="btn btn-primary btn-lg"><i class="fa-solid fa-clipboard-check me-2"></i> Review and Confirm</button>
+                        <button id="review-selection-btn" class="btn btn-primary btn-lg">
+                            <i class="fa-solid fa-clipboard-check me-2"></i> Review and Confirm
+                        </button>
                     </div>
                 </div>
             `;
@@ -627,29 +683,65 @@ document.addEventListener('DOMContentLoaded', () => {
         let isBlocked = false;
 
         analysisData.resource_warnings?.forEach(w => {
-            warningsHTML += `<li class="list-group-item"><i class="fa-solid fa-triangle-exclamation text-warning me-2"></i><strong>${w.type} Warning:</strong> ${w.message}</li>`;
+            warningsHTML += `
+                <li class="list-group-item">
+                    <i class="fa-solid fa-triangle-exclamation text-warning me-2"></i>
+                    <strong>${w.type} Warning:</strong> ${w.message}
+                </li>`;
         });
 
         analysisData.external_conflicts?.ports?.forEach(p => {
             if (p.conflict_type === 'EXPECTED_REINSTALLATION') {
-                expectedChangesHTML += `<li class="list-group-item"><i class="fa-solid fa-arrows-rotate text-info me-2"></i><strong>Port ${p.port} Re-use:</strong> The existing service <strong>${p.conflicting_service}</strong> will be stopped and replaced by <strong>${p.proposed_service}</strong>.</li>`;
+                expectedChangesHTML += `
+                    <li class="list-group-item">
+                        <i class="fa-solid fa-arrows-rotate text-info me-2"></i>
+                        <strong>Port ${p.port} Re-use:</strong>
+                        The existing service <strong>${p.conflicting_service}</strong> will be stopped and replaced by
+                        <strong>${p.proposed_service}</strong>.
+                    </li>`;
             } else {
                 isBlocked = true;
                 const icon = p.conflict_type === 'DANGEROUS_NATIVE_PROCESS_CONFLICT' ? 'fa-shield-halved' : 'fa-network-wired';
-                blockingConflictsHTML += `<li class="list-group-item"><i class="fa-solid ${icon} text-danger me-2"></i><strong>Port ${p.port} Conflict:</strong> This port is already in use by a critical service: <strong>${p.conflicting_service}</strong>. You must change the port for <strong>${p.proposed_service}</strong> to continue.</li>`;
+                blockingConflictsHTML += `
+                    <li class="list-group-item">
+                        <i class="fa-solid ${icon} text-danger me-2"></i>
+                        <strong>Port ${p.port} Conflict:</strong>
+                        This port is already in use by a critical service: <strong>${p.conflicting_service}</strong>.
+                        You must change the port for <strong>${p.proposed_service}</strong> to continue.
+                    </li>`;
             }
         });
 
         analysisData.external_conflicts?.volumes?.forEach(v => {
-            warningsHTML += `<li class="list-group-item"><i class="fa-solid fa-folder-open text-warning me-2"></i><strong>Shared Volume:</strong> The path <strong>${v.volume_path}</strong> is already in use and will be shared with <strong>${v.proposed_service}</strong>. This is usually safe but be aware.</li>`;
+            warningsHTML += `
+                <li class="list-group-item">
+                    <i class="fa-solid fa-folder-open text-warning me-2"></i>
+                    <strong>Shared Volume:</strong> The path <strong>${v.volume_path}</strong> is already in use and
+                    will be shared with <strong>${v.proposed_service}</strong>. This is usually safe but be aware.
+                </li>`;
         });
 
         const modalBodyHTML = `
-            ${isBlocked ? `<div class="alert alert-danger" role="alert"><h4 class="alert-heading">Action Required</h4><p>One or more blocking conflicts were detected. Please review the items below and adjust your configuration before proceeding.</p></div>` : ''}
-            ${blockingConflictsHTML ? `<h5><i class="fa-solid fa-ban me-2"></i>Blocking Conflicts</h5><ul class="list-group mb-4">${blockingConflictsHTML}</ul>` : ''}
-            ${expectedChangesHTML ? `<h5><i class="fa-solid fa-info-circle me-2"></i>Expected Changes</h5><ul class="list-group mb-4">${expectedChangesHTML}</ul>` : ''}
-            ${warningsHTML ? `<h5><i class="fa-solid fa-triangle-exclamation me-2"></i>Warnings</h5><ul class="list-group mb-2">${warningsHTML}</ul>` : ''}
-            ${!blockingConflictsHTML && !expectedChangesHTML && !warningsHTML ? '<p class="text-center text-success"><i class="fa-solid fa-check-circle me-2"></i>No conflicts or warnings found. Your configuration looks good to go!</p>' : ''}
+            ${isBlocked ? `
+                <div class="alert alert-danger" role="alert">
+                    <h4 class="alert-heading">Action Required</h4>
+                    <p>One or more blocking conflicts were detected. Please review the items below and adjust your
+                       configuration before proceeding.</p>
+                </div>` : ''}
+            ${blockingConflictsHTML ? `
+                <h5><i class="fa-solid fa-ban me-2"></i>Blocking Conflicts</h5>
+                <ul class="list-group mb-4">${blockingConflictsHTML}</ul>` : ''}
+            ${expectedChangesHTML ? `
+                <h5><i class="fa-solid fa-info-circle me-2"></i>Expected Changes</h5>
+                <ul class="list-group mb-4">${expectedChangesHTML}</ul>` : ''}
+            ${warningsHTML ? `
+                <h5><i class="fa-solid fa-triangle-exclamation me-2"></i>Warnings</h5>
+                <ul class="list-group mb-2">${warningsHTML}</ul>` : ''}
+            ${!blockingConflictsHTML && !expectedChangesHTML && !warningsHTML ? `
+                <p class="text-center text-success">
+                    <i class="fa-solid fa-check-circle me-2"></i>
+                    No conflicts or warnings found. Your configuration looks good to go!
+                </p>` : ''}
         `;
 
         document.getElementById('analysis-modal')?.remove();
@@ -664,7 +756,9 @@ document.addEventListener('DOMContentLoaded', () => {
                   <div class="modal-body">${modalBodyHTML}</div>
                   <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Go Back &amp; Edit</button>
-                    <button type="button" class="btn btn-primary" id="modal-proceed-btn" ${isBlocked ? 'disabled' : ''}>${isBlocked ? 'Cannot Proceed' : 'Proceed to Confirmation'}</button>
+                    <button type="button" class="btn btn-primary" id="modal-proceed-btn" ${isBlocked ? 'disabled' : ''}>
+                        ${isBlocked ? 'Cannot Proceed' : 'Proceed to Confirmation'}
+                    </button>
                   </div>
                 </div>
               </div>
@@ -728,9 +822,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     errorDiv.style.display = 'block';
                 }
             } else {
-                // START OF FIX: Cache the analysis results
                 analysisResultsCache = analysisData;
-                // END OF FIX
                 displayAnalysisResults(analysisData);
             }
         } catch (error) {
@@ -756,10 +848,18 @@ document.addEventListener('DOMContentLoaded', () => {
         wizardBody.innerHTML = `
             <div class="text-start">
                 <h2 class="h4 text-center">Confirmation Summary</h2>
-                <div class="card my-4"><div class="card-header">Target Devices</div><div class="card-body"><ul class="list-unstyled mb-0">${devicesHTML}</ul></div></div>
-                <div class="card mb-4"><div class="card-header">Selected Software</div><div class="card-body"><ul class="mb-0">${softwareHTML}</ul></div></div>
+                <div class="card my-4">
+                    <div class="card-header">Target Devices</div>
+                    <div class="card-body"><ul class="list-unstyled mb-0">${devicesHTML}</ul></div>
+                </div>
+                <div class="card mb-4">
+                    <div class="card-header">Selected Software</div>
+                    <div class="card-body"><ul class="mb-0">${softwareHTML}</ul></div>
+                </div>
                 <div class="d-grid gap-2 col-8 mx-auto my-4">
-                    <button id="final-generate-btn" class="btn btn-success btn-lg"><i class="fa-solid fa-file-invoice me-2"></i>Generate Configuration Files</button>
+                    <button id="final-generate-btn" class="btn btn-success btn-lg">
+                        <i class="fa-solid fa-file-invoice me-2"></i>Generate Configuration Files
+                    </button>
                 </div>
             </div>`;
         document.getElementById('final-generate-btn').addEventListener('click', handleInstallation);
@@ -788,18 +888,25 @@ document.addEventListener('DOMContentLoaded', () => {
                     <i class="fa-solid fa-circle-check fa-3x text-success mb-3"></i>
                     <h2 class="h4">Files Generated Successfully!</h2>
                     <p class="text-muted">Your configuration files are ready.</p>
-                    <div class="card card-body bg-light text-start my-3"><pre><code id="output-path-display">${result.output_path}</code></pre></div>
+                    <div class="card card-body bg-light text-start my-3">
+                        <pre><code id="output-path-display">${result.output_path}</code></pre>
+                    </div>
                     <div id="final-actions-container">
                          <div class="d-grid gap-2 d-md-flex justify-content-md-center mt-4" id="deployment-actions">
-                            <button id="deploy-button" class="btn btn-primary"><i class="fa-solid fa-rocket me-2"></i>Deploy to Pi(s)</button>
+                            <button id="deploy-button" class="btn btn-primary">
+                                <i class="fa-solid fa-rocket me-2"></i>Deploy to Pi(s)
+                            </button>
                             <button onclick="location.reload();" class="btn btn-secondary">Start Over</button>
                         </div>
                     </div>
                     <div id="log-viewer-container" class="mt-4 text-start" style="display: none;">
                         <h3 class="h5 text-center">Deployment Progress</h3>
-                        <div class="card"><div class="card-body bg-dark text-white rounded" style="font-family: monospace; font-size: 0.9em; max-height: 400px; overflow-y: auto;">
-                            <pre id="log-output" class="mb-0" style="white-space: pre-wrap;"></pre>
-                        </div></div>
+                        <div class="card">
+                            <div class="card-body bg-dark text-white rounded"
+                                 style="font-family: monospace; font-size: 0.9em; max-height: 400px; overflow-y: auto;">
+                                <pre id="log-output" class="mb-0" style="white-space: pre-wrap;"></pre>
+                            </div>
+                        </div>
                     </div>
                 </div>`;
             document.getElementById('deploy-button').addEventListener('click', () => {
@@ -807,13 +914,27 @@ document.addEventListener('DOMContentLoaded', () => {
                 handleDeployment(outputPath);
             });
         } catch (error) {
+            // --- START OF FIX: IMPROVED UI ERROR REPORTING ---
             console.error('Installation failed:', error);
             wizardHeader.innerHTML = '<strong>Generation Failed</strong>';
             updateWizardFooter('The process could not be completed.', 'danger');
-            const errorDetails = error.details || [error.message || 'An unknown error occurred.'];
+
+            // The backend now sends a rich error object. We need to extract the detailed message.
+            let reportText = 'An unknown error occurred.'; // Default message
+            if (error.details && Array.isArray(error.details) && error.details.length > 0) {
+                // The 'details' from the backend is an array of objects. We want the 'details' string from the first object.
+                reportText = error.details[0].details || error.details[0].summary || error.message;
+            } else if (error.message) {
+                reportText = error.message;
+            }
+
             const GITHUB_REPO_URL = "https://github.com/HenkVanHoek/PiSelfhosting";
-            const issueBody = encodeURIComponent(`**Error Details:**\n\n\`\`\`\n${errorDetails.join('\n')}\n\`\`\`\n\n**Context:**\n- Selected Components: ${selectedComponentsCache.join(', ')}`);
-            const githubIssueURL = `${GITHUB_REPO_URL}/issues/new?title=${encodeURIComponent("Configurator UI Error Report")}&body=${issueBody}`;
+            const issueBody = encodeURIComponent(
+                `**Error Details:**\n\n\`\`\`\n${reportText}\n\`\`\`\n\n` +
+                `**Context:**\n- Selected Components: ${selectedComponentsCache.join(', ')}`
+            );
+            const githubIssueURL = `${GITHUB_REPO_URL}/issues/new?title=` +
+                `${encodeURIComponent("Configurator UI Error Report")}&body=${issueBody}`;
             wizardBody.innerHTML = `
                 <div class="text-center">
                     <i class="fa-solid fa-circle-xmark fa-3x text-danger mb-3"></i>
@@ -821,20 +942,33 @@ document.addEventListener('DOMContentLoaded', () => {
                     <p class="text-muted">An error occurred during the file generation process.</p>
                     <div class="accordion my-3" id="errorAccordion">
                       <div class="accordion-item">
-                        <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseOne"><strong>Click to view detailed error report</strong></button></h2>
-                        <div id="collapseOne" class="accordion-collapse collapse" data-bs-parent="#errorAccordion"><div class="accordion-body text-start">
-                            <p class="small text-muted">Please copy the full text below when reporting an issue.</p>
-                            <textarea class="form-control" rows="8" readonly>**Error Details:**\n\`\`\`\n${errorDetails.join('\n')}\n\`\`\`</textarea>
-                        </div></div>
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
+                                    data-bs-target="#collapseOne">
+                                <strong>Click to view detailed error report</strong>
+                            </button>
+                        </h2>
+                        <div id="collapseOne" class="accordion-collapse collapse" data-bs-parent="#errorAccordion">
+                            <div class="accordion-body text-start">
+                                <p class="small text-muted">Please copy the full text below when reporting an issue.</p>
+                                <textarea class="form-control" rows="8" readonly>` +
+                                `**Error Details:**\n\n${reportText}</textarea>
+                            </div>
+                        </div>
                       </div>
                     </div>
                     <p class="text-muted small mt-4">This may be a known issue. Please check the Q&A section.</p>
                     <div class="d-grid gap-2 col-8 mx-auto mt-2">
-                        <a href="${GITHUB_REPO_URL}/discussions" target="_blank" class="btn btn-info"><i class="fa-solid fa-comments me-2"></i>Check Q&A / Discussions</a>
-                        <a href="${githubIssueURL}" target="_blank" class="btn btn-outline-secondary"><i class="fa-brands fa-github me-2"></i>Report Issue on GitHub</a>
+                        <a href="${GITHUB_REPO_URL}/discussions" target="_blank" class="btn btn-info">
+                            <i class="fa-solid fa-comments me-2"></i>Check Q&A / Discussions
+                        </a>
+                        <a href="${githubIssueURL}" target="_blank" class="btn btn-outline-secondary">
+                            <i class="fa-brands fa-github me-2"></i>Report Issue on GitHub
+                        </a>
                         <button onclick="location.reload()" class="btn btn-primary mt-2">Start Over</button>
                     </div>
                 </div>`;
+            // --- END OF FIX ---
         }
     };
 
@@ -843,18 +977,15 @@ document.addEventListener('DOMContentLoaded', () => {
         const deployButton = document.getElementById('deploy-button');
         const logContainer = document.getElementById('log-viewer-container');
         const logOutput = document.getElementById('log-output');
-        let taskId;
 
         setButtonState(deployButton, true, { loadingText: 'Deploying...' });
         logContainer.style.display = 'block';
         logOutput.innerHTML = '';
 
         try {
-            // START OF FIX: Construct the full component data payload
             const selectedComponentsData = selectedComponentsCache
                 .map(id => allSoftwareCache.find(c => c.id === id))
-                .filter(Boolean); // Filter out any potential nulls
-            // END OF FIX
+                .filter(Boolean);
 
             /** @type {DeploymentResponse} */
             const data = await fetchAPI('/deploy-configuration', {
@@ -865,15 +996,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     devices: Object.values(managedDeviceCache),
                     components_to_clean: componentsToCleanCache,
                     components_to_restart: componentsToRestartCache,
-                    // START OF FIX: Pass the required data to the backend
                     analysis_results: analysisResultsCache,
                     selected_components_data: selectedComponentsData,
                     global_vars: finalVariablesCache
-                    // END OF FIX
                 }),
             });
 
-            taskId = data.task_id;
+            const taskId = data.task_id;
             const eventSource = new EventSource(`/stream-deployment/${taskId}`);
             let hasErrors = false;
 
@@ -906,11 +1035,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 clearTimeout(watchdogTimer);
                 eventSource.close();
                 if (hasErrors) {
-                    // START OF FIX: Re-assign the button's click handler to show errors
                     setButtonState(deployButton, false, { text: '<i class="fa-solid fa-triangle-exclamation me-2"></i>Show Error Report' });
                     updateWizardFooter('Deployment completed, but some steps failed.', 'warning');
                     deployButton.onclick = () => showErrorSummary(taskId);
-                    // END OF FIX
                 } else {
                     setButtonState(deployButton, false, { text: '<i class="fa-solid fa-circle-check me-2"></i>Deployment Finished' });
                     updateWizardFooter('Deployment process completed successfully.', 'success');
@@ -918,7 +1045,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (finalActions) {
                         finalActions.innerHTML = `
                             <div class="d-grid gap-2 col-8 mx-auto my-4">
-                                 <button id="show-summary-btn" class="btn btn-info btn-lg"><i class="fa-solid fa-list-check me-2"></i>Access Your Services</button>
+                                 <button id="show-summary-btn" class="btn btn-info btn-lg">
+                                    <i class="fa-solid fa-list-check me-2"></i>Access Your Services
+                                 </button>
                             </div>`;
                         document.getElementById('show-summary-btn').addEventListener('click', () => showServicesSummary(taskId));
                     }
@@ -932,7 +1061,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    // START OF FIX: New function to display a modal with the structured error report
     /** @param {string} taskId */
     const showErrorSummary = async (taskId) => {
         const errorBtn = document.getElementById('deploy-button');
@@ -986,7 +1114,6 @@ document.addEventListener('DOMContentLoaded', () => {
             setButtonState(errorBtn, false, { text: '<i class="fa-solid fa-triangle-exclamation me-2"></i>Show Error Report' });
         }
     };
-    // END OF FIX
 
     /** @param {string} taskId */
     const showServicesSummary = async (taskId) => {
@@ -995,9 +1122,56 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             /** @type {TaskStatus} */
             const finalData = await fetchAPI(`/task-status/${taskId}`);
-            if (finalData.service_links?.length > 0) {
-                const linksHTML = finalData.service_links.map(link => `<li><a href="${link.url}" target="_blank">${link.name}</a>: <code>${link.url}</code></li>`).join('');
-                const summaryBox = `<div id="service-links-summary" class="card mt-4 text-start"><div class="card-header fw-bold">Access Your Services</div><div class="card-body"><ul class="list-unstyled mb-0">${linksHTML}</ul></div></div>`;
+            let allLinks = finalData.service_links || [];
+            let hasTraefikLinks = false;
+
+            const traefikInstalled = selectedComponentsCache.includes('traefik');
+            const domainName = finalVariablesCache ? finalVariablesCache.DOMAIN_NAME : null;
+
+            if (traefikInstalled && domainName) {
+                allLinks.push({
+                    name: 'Traefik Dashboard',
+                    url: `https://traefik.${domainName}`
+                });
+                hasTraefikLinks = true;
+
+                selectedComponentsCache.forEach(compId => {
+                    const component = allSoftwareCache.find(c => c.id === compId);
+                    if (component && component.has_traefik_support && compId !== 'traefik') {
+                        allLinks.push({
+                            name: `${component.name} (via Traefik)`,
+                            url: `https://${component.id}.${domainName}`
+                        });
+                        hasTraefikLinks = true;
+                    }
+                });
+            }
+
+            if (allLinks.length > 0) {
+                const linksHTML = allLinks
+                    .map(link => `<li><a href="${link.url}" target="_blank">${link.name}</a>: <code>${link.url}</code></li>`)
+                    .join('');
+
+                const dnsWarningHTML = hasTraefikLinks ? `
+                    <div class="alert alert-info small mt-4" role="alert">
+                        <i class="fa-solid fa-circle-info me-2"></i>
+                        <strong>Action Required for Hostname Links:</strong> For the <code>https://...</code>
+                        links to work on your local network, you must
+                        <a href="https://github.com/HenkVanHoek/PiSelfhosting/blob/main/docs/TROUBLESHOOTING.md#accessing-services-by-hostname"
+                           target="_blank" class="alert-link">edit the hosts file</a>
+                        on this computer to point the hostnames to your Pi's IP address.
+                    </div>
+                ` : '';
+
+                const summaryBox = `
+                    <div id="service-links-summary" class="card mt-4 text-start">
+                        <div class="card-header fw-bold">Access Your Services</div>
+                        <div class="card-body">
+                            <ul class="list-unstyled mb-0">${linksHTML}</ul>
+                            ${dnsWarningHTML}
+                        </div>
+                    </div>`;
+
                 document.getElementById('service-links-summary')?.remove();
                 document.getElementById('log-viewer-container').insertAdjacentHTML('beforebegin', summaryBox);
                 setButtonState(summaryBtn, false, { text: '<i class="fa-solid fa-check me-2"></i>Summary Loaded' });

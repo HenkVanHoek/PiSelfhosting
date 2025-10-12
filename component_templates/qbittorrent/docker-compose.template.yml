@@ -17,8 +17,6 @@ services:
       # Port for incoming torrent connections
       - "6881:6881"
       - "6881:6881/udp"
-    extra_hosts:
-      - "{{DOMAIN}}:{{ HOST_IP | default('127.0.0.1') }}"
     networks:
       - piselfhosting_net
 

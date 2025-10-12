@@ -1,3 +1,4 @@
+# File: tests/test/test_configurator_app.py
 import json
 import unittest
 from unittest.mock import patch
@@ -147,7 +148,7 @@ class DeploymentGatekeeperTestCase(unittest.TestCase):
         # Wrap dictionary content to keep line length < 88
         self.base_payload = {
             "output_path": "/tmp/test_output",
-            "managed_devices": self.devices,
+            "devices": self.devices,
             "components_to_clean": [],
             "components_to_restart": [],
             "selected_components_data": [],
@@ -211,10 +212,6 @@ class DeploymentGatekeeperTestCase(unittest.TestCase):
 
     # === Test Deployment Gatekeeping Logic ===
 
-    @unittest.skip(
-        "Skipping due to terminal runner environment issue (400 - Missing Data). "
-        "Needs further Flask route refactoring."
-    )
     @patch("src.configurator_app.app.DeploymentManager.start_deployment")
     def test_deploy_configuration_blocks_on_dangerous_native_conflict(
         self, mock_start_deployment
@@ -241,10 +238,6 @@ class DeploymentGatekeeperTestCase(unittest.TestCase):
         )
         mock_start_deployment.assert_not_called()
 
-    @unittest.skip(
-        "Skipping due to terminal runner environment issue (400 - Missing Data). "
-        "Needs further Flask route refactoring."
-    )
     @patch("src.configurator_app.app.DeploymentManager.start_deployment")
     def test_deploy_configuration_blocks_on_unexpected_docker_conflict(
         self, mock_start_deployment
@@ -271,10 +264,6 @@ class DeploymentGatekeeperTestCase(unittest.TestCase):
         )
         mock_start_deployment.assert_not_called()
 
-    @unittest.skip(
-        "Skipping due to terminal runner environment issue (400 != 202). "
-        "Needs further Flask route refactoring."
-    )
     @patch("src.configurator_app.app.DeploymentManager.start_deployment")
     def test_deploy_configuration_proceeds_with_expected_reinstallation(
         self, mock_start_deployment
@@ -309,10 +298,6 @@ class DeploymentGatekeeperTestCase(unittest.TestCase):
             len(task["errors"]), 1
         )  # Only the expected reinstallation is an error/warning
 
-    @unittest.skip(
-        "Skipping due to terminal runner environment issue (400 != 202)."
-        " Needs further Flask route refactoring."
-    )
     @patch("src.configurator_app.app.DeploymentManager.start_deployment")
     def test_deploy_configuration_proceeds_with_resource_warning(
         self, mock_start_deployment
@@ -343,10 +328,6 @@ class DeploymentGatekeeperTestCase(unittest.TestCase):
         self.assertEqual(task["status"], "running")
         self.assertEqual(len(task["errors"]), 1)  # Only the warning is an error/warning
 
-    @unittest.skip(
-        "Skipping due to terminal runner environment issue "
-        "(400 != 202). Needs further Flask route refactoring."
-    )
     @patch("src.configurator_app.app.DeploymentManager.start_deployment")
     def test_deploy_configuration_success_no_conflicts(self, mock_start_deployment):
         """

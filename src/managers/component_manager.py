@@ -3,14 +3,14 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, cast
 
-import yaml  # <-- IMPORTED: PyYAML for YAML parsing
+import yaml
 from jinja2 import Template
 
 logger = logging.getLogger(__name__)
 
 
 class ComponentManager:
-    """MAnages component metadata and template files."""
+    """Manages component metadata and template files."""
 
     def __init__(self, templates_path: str, metadata_file_path: str):
         self.templates_path = Path(templates_path)
@@ -32,7 +32,7 @@ class ComponentManager:
     def _load_all_variables(self) -> Dict[str, List[Dict[str, Any]]]:
         """
         Scans all component directories for variables.json and loads them
-        into a central cache. This is now the SST for variables.
+        into a central cache.
         """
         variables: Dict[str, List[Dict[str, Any]]] = {}
         components = self._components_data.get("components", {})
@@ -70,8 +70,7 @@ class ComponentManager:
 
     def get_component_details(self, component_id: str) -> Optional[Dict[str, Any]]:
         """
-        Returns the full details for a single component, merging metadata
-        and variables from their respective sources.
+        Returns the full details for a single component.
         """
         component_data = self._components_data.get("components", {}).get(component_id)
         if not component_data:
@@ -79,16 +78,13 @@ class ComponentManager:
         details = component_data.copy()
         details["id"] = component_id
         details["required_variables"] = self._variables_cache.get(component_id, [])
-        # ADDED: Defensive retrieval of optional Traefik metadata fields (Issue #2)
         details["has_traefik_support"] = component_data.get(
             "has_traefik_support", False
         )
         details["traefik_internal_port"] = component_data.get(
             "traefik_internal_port", None
         )
-        # START OF NEW FEATURE: Conflicts With
         details["conflicts_with"] = component_data.get("conflicts_with", [])
-        # END OF NEW FEATURE: Conflicts With
         return details
 
     def validate_component_configuration(
@@ -99,26 +95,17 @@ class ComponentManager:
     ) -> None:
         """
         Validates a component's template and variables.
-
-        CRITICAL VALIDATION: Ensures explicit 'container_name' fields adhere
-        to the 'piselfhosting-' naming convention.
         """
-        # 1. TEMPLATE VALIDATION: Enforce Naming Convention
         try:
-            # Use safe_load to parse Jinja-templated YAML content
             data = yaml.safe_load(template_content)
         except yaml.YAMLError as e:
-            # This is a critical parsing failure, indicating malformed YAML syntax
             raise ValueError(
                 f"YAML Parsing Failed: The template content is not valid YAML. "
                 f"Error: {e}"
             )
-
         services = data.get("services", {})
         for service_name, service_data in services.items():
             container_name = service_data.get("container_name")
-
-            # Enforce the convention only if container_name is explicitly set
             if container_name:
                 mandatory_prefix = "piselfhosting-"
                 if not container_name.lower().startswith(mandatory_prefix):
@@ -126,59 +113,36 @@ class ComponentManager:
                         f"Naming Violation: The container_name '{container_name}' "
                         f"for service '{service_name}' must begin with the "
                         f"mandatory prefix '{mandatory_prefix}'."
-                        f" Please correct the template."
                     )
-
-        # 2. Variable Validation (Placeholder)
-        # Placeholder for future variable validation logic (e.g., checking types)
 
     def validate_metadata_conflicts(
         self, component_id: str, conflicts_with_list: List[str]
     ) -> None:
         """
-        CRITICAL: Validates the 'conflicts_with' list for a component.
-
-        This method checks for two critical metadata errors:
-        1. Self-conflict: A component cannot conflict with itself.
-        2. Non-existent ID: A conflict must refer to an actual component ID.
-
-        Raises:
-            ValueError: If a conflict rule is invalid.
+        Validates the 'conflicts_with' list for a component.
         """
-        # 1. Self-Conflict Check
         if component_id in conflicts_with_list:
             raise ValueError(
                 f"Self-Conflict Error: Component '{component_id}' cannot "
-                "conflict with itself. Please remove it from the list."
+                "conflict with itself."
             )
-
-        # 2. Non-existent ID Check
         all_component_ids = set(self._components_data.get("components", {}).keys())
-
         non_existent_conflicts = [
             cid for cid in conflicts_with_list if cid not in all_component_ids
         ]
-
         if non_existent_conflicts:
             non_existent_str = ", ".join(non_existent_conflicts)
             raise ValueError(
                 "Non-Existent ID Error: The following component ID(s) "
-                f"listed in 'Conflicts With' do not exist in the system: "
-                f"{non_existent_str}. Please correct them."
+                f"listed in 'Conflicts With' do not exist: "
+                f"{non_existent_str}."
             )
-
-        # NOTE: Symmetrical conflict checks (if A conflicts with B, B must
-        # conflict with A)
-        # are intentionally omitted here to favor a simpler, more
-        # flexible data contract.
-        # This one-way check is sufficient for developer-facing validation.
 
     def create_component(self, component_id: str, component_name: str):
         """Creates the folder structure and initial files for a new component."""
         components = self._components_data.setdefault("components", {})
         if component_id in components:
             raise ValueError(f"Component '{component_id}' already exists.")
-
         new_comp_path = self.templates_path / component_id
         new_comp_path.mkdir(exist_ok=True)
         (new_comp_path / "template-config").mkdir(exist_ok=True)
@@ -188,7 +152,6 @@ class ComponentManager:
         (new_comp_path / "template-config" / "variables.json").write_text(
             json.dumps({"variables": []}, indent=2)
         )
-
         components[component_id] = {
             "name": component_name,
             "group": self.get_piselfhosting_meta().get("default_group", None),
@@ -196,7 +159,7 @@ class ComponentManager:
             "has_ui": False,
             "has_configuration": True,
             "depends_on": [],
-            "conflicts_with": [],  # Initialize the new field
+            "conflicts_with": [],
         }
         self._save_metadata()
         self._variables_cache[component_id] = []
@@ -277,10 +240,8 @@ class ComponentManager:
         """Renames the display name of an existing group."""
         piselfhosting_meta = self._components_data.setdefault("_piselfhosting", {})
         group_rules = piselfhosting_meta.setdefault("group_rules", {})
-
         if group_id not in group_rules:
             raise ValueError(f"Group '{group_id}' not found.")
-
         group_rules[group_id]["name"] = new_name
         self._save_metadata()
 
@@ -288,13 +249,42 @@ class ComponentManager:
         return self.templates_path / component_id / "template-config"
 
     def update_component_variables(
-        self, component_id: str, variables_data: Dict[str, Any]
+        self, component_id: str, variables_payload: Dict[str, Any]
     ):
+        """
+        Performs a non-destructive update of the variables.json file.
+        """
+        # --- START OF FIX: NON-DESTRUCTIVE READ-MERGE-WRITE ---
         config_path = self._get_component_config_path(component_id)
+        variables_file = config_path / "variables.json"
         config_path.mkdir(parents=True, exist_ok=True)
-        with open(config_path / "variables.json", "w", encoding="utf-8") as f:
-            json.dump(variables_data, f, indent=2, sort_keys=True)
-        self._variables_cache[component_id] = variables_data.get("variables", [])
+
+        # 1. READ: Load the full original content of the file.
+        # Default to an empty dict if the file doesn't exist.
+        original_data = {}
+        if variables_file.exists():
+            try:
+                with open(variables_file, "r", encoding="utf-8") as f:
+                    original_data = json.load(f)
+            except json.JSONDecodeError:
+                # If file is corrupt, start fresh but log a warning.
+                logger.warning(
+                    "Could not parse existing variables.json for %s. "
+                    "File will be overwritten.",
+                    component_id,
+                )
+
+        # 2. MERGE: Update the 'variables' key with the new payload.
+        # This preserves all other top-level keys like 'other_files'.
+        original_data["variables"] = variables_payload.get("variables", [])
+
+        # 3. WRITE: Save the entire merged data structure back to the file.
+        with open(variables_file, "w", encoding="utf-8") as f:
+            json.dump(original_data, f, indent=2, sort_keys=True)
+        # --- END OF FIX ---
+
+        # Update the in-memory cache to reflect the change.
+        self._variables_cache[component_id] = original_data.get("variables", [])
 
     def get_component_template_content(self, component_id: str) -> str:
         template_file = (
@@ -346,13 +336,8 @@ class ComponentManager:
         traefik_internal_port: int,
     ) -> List[str]:
         """
-        Generates the standard Traefik labels for a service, substituting
-        the component-specific and global variables.
+        Generates the standard Traefik labels for a service.
         """
-        # CRITICAL: Note the use of backticks in the rule template
-        # for `{{ TRAEFIK_HOST }}.{{ FQDN_SUFFIX }}`.
-        # The Traefik router/service ID must be the canonical component ID
-        # to ensure unique routing.
         return [
             "traefik.enable=true",
             f"traefik.http.routers.{component_id}.entrypoints=websecure",
@@ -376,13 +361,11 @@ class ComponentManager:
     ) -> str:
         """
         Generates the standard Traefik labels as a fully formatted,
-        indented YAML block string suitable for direct injection into a template.
+        indented YAML block string.
         """
         labels = self._get_traefik_labels(
             component_id, traefik_host, fqdn_suffix, traefik_internal_port
         )
-        # Indentation: The template adds the initial indentation for 'labels:'
-        # We need to add '      - ' before each label.
         yaml_block = "\n".join(f"      - {label}" for label in labels)
         return yaml_block
 
@@ -392,39 +375,38 @@ class ComponentManager:
         context: Dict[str, Any],
     ) -> str:
         """
-        Loads a component's docker-compose template, injects the necessary
-        Traefik labels into the context if supported, and renders the template.
+        Loads a component's template, injects Traefik labels, and
+        renders it.
         """
-        logger.debug(f"Attempting to render template for component ID: {component_id}")
         component_details = self.get_component_details(component_id)
         if not component_details:
             logger.error(f"Component '{component_id}' not found for rendering.")
-            # CRITICAL FIX (v6.7): Return a valid, minimal YAML document
-            # (no version, just empty services) to prevent the ValueError crash
-            # in generate_deployment_artifacts's yaml.safe_load.
             return "services: {}"
+
+        component_variable_definitions = self._variables_cache.get(component_id, [])
+        for var_def in component_variable_definitions:
+            var_id = var_def.get("id")
+            if var_id and var_id not in context and "default" in var_def:
+                context[var_id] = var_def["default"]
 
         template_content = self.get_component_template_content(component_id)
         template = Template(template_content)
 
-        # 1. Prepare Traefik Labels if supported
         has_traefik_support = component_details.get("has_traefik_support", False)
+        context["has_traefik_support"] = has_traefik_support
+        context["component_id"] = component_id
+
         traefik_internal_port = component_details.get("traefik_internal_port")
         traefik_host = context.get("TRAEFIK_HOST")
         fqdn_suffix = context.get("FQDN_SUFFIX")
 
-        # NEW LOGIC: Check for Port Exclusion based on new variable type
         excluded_ports: Set[int] = set()
         component_vars = component_details.get("required_variables", [])
 
         for var in component_vars:
-            # Check the variable type for a Traefik exclusion flag.
             if var.get("type") == "port_exclude_traefik":
                 var_id = var.get("id")
-                # Attempt to retrieve the resolved value from the context.
                 resolved_value = context.get(var_id)
-
-                # Attempt to parse the resolved value as an integer port number.
                 try:
                     if resolved_value is not None:
                         excluded_ports.add(int(resolved_value))
@@ -446,7 +428,6 @@ class ComponentManager:
                 "excluded by user variable and will not receive labels."
             )
 
-        # Perform the final check to determine if labels should be generated.
         should_generate_labels = (
             has_traefik_support
             and isinstance(traefik_internal_port, int)
@@ -455,7 +436,6 @@ class ComponentManager:
             and not is_internal_port_excluded
         )
 
-        # CRITICAL FIX: Generate the entire YAML block in Python
         if should_generate_labels:
             my_casted_traefik_internal_port = cast(int, traefik_internal_port)
             yaml_block = self._get_traefik_labels_yaml_block(
@@ -464,27 +444,12 @@ class ComponentManager:
                 fqdn_suffix=str(fqdn_suffix),
                 traefik_internal_port=my_casted_traefik_internal_port,
             )
-            # Add to the context for the Jinja template to use
             context["traefik_labels_yaml"] = yaml_block
-            logger.debug(
-                f"Generated labels YAML block for {component_id}: " f"'{yaml_block}'"
-            )
         else:
-            # Ensure the placeholder is present but empty if not supported or excluded
             context["traefik_labels_yaml"] = ""
-            logger.debug(
-                f"No labels generated for {component_id}. traefik_labels_yaml=''"
-            )
 
-        # 2. Render the template
         try:
-            # We now rely on the template to use the 'safe' filter on the already
-            # formatted traefik_labels_yaml string.
-            rendered_content = template.render(context)
-            logger.debug(
-                f"Successfully rendered {component_id}. Content size: "
-                f"{len(rendered_content)}"
-            )
+            rendered_content = template.render(context)  # type: ignore
             return rendered_content
         except Exception as e:
             logger.error(
@@ -492,7 +457,6 @@ class ComponentManager:
             )
             return f"# ERROR: Template rendering failed for {component_id}: {e}"
 
-    # NEW METHOD: Deployment Artifact Generation
     def generate_deployment_artifacts(
         self,
         selected_components_data: List[Dict[str, Any]],
@@ -500,45 +464,29 @@ class ComponentManager:
         output_path: Path,
     ) -> None:
         """
-        Orchestrates the rendering of all selected component templates, merges
-        them into a single docker-compose.yml, and saves the final context.
-
-        Raises:
-            ValueError: If a component's template cannot be parsed or merged.
+        Orchestrates the rendering of all selected component templates and
+        merges them into a single docker-compose.yml.
         """
         logger.info("Starting deployment artifact generation.")
-        # Ensure output directory exists
         output_path.mkdir(parents=True, exist_ok=True)
 
-        # START OF FIX: Initialize volumes block
         docker_compose_data: Dict[str, Any] = {
             "services": {},
             "networks": {"piselfhosting-network": {"external": True}},
             "volumes": {},
         }
-        # END OF FIX
 
-        # The deployment context is a single source of truth for all resolved
-        # variables, used later by Discovery methods.
         deployment_context = global_vars.copy()
 
-        # 1. Sort the components by master order before processing
         component_ids = [
             comp_id
             for comp in selected_components_data
             if (comp_id := comp.get("id")) is not None
         ]
-        logger.debug(f"Component IDs to process (unsorted): {component_ids}")
         sorted_ids = self.sort_components_by_master_order(component_ids)
-        logger.debug(f"Component IDs to process (sorted): {sorted_ids}")
-
-        # Create a map for quick lookup of component data
         comp_data_map = {comp.get("id"): comp for comp in selected_components_data}
 
-        # 2. Iterate, Render, and Merge
         for component_id in sorted_ids:
-            logger.debug(f"Processing component: {component_id}")
-
             component_data = comp_data_map.get(component_id)
             if not component_data:
                 logger.warning(
@@ -548,7 +496,6 @@ class ComponentManager:
 
             render_context = deployment_context.copy()
             rendered_yaml = self.render_component_template(component_id, render_context)
-            logger.debug(f"Rendered YAML for {component_id}: {rendered_yaml[:100]}...")
 
             try:
                 comp_compose = yaml.safe_load(rendered_yaml)
@@ -566,36 +513,23 @@ class ComponentManager:
                 )
                 continue
 
-            # 3. Merge services, networks, and volumes
             new_services = comp_compose.get("services", {})
             new_networks = comp_compose.get("networks", {})
-            # START OF FIX: Extract volumes from component's parsed YAML
             new_volumes = comp_compose.get("volumes", {})
-            # END OF FIX
 
             if "version" in comp_compose:
                 docker_compose_data["version"] = comp_compose["version"]
 
             docker_compose_data["services"].update(new_services)
-            logger.debug(
-                f"Merged {len(new_services)} services. Total services: "
-                f"{len(docker_compose_data['services'])}"
-            )
 
             for network_name, network_def in new_networks.items():
                 if network_name not in docker_compose_data.get("networks", {}):
-                    network_def.setdefault("external", False)
-                    docker_compose_data["networks"][network_name] = network_def
+                    network_def_copy = network_def.copy()
+                    network_def_copy.setdefault("external", False)
+                    docker_compose_data["networks"][network_name] = network_def_copy
 
-            # START OF FIX: Merge the extracted volumes
             docker_compose_data["volumes"].update(new_volumes)
-            logger.debug(
-                f"Merged {len(new_volumes)} volumes. Total volumes: "
-                f"{len(docker_compose_data['volumes'])}"
-            )
-            # END OF FIX
 
-        # 4. Save Artifacts
         logger.info("Writing final artifacts.")
         compose_path = output_path / "docker-compose.yml"
         with open(compose_path, "w", encoding="utf-8") as f:

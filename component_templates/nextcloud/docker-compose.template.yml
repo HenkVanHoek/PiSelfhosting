@@ -17,8 +17,6 @@ services:
       - "NEXTCLOUD_ADMIN_PASSWORD=${NC_ADMIN_PASS}"
     depends_on:
       - mariadb
-    extra_hosts:
-      - "{{DOMAIN}}:{{ HOST_IP | default('127.0.0.1') }}"
     networks:
       - piselfhosting_net
 

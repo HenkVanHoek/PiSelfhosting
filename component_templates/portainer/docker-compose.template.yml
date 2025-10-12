@@ -1,7 +1,7 @@
 services:
   portainer:
     # --- DEFINITIVE FIX: Rely on the context for the version tag ---
-    image: portainer/portainer-ce:{{ PORTAINER_IMAGE_TAG }}
+    image: portainer/portainer-ce:lts
     container_name: piselfhosting-portainer
     restart: unless-stopped
     volumes:
