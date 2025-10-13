@@ -182,6 +182,24 @@ services I want to run on my Raspberry Pi.
 -   **And** I can navigate back to the previous configuration step or cancel
     the overall process at any time, even after deployment has started.
 
+---
+
+#### Story: Receiving Actionable Feedback on System Errors
+
+> As an End-User (Alex), if the file generation process fails due to a
+> system or template error, I want to see a detailed, human-readable
+> report directly in the UI, so that I can create a high-quality bug
+> report without needing to search for log files.
+
+**Acceptance Criteria:**
+
+-   **Given** a component template has a syntax error (e.g., bad indentation).
+-   **When** I click "Generate Configuration Files".
+-   **Then** the process must fail, and the UI must display an error screen.
+-   **And** the error screen must contain a detailed report that includes
+    the name of the failing component and the raw, rendered content that
+    caused the crash.
+
 ### Epic 3: Configurator - Advanced Selection Logic
 
 As Alex, I expect the system to be smart and guide me through complex
