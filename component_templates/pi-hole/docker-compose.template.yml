@@ -1,8 +1,8 @@
 # file: component_templates/pi-hole/docker-compose.template.yml
 services:
   pi-hole:
-    container_name: piselfhosting-{{ component_id }}
-    image: pihole/pihole:latest
+  container_name: piselfhosting-{{ component_id }}
+  image: pihole/pihole:latest
     restart: unless-stopped
     ports:
       - "{{ PIHOLE_DNS_PORT }}:53/tcp"
@@ -20,20 +20,6 @@ services:
       - NET_ADMIN
     networks:
       - piselfhosting_net
-    # FIX: Move the 'labels' key inside the conditional block to prevent invalid YAML
-    # when Traefik support is disabled.
-    {%- if has_traefik_support %}
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.pihole-secure.rule=Host(`{{ component_id }}.{{ DOMAIN_NAME }}`)"
-      - "traefik.http.routers.pihole-secure.entrypoints=websecure"
-      - "traefik.http.routers.pihole-secure.service=pihole-service"
-      - "traefik.http.routers.pihole-secure.tls=true"
-      # FIX: The service port for Traefik must be the INTERNAL container port (80),
-      # not the external host port variable.
-      - "traefik.http.services.pihole-service.loadbalancer.server.port=80"
-    {%- endif %}
-
 volumes:
   pihole_etc:
     name: "piselfhosting-pihole-etc"

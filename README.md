@@ -19,13 +19,51 @@ A user downloads a single installer package from GitHub Releases. The installer 
 
 **On Your Main Computer (where you run the installer):**
 - Windows, macOS, or Linux.
-- **Linux Users**: The **nmap** utility must be installed (`sudo apt install nmap`).
+- **Linux Users**: Install the **nmap**, **sshpass**, and **OpenSSH client** packages.
+  For Debian/Ubuntu:
+
+      sudo apt install -y nmap sshpass openssh-client
 
 **On Your Target Server (e.g., Raspberry Pi):**
 - A Raspberry Pi 4 or newer is recommended.
 - Or, use a Debian-based server, such as the one provided by [pi-server-vm](https://github.com/HenkVanHoek/pi-server-vm).
-- Docker and Docker Compose must be installed.
+- Docker Engine and the Docker Compose plugin are required. The tool can
+  install or upgrade them automatically as described below.
 - SSH access must be enabled.
+
+## Docker management on the target device
+
+- Compose Spec is used. Compose files do not include a version key.
+- Supported runtime: latest stable Docker Engine with the Docker Compose plugin.
+- Minimum baseline: Docker Engine 20.10.0 or newer.
+
+Behavior during deployment
+1. Detect Docker Engine and Compose plugin.
+2. If missing, install the latest Engine via the official installer, enable and
+   start the docker service, and ensure the docker-compose-plugin package.
+3. If an older Engine is detected, deployment stops with a clear error unless
+   upgrade is allowed. To allow upgrade, provide one of the following variables
+   in the deployment globals. The tool will remove older packages and install
+   the latest Engine and Compose plugin. This upgrade is destructive on Docker
+   state and removes local images and containers on the target device.
+
+     ALLOW_DOCKER_UPGRADE=true
+     # or
+     GLOBAL_ALLOW_DOCKER_UPGRADE=true
+
+4. Permissions: the remote user is added to the docker group for future
+   sessions. During the current session, docker commands run with sudo if
+   required.
+
+## Host OS runtime policy
+
+- Do not install or depend on a system Python interpreter or compiler on the
+  target device for new PiSelfhosting functionality.
+- If Python is required for new automation or utilities, run it inside
+  containers. Deliver it as a Docker image and execute it using Docker, including
+  init container patterns when needed.
+- Deployment and maintenance operations must not install Python onto the host.
+  Remote steps are limited to shell, Docker, and core OS tooling.
 
 ## 🚀 Quick Start Guide
 

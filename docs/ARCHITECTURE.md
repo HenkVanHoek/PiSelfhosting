@@ -59,6 +59,67 @@ For a detailed schema of these and other core data files, please refer to the **
 - **Principle**: The **ComponentManager** must provide a validation method that is used as both an interactive tool for the user and as an automatic "gatekeeper" during the save process.
 - **Rationale**: This "shift left" strategy catches configuration errors at the earliest possible moment, preventing inconsistent data from being saved.
 
+## 2.5 Docker Runtime Management on Target
+
+- Principle: The deployment orchestrator must ensure that a modern Docker Engine
+  and the Docker Compose plugin exist on the target device before any compose
+  operations are executed.
+- Rationale: Compose Spec does not use a version key in compose files and
+  requires a modern engine and plugin for reliable behavior. Automating this
+  step eliminates a class of deployment failures and reduces friction for users.
+
+Behavior
+- Compose Spec is used. Compose files do not include a version key.
+- Minimum accepted Docker Engine version is 20.10.0. Latest stable is preferred.
+- On deployment, the system detects Docker Engine and the Compose plugin.
+  - If missing, it installs Docker via the official installer, enables and
+    starts the docker service, and ensures the docker-compose-plugin package.
+  - If an older engine is detected and upgrade is not allowed, the deployment is
+    gated with a structured error and no compose actions are attempted.
+  - Upgrade gating: set ALLOW_DOCKER_UPGRADE=true or GLOBAL_ALLOW_DOCKER_UPGRADE=true
+    in deployment globals to permit removal of older packages and installation of
+    the latest Engine and Compose plugin. This operation is destructive to local
+    Docker state on the target.
+- Permissions: the remote user is added to the docker group for future sessions.
+  During the current session, docker commands run with sudo if required.
+
+Contracts and logging
+- Structured error type: Docker:Outdated when an older engine is detected and
+  upgrade permission is not granted.
+- Variables that affect behavior: ALLOW_DOCKER_UPGRADE, GLOBAL_ALLOW_DOCKER_UPGRADE.
+- Live logs show detection, optional removal, installation, service enablement,
+  compose plugin enforcement, and permission handling.
+
+Interaction with conflict checks
+- After the ensure step, the live conflict checks use docker ps and apply sudo
+  when needed. This guarantees consistent behavior in the same session.
+
+## 2.6 Host OS Runtime Policy: No Python on Target
+
+- Principle: The PiSelfhosting deployment must not install or depend on a
+  system Python interpreter or compiler on the target device for new
+  functionality. All Python-based utilities must run inside containers.
+- Rationale: This ensures repeatable deployments, security hardening, and
+  prevents dependency drift. It keeps the target lightweight and aligns with
+  the Docker-first architecture.
+
+Rules
+- Do not invoke `apt-get install python3` or `pip` on the target during
+  deployment or maintenance operations.
+- New automation or jobs implemented in Python must be delivered as Docker
+  images. If a one-off task requires Python, run it via `docker run` or an
+  init container step.
+- SSH scripts executed by the deployment orchestrator are limited to shell,
+  Docker, and core OS tooling. Python on the target host is out of scope.
+
+Enforcement
+- Component templates for Python utilities must specify a container image and
+  required volumes or environment.
+- Setup tooling must not generate steps that place Python code on the host
+  filesystem outside of bind-mounted volumes owned by a container.
+- Code review and CI may scan deployment paths for `apt-get install python*` or
+  `pip` usage to guard against regressions.
+
 ## 3. Networking and Service Architecture
 
 ### 3.1 Docker's Built-in DNS for Service Discovery

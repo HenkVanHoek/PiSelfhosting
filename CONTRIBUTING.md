@@ -96,6 +96,14 @@ This command provides a complete audit trail of the implementation.
 - **OS:** An Ubuntu environment is strongly recommended.
 - **Virtualization:** For other OSes, use VirtualBox with the network
   adapter in **Bridged Mode**.
+- **Do not use WSL:** Avoid Windows Subsystem for Linux for development and
+  testing of the Configurator. Raw socket and privilege boundaries inside WSL
+  make network scanning unreliable and often break nmap based discovery and the
+  sudoers configuration. Prefer native Linux or a Linux VM with bridged
+  networking. macOS is also a valid option.
+- **Side note:** The related project named "pi-server-vm" is best developed on
+  a Windows host. This is shared as context only and does not affect
+  PiSelfhosting.
 
 ### 2. System Dependencies
 
@@ -152,6 +160,50 @@ From the project root directory:
 
 ```bash
 pytest
+```
+
+## Linting and Security Checks
+
+We enforce code quality and security via formatters, linters, type checks, and a
+security scanner. All tools are wired into pre-commit, and can also be run
+manually.
+
+Run all checks with pre-commit:
+
+```
+pre-commit run --all-files
+```
+
+Run individual tools:
+
+-   Black
+
+```
+black .
+```
+
+-   Isort
+
+```
+isort .
+```
+
+-   Flake8
+
+```
+flake8
+```
+
+-   MyPy
+
+```
+mypy .
+```
+
+-   Bandit (security scanning, configured via pyproject.toml)
+
+```
+bandit -c pyproject.toml -r src
 ```
 
 ## Creating a New Release

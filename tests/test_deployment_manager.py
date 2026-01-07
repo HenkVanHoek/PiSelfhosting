@@ -41,15 +41,9 @@ class TestDeploymentManager(unittest.TestCase):
         """
         Tests the successful orchestration of the start_deployment method.
         """
-        # Correct the patch target to match how pytest imports the module.
         with patch("managers.deployment_manager.SSHManager") as mock_ssh_class:
-            # Configure the mock for the SSHManager instance
             mock_ssh_instance = MagicMock()
-            mock_ssh_instance.connect.return_value = (
-                True,
-                "Connected successfully",
-            )
-            # The class mock should return our instance mock
+            mock_ssh_instance.connect.return_value = (True, "Connected successfully")
             mock_ssh_class.return_value = mock_ssh_instance
 
             metadata_file = self.temp_path / "components_metadata.json"
@@ -82,11 +76,15 @@ class TestDeploymentManager(unittest.TestCase):
             ]
             components_to_clean: List[str] = ["homarr"]
             selected_components_data: List[Dict[str, Any]] = [{"id": "homarr"}]
+            global_vars: Dict[str, Any] = {}
 
             def custom_execute_command(command: str, *_args: Any, **_kwargs: Any):
-                if command == "pwd":
+                # FIX: Return a valid path for 'echo $HOME'
+                if command == "echo $HOME":
                     return 0, "/home/pi"
-                return 0, ""
+                # Keep other commands returning a non-empty string
+                # to avoid false negatives
+                return 0, "ok"
 
             mock_ssh_instance.execute_command.side_effect = custom_execute_command
 
@@ -98,6 +96,7 @@ class TestDeploymentManager(unittest.TestCase):
                 components_to_clean,
                 [],
                 selected_components_data,
+                global_vars,
             )
 
             errors: List[ReportError] = tasks_dict[task_id]["errors"]

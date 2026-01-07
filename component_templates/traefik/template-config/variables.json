@@ -78,7 +78,7 @@
       "type": "string"
     },
     {
-      "default": "pivm:$2y$05$.VdsJyfyCai6W11hMh6eN.bxND68h3fKcnoqfaGmphOgfNDcJVh/.",
+      "default": "admin:$apr1$526B9557$sKx5.cVfgrd3n2V3bV0S9/",
       "description": "SECURITY CRITICAL: A 'user:hashed_password' pair for dashboard access. You MUST use a tool like 'htpasswd' to generate a compatible md5 hash (apr1 format). The default value is 'admin:password'. For production, generate a new hash, store it in your .env file (e.g., TRAEFIK_USERS_HASH=...), and reference it here using the macro: {{ DOTENV.TRAEFIK_USERS_HASH }}.",
       "id": "TRAEFIK_DASHBOARD_USERS",
       "label": "Dashboard Credentials",

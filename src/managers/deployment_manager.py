@@ -415,7 +415,7 @@ class DeploymentManager:
             # ---------------------------
 
             for service_name, s_def in compose_data.get("services", {}).items():
-                # 1. Vind de Component ID
+                # 1. Find the Component ID
                 component_id = next(
                     (
                         label.split("=", 1)[1]
@@ -440,7 +440,7 @@ class DeploymentManager:
                     )
                     continue
 
-                # 2. Check of hij een UI heeft
+                # 2. Check if there is a UI
                 has_ui = comp_meta.get("has_ui")
                 if not has_ui:
                     logger.info(
@@ -448,16 +448,14 @@ class DeploymentManager:
                     )
                     continue
 
-                # 3. Check of dit de hoofdservice is
-                # (belangrijk voor multi-container setups)
+                # 3. Check if this is the main service
+                # (important for multi-container setups)
                 primary_service = comp_meta.get("docker_service_name")
-                # Als docker_service_name niet in metadata staat, is het
-                # vaak gelijk aan ID
+                # If docker_service_name is not mentioned in the metadata it is
+                # often equal to the ID
                 if not primary_service:
                     primary_service = component_id
 
-                # Relaxte check: als de service naam 'lijkt' op de ID,
-                # vinden we het ook goed
                 if primary_service != service_name:
                     logger.info(
                         f"DEBUG: Service mismatch for "
@@ -467,7 +465,7 @@ class DeploymentManager:
                     )
                     continue
 
-                # 4. Vind de poort
+                # 4. Find the poort
                 port_variable_name = comp_meta.get("ui_port_variable")
                 port = None
 
@@ -664,7 +662,7 @@ class DeploymentManager:
                 log_callback("FATAL: Docker is outdated.", is_step=True)
                 return False, False
 
-            # Remove older packages if present (best effort)
+            # Remove older packages if present, best effort
             ssh.execute_command(
                 "sudo apt-get remove -y docker docker-engine docker.io "
                 "containerd runc",
@@ -727,10 +725,6 @@ class DeploymentManager:
                         "apt-get did not complete successfully.",
                     )
                     return False, False
-
-            # After install, set presence flags
-            docker_present = True
-            compose_ok = True
 
         # Permissions check: in group docker?
         exit_code, groups_out = ssh.execute_command(

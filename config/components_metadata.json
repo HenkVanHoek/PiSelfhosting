@@ -219,17 +219,18 @@
     },
     "nginx-proxy-manager": {
       "component_version": "latest",
-      "depends_on": [
-        "mariadb"
-      ],
+      "conflicts_with": [],
+      "depends_on": [],
       "description": "An easy-to-use, Docker-based interface for managing Nginx proxy hosts with free SSL certificate support.",
       "group": "reverse_proxy",
       "has_configuration": true,
+      "has_traefik_support": false,
       "has_ui": true,
       "image_name": "jc21/nginx-proxy-manager",
-      "name": "Nginx Proxy Manager (Not Maintained by PiSelfhosting",
+      "name": "Nginx Proxy Manager",
       "project_url": "https://nginxproxymanager.com/",
-      "protocol": "http"
+      "protocol": "http",
+      "traefik_internal_port": null
     },
     "organizr": {
       "component_version": "latest",
@@ -302,6 +303,17 @@
       "project_url": "https://www.portainer.io/",
       "protocol": "https",
       "ui_port_variable": "PORTAINER_WEB_PORT"
+    },
+    "prosody": {
+      "conflicts_with": [],
+      "depends_on": [],
+      "description": "Prosody is a modern, lightweight XMPP (Jabber) communication server designed for efficiency and extensibility.\n\nWithin the PiSelfhosting ecosystem, this component provides a private and secure instant messaging platform. It allows users to host their own chat services, including:\n\nOne-to-one messaging: Secure, real-time private conversations.\n\nMulti-User Chat (MUC): Group chat capabilities for family or teams.\n\nHTTP File Upload: Seamless sharing of photos and files directly from your own hardware.\n\nModern Security: Automated TLS encryption using Let's Encrypt certificates via Nginx Proxy Manager.\n\nNote: This service requires port 5222 (client-to-server) and 5269 (server-to-server) to be forwarded in your router for external access.",
+      "group": "general",
+      "has_configuration": true,
+      "has_traefik_support": true,
+      "has_ui": false,
+      "name": "Prosody",
+      "traefik_internal_port": 80
     },
     "qbittorrent": {
       "component_version": "latest",

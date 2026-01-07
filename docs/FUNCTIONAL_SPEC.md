@@ -296,3 +296,39 @@ conflicting software or forgetting to install a required dependency.
 -   **And** the client must display the details from the `ReportError`
     objects and provide an explicit path for the user to return to the
     configuration step to resolve the issue.
+
+---
+
+#### Story: Runtime Docker Management on Target
+
+> As an End-User (Alex), before services are installed, I want the system to
+> ensure that the target device has a modern Docker Engine and Docker Compose
+> plugin, and when an older engine is detected, I want a clear error with the
+> option to allow an automated upgrade.
+
+**Acceptance Criteria:**
+
+-   **Given** deployment is initiated to a clean Raspberry Pi OS or Debian host
+    without Docker,
+-   **When** the deployment starts,
+-   **Then** the system installs the latest Docker Engine and Compose plugin
+    and proceeds with deployment.
+
+-   **Given** the target has an older Docker Engine than 20.10.0 and upgrade is
+    not allowed,
+-   **When** the deployment starts,
+-   **Then** the system must stop before any compose operations and return an
+    error report with type Docker:Outdated and explanatory guidance.
+
+-   **Given** the target has an older Docker Engine and ALLOW_DOCKER_UPGRADE=true
+    or GLOBAL_ALLOW_DOCKER_UPGRADE=true is provided,
+-   **When** the deployment starts,
+-   **Then** the system removes older Docker packages, installs the latest engine
+    and Compose plugin, and proceeds to deploy.
+
+-   **Given** the remote user is not in the docker group,
+-   **When** the deployment runs,
+-   **Then** the system adds the user to the docker group for future sessions and
+    uses sudo for Docker commands during the current session.
+
+-   **And** Compose Spec is used and compose files do not include a version key.
