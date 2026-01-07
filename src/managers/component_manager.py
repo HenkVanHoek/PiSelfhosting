@@ -375,23 +375,30 @@ class ComponentManager:
         context: Dict[str, Any],
     ) -> str:
         """
-        Loads a component's template, injects Traefik labels, and
-        renders it.
+        Loads a component's template, injects Traefik labels, and renders it.
+        Includes a brute-force fallback for stubborn variables.
         """
+        # 1. Haal details op
         component_details = self.get_component_details(component_id)
         if not component_details:
             logger.error(f"Component '{component_id}' not found for rendering.")
             return "services: {}"
 
+        # 2. Laad component defaults (alleen als ze nog niet in context zitten)
         component_variable_definitions = self._variables_cache.get(component_id, [])
         for var_def in component_variable_definitions:
             var_id = var_def.get("id")
             if var_id and var_id not in context and "default" in var_def:
                 context[var_id] = var_def["default"]
 
-        template_content = self.get_component_template_content(component_id)
-        template = Template(template_content)
+        # Safety Net: Forceer de base path als hij mist
+        if "CONFIG_BASE_PATH" not in context:
+            context["CONFIG_BASE_PATH"] = "../piselfhosting_data"
 
+        # 3. Laad template
+        template_content = self.get_component_template_content(component_id)
+
+        # 4. Traefik voorbereiding
         has_traefik_support = component_details.get("has_traefik_support", False)
         context["has_traefik_support"] = has_traefik_support
         context["component_id"] = component_id
@@ -402,31 +409,20 @@ class ComponentManager:
 
         excluded_ports: Set[int] = set()
         component_vars = component_details.get("required_variables", [])
-
         for var in component_vars:
             if var.get("type") == "port_exclude_traefik":
                 var_id = var.get("id")
-                resolved_value = context.get(var_id)
+                val = context.get(var_id)
                 try:
-                    if resolved_value is not None:
-                        excluded_ports.add(int(resolved_value))
+                    if val is not None:
+                        excluded_ports.add(int(val))
                 except (ValueError, TypeError):
-                    logger.warning(
-                        f"Skipping non-integer port value '{resolved_value}' for "
-                        f"excluded Traefik variable '{var_id}' in component "
-                        f"'{component_id}'"
-                    )
+                    pass
 
         is_internal_port_excluded = (
             isinstance(traefik_internal_port, int)
             and traefik_internal_port in excluded_ports
         )
-
-        if is_internal_port_excluded:
-            logger.info(
-                f"Traefik port {traefik_internal_port} for {component_id} is "
-                "excluded by user variable and will not receive labels."
-            )
 
         should_generate_labels = (
             has_traefik_support
@@ -448,14 +444,30 @@ class ComponentManager:
         else:
             context["traefik_labels_yaml"] = ""
 
+        # 5. RENDERING (Met Brute Force Fallback)
         try:
-            rendered_content = template.render(context)  # type: ignore
-            return rendered_content
+            template = Template(template_content)
+            rendered = template.render(**context)
+
+            # --- BRUTE FORCE FIX ---
+            # Als Jinja2 het niet gedaan heeft, doen we het zelf.
+            if "{{ CONFIG_BASE_PATH }}" in rendered:
+                logger.warning(
+                    f"Jinja missed CONFIG_BASE_PATH in {component_id}. "
+                    f"Using brute force replace."
+                )
+                base_path = str(
+                    context.get("CONFIG_BASE_PATH", "../piselfhosting_data")
+                )
+                rendered = rendered.replace("{{ CONFIG_BASE_PATH }}", base_path)
+            # -----------------------
+
+            return rendered
         except Exception as e:
             logger.error(
                 f"Error rendering template for {component_id}: {e}", exc_info=True
             )
-            return f"# ERROR: Template rendering failed for {component_id}: {e}"
+            return f"# ERROR: Template rendering failed: {e}"
 
     def generate_deployment_artifacts(
         self,
@@ -464,8 +476,8 @@ class ComponentManager:
         output_path: Path,
     ) -> None:
         """
-        Orchestrates the rendering of all selected component templates and
-        merges them into a single docker-compose.yml.
+        Generates docker-compose.yml AND a .env file.
+        Injects identification labels for the DeploymentManager.
         """
         logger.info("Starting deployment artifact generation.")
         output_path.mkdir(parents=True, exist_ok=True)
@@ -478,6 +490,9 @@ class ComponentManager:
 
         deployment_context = global_vars.copy()
 
+        # Forceer het pad (relatief voor de Pi)
+        deployment_context["CONFIG_BASE_PATH"] = "../piselfhosting_data"
+
         component_ids = [
             comp_id
             for comp in selected_components_data
@@ -489,9 +504,6 @@ class ComponentManager:
         for component_id in sorted_ids:
             component_data = comp_data_map.get(component_id)
             if not component_data:
-                logger.warning(
-                    f"Skipping component ID '{component_id}' as data is missing."
-                )
                 continue
 
             render_context = deployment_context.copy()
@@ -500,43 +512,59 @@ class ComponentManager:
             try:
                 comp_compose = yaml.safe_load(rendered_yaml)
                 if not isinstance(comp_compose, dict):
-                    logger.error(
-                        f"Rendered content for '{component_id}' is not a valid "
-                        f"YAML dictionary. Content: {rendered_yaml}"
-                    )
                     comp_compose = {}
-            except yaml.YAMLError as e:
-                logger.error(
-                    f"FATAL: Failed to parse YAML for '{component_id}'. Skipping. "
-                    f"Error: {e}",
-                    exc_info=True,
-                )
+            except yaml.YAMLError:
                 continue
-
-            new_services = comp_compose.get("services", {})
-            new_networks = comp_compose.get("networks", {})
-            new_volumes = comp_compose.get("volumes", {})
 
             if "version" in comp_compose:
                 docker_compose_data["version"] = comp_compose["version"]
 
+            new_services = comp_compose.get("services", {})
+
+            # --- FIX: Inject Component ID Label (De Sticker) ---
+            # Dit zorgt ervoor dat de DeploymentManager later snapt wie wie is.
+            for svc_name, svc_def in new_services.items():
+                if "labels" not in svc_def:
+                    svc_def["labels"] = []
+
+                # We ondersteunen zowel lijst- als dictionary-formaat labels
+                label_val = f"piselfhosting.component.id={component_id}"
+
+                if isinstance(svc_def["labels"], list):
+                    # Voorkom dubbele labels als we vaak regenereren
+                    if label_val not in svc_def["labels"]:
+                        svc_def["labels"].append(label_val)
+                elif isinstance(svc_def["labels"], dict):
+                    svc_def["labels"]["piselfhosting.component.id"] = component_id
+            # ---------------------------------------------------
+
             docker_compose_data["services"].update(new_services)
 
-            for network_name, network_def in new_networks.items():
-                if network_name not in docker_compose_data.get("networks", {}):
-                    network_def_copy = network_def.copy()
-                    network_def_copy.setdefault("external", False)
-                    docker_compose_data["networks"][network_name] = network_def_copy
+            for net_name, net_def in comp_compose.get("networks", {}).items():
+                if net_name not in docker_compose_data.get("networks", {}):
+                    net_copy = net_def.copy()
+                    net_copy.setdefault("external", False)
+                    docker_compose_data["networks"][net_name] = net_copy
 
-            docker_compose_data["volumes"].update(new_volumes)
+            docker_compose_data["volumes"].update(comp_compose.get("volumes", {}))
 
         logger.info("Writing final artifacts.")
+
+        # 1. Write docker-compose.yml
         compose_path = output_path / "docker-compose.yml"
         with open(compose_path, "w", encoding="utf-8") as f:
             yaml.dump(docker_compose_data, f, sort_keys=False)
 
+        # 2. Write deployment_context.json
         context_path = output_path / "deployment_context.json"
         with open(context_path, "w", encoding="utf-8") as f:
             json.dump(deployment_context, f, indent=2, sort_keys=True)
+
+        # 3. Write .env
+        env_path = output_path / ".env"
+        with open(env_path, "w", encoding="utf-8") as f:
+            for key, value in deployment_context.items():
+                if isinstance(value, (str, int, float, bool)):
+                    f.write(f"{key}={value}\n")
 
         logger.info("Artifact generation completed.")
