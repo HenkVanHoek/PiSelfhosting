@@ -1,0 +1,45 @@
+/* PiSelfhosting Official Brand Styles */
+
+/* 1. Define Brand Colors */
+:root {
+    --brand-green: #68A83C;
+    --brand-blue: #0F7A95;
+    --brand-gray: #6A8088;
+    --info-blue-bg: #EFF6FF;
+    --info-blue-border: #BFDBFE;
+
+    /* 2. Override Bootstrap's Root Variables */
+    --bs-primary: var(--brand-green);
+    --bs-primary-rgb: 104, 168, 60;
+
+    --bs-secondary: var(--brand-gray);
+    --bs-secondary-rgb: 106, 128, 136;
+}
+
+body {
+    font-family: 'Roboto', sans-serif;
+    background-color: #f8f9fa;
+}
+h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
+    font-family: 'Montserrat', sans-serif;
+}
+
+/* 3. Explicitly Override Bootstrap Component Styles */
+.btn-primary {
+    background-color: var(--brand-green);
+    border-color: var(--brand-green);
+}
+.btn-primary:hover {
+    background-color: #5a9335;
+    border-color: #528630;
+}
+.btn-accent {
+    background-color: var(--brand-blue);
+    border-color: var(--brand-blue);
+    color: #fff;
+}
+.btn-accent:hover {
+    background-color: #0c6178;
+    border-color: #0b586d;
+    color: #fff;
+}
