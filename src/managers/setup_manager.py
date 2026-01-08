@@ -1,3 +1,4 @@
+# file: src/managers/setup_manager.py
 import json
 import logging
 from pathlib import Path
@@ -59,10 +60,10 @@ class SetupManager:
     ) -> str:
         """
         Generates the final, combined docker-compose.yml content.
-        This includes rendering each component's template, stitching them
-        together.
+        This includes rendering each component's template and merging them
+        into a single dictionary structure before dumping to YAML.
         """
-        all_services: List[str] = []
+        final_services_dict = {}
         base_context = {**global_vars}  # Ensure global vars are in the base context
 
         for component_data in selected_components_data:
@@ -79,30 +80,34 @@ class SetupManager:
             # Extract the 'services' section from the rendered YAML
             try:
                 comp_yaml = yaml.safe_load(rendered_template)
+                # Handle case where template might be empty or have no services
+                if not comp_yaml:
+                    continue
+
                 services = comp_yaml.get("services", {})
                 for service_name, service_data in services.items():
                     # Add a mandatory label for component ID (for deployment checks)
                     service_data.setdefault("labels", []).append(
                         f"piselfhosting.component.id={component_id}"
                     )
-                    # Add the service definition (name and data) to the list
-                    service_yaml = yaml.dump(
-                        {service_name: service_data},
-                        default_flow_style=False,
-                        sort_keys=False,
-                    )
-                    all_services.append(service_yaml)
+                    # Add the service definition to the master dictionary
+                    final_services_dict[service_name] = service_data
             except yaml.YAMLError as e:
                 logger.error(
                     f"YAML parsing failed for component {component_id}'s template: {e}"
                 )
                 raise ValueError(f"Template YAML error in {component_id}: {e}")
 
-        # Stitch all services together under the main 'services' key
-        combined_services = "\n".join(all_services)
-        base_compose = "version: '3.7'\nservices:\n"
-        final_compose = base_compose + combined_services
-        return final_compose
+        # Construct the final structure
+        full_compose_structure = {
+            "version": "3.7",
+            "services": final_services_dict,
+        }
+
+        # Return the dumped YAML string
+        return yaml.dump(
+            full_compose_structure, default_flow_style=False, sort_keys=False
+        )
 
     def prepare_deployment_package(
         self,
