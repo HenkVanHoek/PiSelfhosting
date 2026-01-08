@@ -1,10 +1,13 @@
-# In src/managers/ssh_manager.py
-
+# src/managers/ssh_manager.py
 import select
+from pathlib import Path
 from typing import Callable, Optional, Tuple
 
 import paramiko
-from paramiko import SFTPClient, SSHClient
+from appdirs import user_data_dir
+from cryptography.hazmat.primitives import serialization as crypto_serialization
+from cryptography.hazmat.primitives.asymmetric import ed25519
+from paramiko import Ed25519Key, SFTPClient, SSHClient
 
 
 class SSHManager:
@@ -16,14 +19,65 @@ class SSHManager:
         self.password = password
         self.port = port
         self.client: Optional[SSHClient] = None
-        # --- FIX: Added type hint for SFTP client to resolve mypy errors ---
         self.sftp: Optional[SFTPClient] = None
 
+        # Determine the local path for the SSH private key
+        app_data_dir = Path(user_data_dir("PiSelfhosting", "PiSelfhosting"))
+        app_data_dir.mkdir(parents=True, exist_ok=True)
+        self.key_file = app_data_dir / "id_ed25519_piselfhosting"
+
+    def _get_or_create_key(self) -> Ed25519Key:
+        """Retrieves an existing Ed25519 key or generates a new one."""
+        if self.key_file.exists():
+            return Ed25519Key.from_private_key_file(str(self.key_file))
+
+        # ROBUST FIX: Many Paramiko versions lack Ed25519Key.generate().
+        # We use the cryptography library directly to generate the key pair.
+        private_key = ed25519.Ed25519PrivateKey.generate()
+
+        # Export to OpenSSH format
+        private_bytes = private_key.private_bytes(
+            encoding=crypto_serialization.Encoding.PEM,
+            format=crypto_serialization.PrivateFormat.OpenSSH,
+            encryption_algorithm=crypto_serialization.NoEncryption(),
+        )
+
+        with open(self.key_file, "wb") as f:
+            f.write(private_bytes)
+
+        # Ensure the private key has correct permissions on Linux/macOS
+        self.key_file.chmod(0o600)
+
+        # Load it back into the Paramiko Ed25519Key class
+        return Ed25519Key.from_private_key_file(str(self.key_file))
+
     def connect(self) -> Tuple[bool, str]:
-        """Establishes the SSH connection."""
+        """Establishes the SSH connection, preferring keys to passwords."""
         try:
             self.client = SSHClient()
-            self.client.set_missing_host_key_policy(paramiko.AutoAddPolicy())  # nosec
+            # Security suppression for local network discovery.
+            # noinspection PyTypeChecker
+            self.client.set_missing_host_key_policy(
+                paramiko.AutoAddPolicy()  # nosec B507
+            )
+
+            # Attempt key-based authentication first if a key exists
+            if self.key_file.exists():
+                try:
+                    self.client.connect(
+                        hostname=self.hostname,
+                        username=self.username,
+                        port=self.port,
+                        key_filename=str(self.key_file),
+                        timeout=10,
+                        look_for_keys=False,
+                        allow_agent=False,
+                    )
+                    return True, "Connection successful (via SSH Key)."
+                except paramiko.AuthenticationException:
+                    pass  # Fallback to password
+
+            # Fallback to password-based authentication
             self.client.connect(
                 hostname=self.hostname,
                 username=self.username,
@@ -31,10 +85,35 @@ class SSHManager:
                 port=self.port,
                 timeout=10,
             )
-            return True, "Connection successful."
+            return True, "Connection successful (via Password)."
         except Exception as e:
             self.client = None
             return False, str(e)
+
+    def setup_ssh_key(self, log_callback: Callable[[str], None]) -> bool:
+        """
+        Deploys the local public key to the remote host to enable
+        passwordless authentication.
+        """
+        log_callback(f"Securing {self.hostname} by deploying SSH keys...")
+        key = self._get_or_create_key()
+        public_key_str = f"{key.get_name()} {key.get_base64()}"
+
+        commands = [
+            "mkdir -p ~/.ssh",
+            f'echo "{public_key_str}" >> ~/.ssh/authorized_keys',
+            "chmod 700 ~/.ssh",
+            "chmod 600 ~/.ssh/authorized_keys",
+        ]
+
+        for cmd in commands:
+            exit_code, _ = self.execute_command(cmd, log_callback)
+            if exit_code != 0:
+                log_callback(f"FAILED to set up SSH key during: {cmd}")
+                return False
+
+        log_callback("SSH key successfully deployed.")
+        return True
 
     def execute_command(
         self,
@@ -49,7 +128,6 @@ class SSHManager:
             return -1, ""
 
         try:
-            # --- FIX: Check that transport is active to fix mypy [union-attr] ---
             transport = self.client.get_transport()
             if not transport:
                 log_callback("FATAL: SSH transport is not active.\n")
@@ -60,7 +138,6 @@ class SSHManager:
             channel.exec_command(command)  # nosec B601
 
             stdout_parts = []
-            # Loop and stream output...
             while not channel.exit_status_ready():
                 readq, _, _ = select.select([channel], [], [], 0.2)
                 if readq:
@@ -77,7 +154,7 @@ class SSHManager:
             if check_exit_code and exit_code != 0:
                 short_cmd = f"{command[:40]}..." if len(command) > 40 else command
                 log_callback(
-                    f"ERROR: Command '{short_cmd}' failed with exit code {exit_code}\n"
+                    f"ERROR: Command '{short_cmd}' failed with code {exit_code}\n"
                 )
 
             full_stdout = "".join(stdout_parts).strip()

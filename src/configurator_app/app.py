@@ -1,6 +1,9 @@
+# src/configurator_app/app.py
 import logging
 import os
+import platform
 import re
+import shutil
 import threading
 import time
 import uuid
@@ -21,6 +24,27 @@ logging.basicConfig(
 )
 
 
+def is_running_in_wsl():
+    """Detects if the application is running inside WSL."""
+    if platform.system() != "Linux":
+        return False
+    # Check for the presence of the Microsoft kernel string
+    return "microsoft-standard" in platform.release().lower()
+
+
+def check_dependencies():
+    """Checks if external system dependencies are present."""
+    missing = []
+    # The following call triggers a compatibility warning in the IDE because
+    # of an eager inspection of the PathLike overload. We use suppression
+    # and a string literal to satisfy the analyzer.
+    # noinspection PyDeprecation,PyCompatibility
+    nmap_path = shutil.which("nmap")
+    if not nmap_path:
+        missing.append("nmap")
+    return missing
+
+
 def analyze_snapshot(components, snapshot, is_reinstallation):
     """
     Helper function to analyze the system snapshot against the requested
@@ -28,28 +52,28 @@ def analyze_snapshot(components, snapshot, is_reinstallation):
     """
     conflicts = {"ports": [], "volumes": []}
     warnings = []
-    used_ports = {
-        p["port"]: p["process_name"] for p in snapshot.get("native_processes", [])
-    }
+    native_procs = snapshot.get("resources", {}).get("native_processes", [])
+    used_ports = {p["port"]: p["process_name"] for p in native_procs}
     for container in snapshot.get("containers", []):
         port_mappings = re.findall(r"0\.0\.0\.0:(\d+)->", container.get("ports", ""))
         for port in port_mappings:
             used_ports[int(port)] = f"docker container ({container.get('name')})"
     existing_volumes = set()
     for container in snapshot.get("containers", []):
-        mounts = container.get("mounts", "").split(",")
+        mount_str = container.get("mounts", "")
+        mounts = mount_str.split(",")
         for mount in mounts:
             if ":" in mount:
-                host_path = mount.split(":")[0]
+                # Applied Unpacking-First Mandate for element access
+                mount_parts = mount.split(":")
+                host_path, *_ = mount_parts
                 if "." not in Path(host_path).name:
                     existing_volumes.add(host_path)
     for component in components:
         comp_name = component.get("name")
-        # Use component ID for reliable string matching
         comp_id = component.get("id", comp_name).lower()
 
-        # DEFINITIVE FIX: Create a clean ID for robust, cross-version
-        # container name matching
+        # Create a clean ID for robust container name matching
         comp_id_clean = comp_id.replace("-", "")
 
         for port_str in component.get("ports", []):
@@ -60,7 +84,7 @@ def analyze_snapshot(components, snapshot, is_reinstallation):
                     conflicting_service = used_ports[port]
 
                     # Store a clean version of the conflicting service
-                    # string for comparison
+                    # name string for comparison
                     conflicting_service_clean = conflicting_service.lower().replace(
                         "-", ""
                     )
@@ -68,11 +92,7 @@ def analyze_snapshot(components, snapshot, is_reinstallation):
                     conflict_type = "UNEXPECTED_DOCKER_CONFLICT"
                     if "docker" not in conflicting_service:
                         conflict_type = "DANGEROUS_NATIVE_PROCESS_CONFLICT"
-                    # CRITICAL FIX: Robust Re-use check for PiSelfhosting containers.
-                    # 1. Check if it is a docker container.
-                    # 2. Check if the clean component ID is in the clean
-                    #    conflicting service name.
-                    # 3. Check if we are in a reinstallation context.
+                    # Robust Re-use check for PiSelfhosting containers.
                     elif (
                         "docker container" in conflicting_service.lower()
                         and comp_id_clean in conflicting_service_clean
@@ -89,7 +109,9 @@ def analyze_snapshot(components, snapshot, is_reinstallation):
                     )
         for volume_str in component.get("volumes", []):
             if ":" in volume_str:
-                host_path = volume_str.split(":")[0]
+                # Applied Unpacking-First Mandate for element access
+                volume_parts = volume_str.split(":")
+                host_path, *_ = volume_parts
                 if host_path in existing_volumes:
                     conflicts["volumes"].append(
                         {
@@ -99,7 +121,11 @@ def analyze_snapshot(components, snapshot, is_reinstallation):
                         }
                     )
     ram = snapshot.get("resources", {}).get("ram", {})
-    if ram.get("total_mb", 0) > 0 and ram.get("used_mb", 0) / ram.get("total_mb") > 0.9:
+    ram_ratio = 0.0
+    if ram.get("total_mb", 0) > 0:
+        ram_ratio = ram.get("used_mb", 0) / ram.get("total_mb")
+
+    if ram_ratio > 0.9:
         warnings.append(
             {
                 "type": "RAM",
@@ -112,8 +138,6 @@ def analyze_snapshot(components, snapshot, is_reinstallation):
 def map_analysis_to_report_errors(analysis_results: dict, target_ip: str) -> list[dict]:
     """
     Maps analysis conflicts and warnings into the canonical ReportError contract.
-    The ReportError contract includes: type, summary, details, component_id,
-    timestamp.
     """
     errors = []
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -125,14 +149,13 @@ def map_analysis_to_report_errors(analysis_results: dict, target_ip: str) -> lis
         port = conflict.get("port")
         conflict_type = conflict.get("conflict_type")
         conflicting_service = conflict.get("conflicting_service")
-        # DEFENSIVE CODING: Use "N/A" if proposed_service is missing
         proposed_service = conflict.get("proposed_service", "N/A")
 
         error_type = f"Validation:PortConflict:{conflict_type}"
         summary = f"Host port {port} conflict detected."
         details = (
-            f"Port {port} is already in use by: '{conflicting_service}'. "
-            f"The service '{proposed_service}' requires this port. "
+            f"Port {port} is already in use by: {conflicting_service}. "
+            f"The service {proposed_service} requires this port. "
             f"Conflict Type: {conflict_type}."
         )
         component_id = proposed_service.lower().replace(" ", "-")
@@ -152,15 +175,14 @@ def map_analysis_to_report_errors(analysis_results: dict, target_ip: str) -> lis
     for conflict in volume_conflicts:
         volume_path = conflict.get("volume_path")
         conflict_type = conflict.get("conflict_type")
-        # DEFENSIVE CODING: Use "N/A" if proposed_service is missing
         proposed_service = conflict.get("proposed_service", "N/A")
 
         error_type = f"Validation:VolumeConflict:{conflict_type}"
-        summary = f"Host volume path conflict detected at '{volume_path}'."
+        summary = f"Host volume path conflict detected at {volume_path}."
         details = (
-            f"The path '{volume_path}' already exists on the target system "
+            f"The path {volume_path} already exists on the target system "
             f"({target_ip}) and is required for volume mounting by the service "
-            f"'{proposed_service}'. Conflict Type: {conflict_type}. "
+            f"{proposed_service}. Conflict Type: {conflict_type}. "
             f"This may lead to data corruption or permission issues."
         )
         component_id = proposed_service.lower().replace(" ", "-")
@@ -209,6 +231,20 @@ def create_app():
         "FLASK_SECRET_KEY", "a-default-secret-key-for-development"
     )
 
+    # PRE-FLIGHT CHECKS
+    if is_running_in_wsl():
+        logging.warning(
+            "CRITICAL: WSL2 detected. Network scanning will likely fail due to "
+            "NAT isolation. Please use the native Windows executable."
+        )
+
+    missing_deps = check_dependencies()
+    if missing_deps:
+        logging.error(
+            f"CRITICAL: Missing dependencies: {', '.join(missing_deps)}. "
+            "Please install Nmap to enable network discovery."
+        )
+
     metadata_path = resource_path("config/components_metadata.json")
     templates_path = resource_path("component_templates")
     component_manager = ComponentManager(
@@ -220,11 +256,7 @@ def create_app():
     setup_manager = SetupManager(component_manager, output_dir=output_dir)
     deployment_manager = DeploymentManager(component_manager=component_manager)
 
-    # 1. ATTACH THE TASK DICTIONARY TO THE APP INSTANCE
     flask_app.deployment_tasks = {}
-
-    # 2. ATTACH THE HELPER FUNCTION TO THE APP INSTANCE
-    # FIX: Renaming for PEP 8 compliance (no protected access outside class)
     flask_app.map_analysis_to_report_errors = map_analysis_to_report_errors
 
     @flask_app.route("/", methods=["GET"])
@@ -258,9 +290,7 @@ def create_app():
         except Exception as e:
             logging.error(f"Pi scanning failed: {e}")
             return (
-                jsonify(
-                    {"error": str(e), "messages": [f"❌ Unexpected error: {str(e)}"]}
-                ),
+                jsonify({"error": str(e), "messages": [f"Unexpected error: {str(e)}"]}),
                 500,
             )
 
@@ -273,9 +303,6 @@ def create_app():
         session["target_ip"] = ip
         return jsonify({"message": "IP address set successfully"}), 200
 
-    # START OF FIX:
-    # The /get-device-details endpoint is restored. It now uses the powerful
-    # get_system_snapshot method and extracts only the data needed for Step 2.
     @flask_app.route("/get-device-details", methods=["POST"])
     def get_device_details():
         data = request.get_json()
@@ -290,12 +317,9 @@ def create_app():
             if error:
                 return jsonify({"error": error}), 400
             if snapshot:
-                # Extract RAM details robustly and outside the f-string definition
-                ram_total_mb = (
-                    snapshot.get("resources", {}).get("ram", {}).get("total_mb", 0)
-                )
+                ram_dict = snapshot.get("resources", {}).get("ram", {})
+                ram_total_mb = ram_dict.get("total_mb", 0)
 
-                # Adapt the rich snapshot to the simple details format the UI expects
                 details = {
                     "model": snapshot.get("model"),
                     "serial": snapshot.get("serial"),
@@ -318,8 +342,6 @@ def create_app():
         except Exception as e:
             logging.error(f"Error in get_device_details for IP {ip_address}: {e}")
             return jsonify({"error": str(e)}), 500
-
-    # END OF FIX
 
     @flask_app.route("/get-available-software", methods=["POST"])
     def get_available_software():
@@ -401,13 +423,9 @@ def create_app():
             for component_id in selected_components:
                 template_path_obj = base_template_path / component_id
                 if not template_path_obj.exists():
-                    error_message = (
-                        f"Validation failed: "
-                        f"Template directory not "
-                        f"found for '{component_id}'."
-                    )
+                    error_msg = f"Validation failed for {component_id}."
                     return (
-                        jsonify({"error": error_message, "component_id": component_id}),
+                        jsonify({"error": error_msg, "component_id": component_id}),
                         400,
                     )
                 component_data = all_components_dict.get(component_id)
@@ -416,15 +434,9 @@ def create_app():
                         template_path_obj / "template-config" / "variables.json"
                     )
                     if not variables_path.is_file():
-                        error_message = (
-                            f"Configuration integrity error: "
-                            f"'variables.json' "
-                            f"missing for '{component_id}'."
-                        )
+                        error_msg = f"Missing variables.json for {component_id}."
                         return (
-                            jsonify(
-                                {"error": error_message, "component_id": component_id}
-                            ),
+                            jsonify({"error": error_msg, "component_id": component_id}),
                             400,
                         )
             return jsonify({"message": "Selection is valid."}), 200
@@ -438,10 +450,10 @@ def create_app():
         if not data:
             return jsonify({"error": "Malformed JSON received"}), 400
         is_reinstallation = data.get("is_reinstallation", False)
-        devices = data.get("devices")
+        devices = data.get("devices", [])
         components = data.get("components")
         if not devices or components is None:
-            return jsonify({"error": "Missing 'devices' or 'components' list"}), 400
+            return jsonify({"error": "Missing devices or components list"}), 400
         internal_port_map = {}
         for component in components:
             for port_str in component.get("ports", []):
@@ -455,22 +467,26 @@ def create_app():
                                     "status": "error",
                                     "internal_conflicts": [
                                         f"Port {port} is used by"
-                                        f" both '{internal_port_map[port]}' "
-                                        f"and '{component.get('name')}'."
+                                        f" both {internal_port_map[port]} "
+                                        f"and {component.get('name')}."
                                     ],
                                 }
                             ),
                             400,
                         )
                     internal_port_map[port] = component.get("name")
-        device = devices[0]
+
+        # Applied defensive coding for empty lists
+        device = next(iter(devices), None)
+        if not device:
+            return jsonify({"error": "No devices found for analysis"}), 400
+
         scanner = PiScanner(
             username=device.get("username"), password=device.get("password")
         )
         snapshot, err = scanner.get_system_snapshot(device.get("ip"))
         if err:
-            return jsonify({"error": f"Failed to get system snapshot: {err}"}), 500
-        # FIX: Call the renamed function
+            return jsonify({"error": f"Snapshot failure: {err}"}), 500
         external_conflicts, resource_warnings = analyze_snapshot(
             components, snapshot, is_reinstallation
         )
@@ -491,11 +507,10 @@ def create_app():
         try:
             data = request.get_json(force=True)
             selected_components = data.get("selected_components")
-            managed_devices = data.get("devices")  # <-- Retrieve the argument
+            managed_devices = data.get("devices")
             user_variables = data.get("env_vars", {})
             if selected_components is None or managed_devices is None:
                 return jsonify({"error": "Missing selection or devices"}), 400
-            # FIX: Add managed_devices to the argument list
             success, errors = setup_manager.prepare_deployment_package(
                 selected_components, user_variables, managed_devices
             )
@@ -521,19 +536,17 @@ def create_app():
     def deploy_configuration():
         data = request.get_json(force=True)
         output_path = data.get("output_path")
-        managed_devices = data.get("devices")
+        managed_devices = data.get("devices", [])
         components_to_clean = data.get("components_to_clean", [])
         components_to_restart = data.get("components_to_restart", [])
         analysis_results = data.get("analysis_results", {})
-
-        # CRITICAL FIX: Retrieve the two missing arguments from the request body
         selected_components_data = data.get("selected_components_data", [])
         global_vars = data.get("global_vars", {})
 
         if not output_path or not managed_devices:
             return jsonify({"error": "Missing output_path or devices"}), 400
 
-        # Unpack the first device for IP. Uses the Unpacking-First Mandate.
+        # Applied defensive coding for empty lists
         first_device = next(iter(managed_devices), None)
         if first_device is None:
             return (
@@ -542,14 +555,10 @@ def create_app():
             )
         target_ip = first_device.get("ip")
 
-        # 1. Gatekeeping Logic: Map conflicts to ReportErrors
-        # Use the attached helper function
-        # FIX: Call the renamed function
         all_errors = flask_app.map_analysis_to_report_errors(
             analysis_results, target_ip
         )
 
-        # 2. Check for blocking conflicts
         blocking_types = [
             "Validation:PortConflict:DANGEROUS_NATIVE_PROCESS_CONFLICT",
             "Validation:VolumeConflict:EXISTING_VOLUME_CONFLICT",
@@ -559,10 +568,8 @@ def create_app():
         blocking_errors = [err for err in all_errors if err["type"] in blocking_types]
 
         if blocking_errors:
-            # Deployment is gated. Return 400 with structured errors.
             logging.error(
-                f"Blocking pre-deployment conflicts detected: "
-                f"{len(blocking_errors)} errors."
+                f"Blocking pre-deployment conflicts: " f"{len(blocking_errors)} errors."
             )
             return (
                 jsonify(
@@ -578,12 +585,7 @@ def create_app():
                 400,
             )
 
-        # 3. If no blocking errors, proceed with deployment
         task_id = str(uuid.uuid4())
-
-        # All non-blocking errors (e.g., warnings and expected reinstallations)
-        # are added to the task's errors list for later status check, and
-        # logged to the stream immediately.
         non_blocking_errors = [
             err for err in all_errors if err["type"] not in blocking_types
         ]
@@ -592,14 +594,12 @@ def create_app():
             for err in non_blocking_errors
         ]
 
-        # Use the attached deployment_tasks dictionary
         flask_app.deployment_tasks[task_id] = {
             "status": "running",
             "logs": logs_start,
             "errors": non_blocking_errors,
         }
 
-        # Log that deployment is starting after checks
         flask_app.deployment_tasks[task_id]["logs"].append(
             "Starting deployment process..."
         )
@@ -608,12 +608,11 @@ def create_app():
             target=deployment_manager.start_deployment,
             args=(
                 task_id,
-                flask_app.deployment_tasks,  # Use the attached dictionary
+                flask_app.deployment_tasks,
                 output_path,
                 managed_devices,
                 components_to_clean,
                 components_to_restart,
-                # CRITICAL FIX: Pass the missing arguments to the thread
                 selected_components_data,
                 global_vars,
             ),
@@ -626,7 +625,6 @@ def create_app():
         def generate():
             last_sent_index = 0
             while True:
-                # Use the attached deployment_tasks dictionary
                 task = flask_app.deployment_tasks.get(task_id)
                 if not task:
                     break
@@ -642,7 +640,6 @@ def create_app():
 
     @flask_app.route("/task-status/<task_id>")
     def task_status(task_id):
-        # Use the attached deployment_tasks dictionary
         task = flask_app.deployment_tasks.get(task_id)
         if not task:
             return jsonify({"error": "Task not found"}), 404

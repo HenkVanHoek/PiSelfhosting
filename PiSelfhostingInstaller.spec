@@ -26,9 +26,13 @@ a = Analysis(
         # Config files
         ('config', 'config'),
         # Component templates - essential for generating configurations
-        ('component_templates', 'component_templates'),  # Add this line
+        ('component_templates', 'component_templates'),
     ],
-    hiddenimports=[],
+    hiddenimports=[
+        'nacl',
+        'bcrypt',
+        'cryptography'
+    ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
