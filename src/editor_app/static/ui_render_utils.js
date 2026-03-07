@@ -414,6 +414,19 @@ export function renderEditor(details, componentData, markTabDirtyCallback, handl
     // --- Datalist for Groups ---
     const datalistGroups = document.createElement('datalist');
     datalistGroups.id = 'group-datalist';
+
+    // --- Datalist for Packages ---
+    const datalistPackages = document.createElement('datalist');
+    datalistPackages.id = 'package-datalist';
+    if (componentData && componentData.packages) {
+        Object.keys(componentData.packages).forEach(pkgId => {
+            const option = document.createElement('option');
+            option.value = pkgId;
+            option.textContent = componentData.packages[pkgId].name;
+            datalistPackages.appendChild(option);
+        });
+    }
+    metadataPane.appendChild(datalistPackages);
     if (componentData && componentData.groups) {
         componentData.groups.forEach(group => {
             const option = document.createElement('option');
@@ -494,6 +507,67 @@ export function renderEditor(details, componentData, markTabDirtyCallback, handl
         });
     }
 
+        // --- AI Orchestration Section (New) ---
+    const aiSectionHeader = document.createElement('h5');
+    aiSectionHeader.className = 'mt-4 mb-3 text-info';
+    aiSectionHeader.innerHTML = '<i class="bi bi-robot"></i> AI & Package Orchestration';
+    metadataPane.appendChild(aiSectionHeader);
+
+    const rowAi = document.createElement('div');
+    rowAi.className = 'row';
+
+    // Package ID Dropdown
+    const colPkg = document.createElement('div');
+    colPkg.className = 'col-md-6 mb-3';
+    // Logic to render package selection dropdown
+    const pkgField = renderMetadataField('text', 'comp-package-id', 'Package ID', details.package_id, false, false, 1, 'package-datalist');
+    colPkg.appendChild(pkgField.firstChild);
+    colPkg.appendChild(pkgField.lastChild);
+
+    // AI Tags (Comma-separated)
+    const colTags = document.createElement('div');
+    colTags.className = 'col-md-6 mb-3';
+    const tagsStr = Array.isArray(details.tags) ? details.tags.join(', ') : '';
+    const tagsField = renderMetadataField('text', 'comp-tags', 'AI Search Tags (comma-separated)', tagsStr);
+    colTags.appendChild(tagsField.firstChild);
+    colTags.appendChild(tagsField.lastChild);
+
+    rowAi.appendChild(colPkg);
+    rowAi.appendChild(colTags);
+    metadataPane.appendChild(rowAi);
+
+    // Resource Profile Row
+    const rowResources = document.createElement('div');
+    rowResources.className = 'row bg-light p-3 rounded mb-3 mx-0';
+
+    const profile = details.resource_profile || { cpu: 'medium', ram: 'medium' };
+
+    const renderProfileSelect = (id, label, value, options) => {
+        const col = document.createElement('div');
+        col.className = 'col-md-4';
+        const lbl = document.createElement('label');
+        lbl.className = 'form-label small';
+        lbl.textContent = label;
+        const sel = document.createElement('select');
+        sel.className = 'form-select form-select-sm';
+        sel.id = id;
+        options.forEach(opt => {
+            const o = document.createElement('option');
+            o.value = opt;
+            o.textContent = opt.charAt(0).toUpperCase() + opt.slice(1);
+            if (opt === value) o.selected = true;
+            sel.appendChild(o);
+        });
+        col.appendChild(lbl);
+        col.appendChild(sel);
+        return col;
+    };
+
+    rowResources.appendChild(renderProfileSelect('comp-cpu', 'CPU Load', profile.cpu, ['low', 'medium', 'high']));
+    rowResources.appendChild(renderProfileSelect('comp-ram', 'RAM Usage', profile.ram, ['low', 'medium', 'high']));
+    rowResources.appendChild(renderProfileSelect('comp-storage', 'Storage Type', profile.storage_type || 'persistent', ['persistent', 'temporary']));
+
+    metadataPane.appendChild(rowResources);
     // 3. Setup Metadata Event Listener
     metadataPane.addEventListener('input', () => markTabDirtyCallback('metadata-pane'));
     metadataPane.addEventListener('change', () => markTabDirtyCallback('metadata-pane'));

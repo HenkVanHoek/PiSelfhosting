@@ -79,6 +79,67 @@ If you are running the installer on a `Linux desktop`, you must perform a one-ti
     echo "your_username ALL=(ALL) NOPASSWD: /usr/bin/nmap" | sudo tee /etc/sudoers.d/99-piselfhosting
     sudo chmod 0440 /etc/sudoers.d/99-piselfhosting
 
+## Project Directory Structure (Samba Share in Windows the X: drive)
+
+The following tree represents the current physical layout of the project as seen from the development environment.
+```
+X:.
+├── AGENTS.md
+├── BEST_PRACTICES.md
+├── CHANGELOG.md
+├── context_generator.py
+├── docker-compose.template.yml
+├── Dockerfile
+├── Makefile
+├── pyproject.toml
+├── README.md
+├── ROADMAP.md
+├── run_editor.py
+├── src
+│   ├── pi_scanner.py
+│   ├── setup.py
+│   ├── configurator_app
+│   │   ├── app.py
+│   │   ├── static
+│   │   │   └── css (base.css, configurator.css)
+│   │   └── templates (base.html, index.html, live_log.html, etc.)
+│   ├── editor_app
+│   │   ├── app.py
+│   │   ├── static (editor.v2.js, ui_render_utils.js)
+│   │   └── templates (editor.html)
+│   ├── managers
+│   │   ├── component_manager.py
+│   │   ├── deployment_manager.py
+│   │   ├── setup_manager.py
+│   │   └── ssh_manager.py
+│   ├── config_tools
+│   │   └── config_manager.py
+│   └── utils
+│       ├── auth_utils.py
+│       ├── dashy_updater.py
+│       ├── generation_logger.py
+│       └── ssh_utils.py
+├── component_templates
+│   ├── adguard-home
+│   ├── homeassistant
+│   ├── pi-hole
+│   ├── traefik (tls.template.yml, variables.json)
+│   └── [overige service mappen...]
+├── config
+│   ├── components_metadata.json
+│   └── raspberry_pi_oui.json
+├── docs
+│   ├── ARCHITECTURE.md
+│   ├── DATA_CONTRACTS.md
+│   ├── FUNCTIONAL_SPEC.md
+│   └── TESTING_STRATEGY.md
+├── tests
+│   ├── test_component_manager.py
+│   ├── test_setup_manager.py
+│   ├── configurator_app/test_configurator_app.py
+│   └── editor_app/test_editor_app.py
+└── linux/install.sh
+```
 ## 🤝 Contributing
 We welcome contributions! For guidelines on how to get started with development, please see our `CONTRIBUTING.md` file. To understand the core design principles and data contracts of the project, please review the `ARCHITECTURE.md` file.
 

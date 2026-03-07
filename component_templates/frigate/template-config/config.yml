@@ -9,7 +9,7 @@ mqtt:
   host: mosquitto # Name of the Mosquitto service in Docker Compose
   topic_prefix: frigate # Example prefix
   user: ${MQTT_USER} # Variable from .env
-  password: ${MQTT_PASS} # Variable from .env
+  password: "${MQTT_PASS}"  # Variable from .env
 
 # Detectors (for Google Coral TPU or CPU)
 # If you selected a Coral TPU in the config tool, this section will be populated.

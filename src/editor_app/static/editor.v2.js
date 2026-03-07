@@ -147,20 +147,33 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Save Handlers (Including Conflict Gatekeeper) ---
 
+/**
+     * Collects all metadata from the UI and sends it to the backend.
+     * Includes the new AI tags and resource profiles.
+     */
     const saveMetadata = async (componentId) => {
         const portInput = document.getElementById('comp-traefik-port');
+
         const payload = {
             name: document.getElementById('comp-name').value,
             description: document.getElementById('comp-desc').value,
             group: document.getElementById('comp-group').value || null,
+            // NEW: AI and Package fields
+            package_id: document.getElementById('comp-package-id').value || 'general-stack',
+            tags: document.getElementById('comp-tags').value.split(',').map(s => s.trim()).filter(Boolean),
+            resource_profile: {
+                cpu: document.getElementById('comp-cpu').value,
+                ram: document.getElementById('comp-ram').value,
+                storage_type: document.getElementById('comp-storage').value
+            },
             depends_on: document.getElementById('comp-deps').value.split(',').map(s => s.trim()).filter(Boolean),
             conflicts_with: document.getElementById('comp-conflicts').value.split(',').map(s => s.trim()).filter(Boolean),
             has_ui: document.getElementById('comp-has-ui').checked,
             has_configuration: document.getElementById('comp-has-config').checked,
             has_traefik_support: document.getElementById('comp-has-traefik').checked,
-            // Ensure we send a valid number or null
             traefik_internal_port: portInput.disabled ? null : parseInt(portInput.value) || null
         };
+
         await fetchJson(`/api/components/${componentId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
@@ -793,10 +806,19 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    /**
+     * Loads components and renders them in the sidebar based on the selected view (groups or packages).
+     */
     const loadComponents = async () => {
         try {
             componentData = await fetchJson('/api/components');
             const sidebarControls = document.getElementById('sidebar-controls');
+            const viewTabs = document.getElementById('view-tabs');
+
+            // Current view state (default to groups)
+            if (!window.currentView) window.currentView = 'groups';
+
+            // 1. Setup Search (remains the same)
             if (!document.getElementById('component-search')) {
                 const searchInput = document.createElement('div');
                 searchInput.innerHTML = `<input type="text" id="component-search" class="form-control" placeholder="Search components...">`;
@@ -813,6 +835,20 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                 });
             }
+
+            // 2. Setup View Toggles
+            if (viewTabs && !viewTabs.dataset.init) {
+                viewTabs.dataset.init = "true";
+                viewTabs.addEventListener('click', (e) => {
+                    const btn = e.target.closest('button');
+                    if (!btn) return;
+                    viewTabs.querySelectorAll('.nav-link').forEach(t => t.classList.remove('active'));
+                    btn.classList.add('active');
+                    window.currentView = btn.dataset.view;
+                    loadComponents(); // Re-render with new view
+                });
+            }
+
             componentList.innerHTML = '';
             const createComponentLink = (component) => {
                 const link = document.createElement('a');
@@ -826,44 +862,156 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 return link;
             };
-            if (componentData && componentData.groups) {
-                componentData.groups.forEach(group => {
-                    const groupContainer = document.createElement('div');
-                    groupContainer.className = 'group-container mb-2';
-                    const groupId = `group-collapse-${group.id}`;
-                    const header = document.createElement('a');
-                    header.className = 'list-group-item list-group-item-secondary group-header d-flex justify-content-between align-items-center';
-                    header.href = `#${groupId}`;
-                    header.dataset.bsToggle = 'collapse';
-                    header.dataset.groupId = group.id;
-                    header.innerHTML = `<strong>${group.name}</strong> <i class="bi bi-chevron-down"></i>`;
-                    if (group.is_exclusive) header.classList.add('group-header-exclusive');
-                    groupContainer.appendChild(header);
-                    const collapseWrapper = document.createElement('div');
-                    collapseWrapper.id = groupId;
-                    collapseWrapper.className = 'collapse show component-list-wrapper';
-                    collapseWrapper.dataset.groupId = group.id;
-                    group.components.forEach(comp => collapseWrapper.appendChild(createComponentLink(comp)));
-                    groupContainer.appendChild(collapseWrapper);
-                    componentList.appendChild(groupContainer);
-                    // CRITICAL FIX: Add defensive check for Sortable library existence
-                    if (typeof Sortable !== 'undefined') {
-                        new Sortable(collapseWrapper, {
-                            group: 'shared-components',
-                            animation: 150,
-                            onEnd: (evt) => {
-                               saveComponentOrder(evt.item, evt.from, evt.to);
-                            }
-                        });
-                    }
-                });
+
+            // 3. Render based on currentView
+            if (window.currentView === 'groups') {
+                renderGroupsView(createComponentLink);
+            } else {
+                renderPackagesView(createComponentLink);
             }
+
         } catch (error) {
             console.error('Error loading components:', error);
             componentList.innerHTML = '<li class="list-group-item list-group-item-danger">Error loading components.</li>';
         }
     };
 
+    /**
+     * Renders the traditional groups-based view.
+     */
+    const renderGroupsView = (createLinkFn) => {
+        if (!componentData || !componentData.groups) return;
+        componentData.groups.forEach(group => {
+            renderSection(group.id, group.name, group.is_exclusive, group.components, createLinkFn);
+        });
+    };
+
+    /**
+     * Renders the new packages-based view by grouping all components by their package_id.
+     */
+    const renderPackagesView = (createLinkFn) => {
+        if (!componentData || !componentData.packages) return;
+
+        // 1. Create a map to hold components for each package ID
+        const packageMembers = {};
+
+        // Initialize the map with keys from our defined packages
+        Object.keys(componentData.packages).forEach(pkgId => {
+            packageMembers[pkgId] = [];
+        });
+
+        // 2. Flatten all components from the groups and assign them to their packages
+        // Since each component now has a package_id after migration.
+        componentData.groups.forEach(group => {
+            group.components.forEach(comp => {
+                // We need the full details to see the package_id.
+                // For now, we use a fallback if package_id isn't in the summary.
+                const pkgId = comp.package_id || 'general-stack';
+
+                if (!packageMembers[pkgId]) {
+                    packageMembers[pkgId] = []; // Fallback for undefined packages
+                }
+                packageMembers[pkgId].push(comp);
+            });
+        });
+
+        // 3. Render each package section in the sidebar
+        Object.keys(componentData.packages).forEach(pkgId => {
+            const pkg = componentData.packages[pkgId];
+            const components = packageMembers[pkgId];
+
+            // Use a special prefix for IDs to allow specific CSS styling
+            renderSection(`pkg-${pkgId}`, pkg.name, false, components, createLinkFn);
+        });
+    };
+
+    /**
+     * Helper to render a collapsible section in the sidebar.
+     */
+    const renderSection = (id, name, isExclusive, components, createLinkFn) => {
+        const container = document.createElement('div');
+        container.className = 'group-container mb-2';
+        const collapseId = `collapse-${id}`;
+
+        const header = document.createElement('a');
+        header.className = 'list-group-item list-group-item-secondary group-header d-flex justify-content-between align-items-center';
+        header.href = `#${collapseId}`;
+        header.dataset.bsToggle = 'collapse';
+        header.dataset.groupId = id;
+        header.innerHTML = `<strong>${name}</strong> <i class="bi bi-chevron-down"></i>`;
+        if (isExclusive) header.classList.add('group-header-exclusive');
+
+        container.appendChild(header);
+        const wrapper = document.createElement('div');
+        wrapper.id = collapseId;
+        wrapper.className = 'collapse show component-list-wrapper';
+        wrapper.dataset.groupId = id;
+
+        if (components.length === 0) {
+            const empty = document.createElement('div');
+            empty.className = 'list-group-item small text-muted italic';
+            empty.textContent = 'No components assigned';
+            wrapper.appendChild(empty);
+        } else {
+            components.forEach(comp => wrapper.appendChild(createLinkFn(comp)));
+        }
+
+        container.appendChild(wrapper);
+        componentList.appendChild(container);
+    };
+
+    const setupManagePackagesModal = () => {
+        const manageBtn = document.getElementById('manage-packages-btn');
+        const modalElement = document.getElementById('manage-packages-modal');
+        if (!manageBtn || !modalElement) return;
+        const modal = new bootstrap.Modal(modalElement);
+        const listContainer = document.getElementById('manage-packages-list');
+
+        manageBtn.addEventListener('click', async () => {
+            renderPackagesList();
+            modal.show();
+        });
+
+        const renderPackagesList = async () => {
+            // Refresh data from API
+            const packages = await fetchJson('/api/packages');
+            listContainer.innerHTML = '';
+            Object.keys(packages).forEach(id => {
+                const pkg = packages[id];
+                const div = document.createElement('div');
+                div.className = 'card mb-2 p-2';
+                div.innerHTML = `
+                    <div class="d-flex justify-content-between">
+                        <strong>${id}</strong>
+                        <button class="btn btn-sm btn-outline-danger" onclick="deletePackage('${id}')">Delete</button>
+                    </div>
+                    <div class="mt-2">
+                        <input type="text" class="form-control form-control-sm mb-1" value="${pkg.name}" onchange="updatePackage('${id}', {name: this.value})">
+                        <textarea class="form-control form-control-sm" placeholder="Description" onchange="updatePackage('${id}', {description: this.value})">${pkg.description || ''}</textarea>
+                    </div>
+                `;
+                listContainer.appendChild(div);
+            });
+        };
+
+        window.updatePackage = async (id, data) => {
+            await fetchJson(`/api/packages/${id}`, {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(data)
+            });
+            showAlert('Package updated');
+        };
+
+        window.deletePackage = async (id) => {
+            if (!confirm('Delete package?')) return;
+            try {
+                await fetchJson(`/api/packages/${id}`, { method: 'DELETE' });
+                renderPackagesList();
+                showAlert('Package deleted');
+            } catch (e) { showAlert(e.message, 'danger'); }
+        };
+    };
     const setupDirtyFormHandling = () => {
         editorTabs.forEach(tab => {
             tab.addEventListener('show.bs.tab', (event) => {
@@ -911,6 +1059,7 @@ document.addEventListener('DOMContentLoaded', () => {
         setupSortableGroups();
         setupCreateComponentModal();
         setupManageGroupsModal();
+        setupManagePackagesModal();
         setupDirtyFormHandling();
         setupHashGenerator();
         updateUiForDirtyState();

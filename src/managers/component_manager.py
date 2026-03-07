@@ -57,6 +57,41 @@ class ComponentManager:
         with open(self.metadata_file, "w", encoding="utf-8") as f:
             json.dump(self._components_data, f, indent=2, sort_keys=True)
 
+    def create_package(self, pkg_id: str, name: str):
+        """Adds a new package definition to the metadata."""
+        if "packages" not in self._components_data:
+            self._components_data["packages"] = {}
+        if pkg_id in self._components_data["packages"]:
+            raise ValueError(f"Package ID '{pkg_id}' already exists.")
+        self._components_data["packages"][pkg_id] = {
+            "name": name,
+            "description": "",
+            "network_type": "bridge",
+        }
+        self._save_metadata()
+
+    def update_package_metadata(self, pkg_id: str, update_data: dict):
+        """Updates existing package metadata fields."""
+        if (
+            "packages" not in self._components_data
+            or pkg_id not in self._components_data["packages"]
+        ):
+            raise ValueError("Package not found.")
+        self._components_data["packages"][pkg_id].update(update_data)
+        self._save_metadata()
+
+    def delete_package(self, pkg_id: str):
+        """Removes a package definition if no components are assigned to it."""
+        # Check if any component is still using this package_id
+        in_use = any(
+            c.get("package_id") == pkg_id
+            for c in self._components_data.get("components", {}).values()
+        )
+        if in_use:
+            raise ValueError("Cannot delete package: components are still assigned.")
+        del self._components_data["packages"][pkg_id]
+        self._save_metadata()
+
     def get_all_components(self) -> List[Dict[str, Any]]:
         """Returns a list of all components with their essential data."""
         components = self._components_data.get("components", {})
@@ -68,16 +103,33 @@ class ComponentManager:
             all_comps.append(full_data)
         return all_comps
 
+    def get_all_packages(self) -> dict:
+        """
+        Returns the 'packages' section from the metadata file.
+        """
+        # Assuming self.data contains the loaded components_metadata.json
+        return self._components_data.get("packages", {})
+
     def get_component_details(self, component_id: str) -> Optional[Dict[str, Any]]:
         """
-        Returns the full details for a single component.
+        Returns the full details for a single component, including AI metadata.
         """
         component_data = self._components_data.get("components", {}).get(component_id)
         if not component_data:
             return None
+
         details = component_data.copy()
         details["id"] = component_id
         details["required_variables"] = self._variables_cache.get(component_id, [])
+
+        # Explicitly ensure the new AI and Package fields are present for the UI
+        details.setdefault("package_id", "general-stack")
+        details.setdefault("tags", [])
+        details.setdefault(
+            "resource_profile",
+            {"cpu": "medium", "ram": "medium", "storage_type": "persistent"},
+        )
+
         details["has_traefik_support"] = component_data.get(
             "has_traefik_support", False
         )
@@ -85,6 +137,7 @@ class ComponentManager:
             "traefik_internal_port", None
         )
         details["conflicts_with"] = component_data.get("conflicts_with", [])
+
         return details
 
     def validate_component_configuration(

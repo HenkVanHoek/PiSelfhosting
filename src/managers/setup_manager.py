@@ -1,188 +1,62 @@
-# file: src/managers/setup_manager.py
-import json
+# src/managers/setup_manager.py
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict
 
-import yaml
-
-from managers.component_manager import ComponentManager
+from managers.component_reader import ComponentReader
 
 logger = logging.getLogger(__name__)
-
-# Define the location for global variables. This is the convention.
-GLOBAL_ENV_FILE_NAME = ".env"
 
 
 class SetupManager:
     """
-    Manages the creation and preparation of the deployment package,
-    including generating Docker Compose files and .env files.
+    Handles the initial setup and directory structure for the self-hosting environment.
+    Uses ComponentReader to validate component existence during setup tasks.
     """
 
-    def __init__(self, component_manager: ComponentManager, output_dir: Path):
-        self.component_manager = component_manager
+    def __init__(self, component_manager: ComponentReader, output_dir: Path):
+        """
+        Initialize the SetupManager.
+        """
+        self.reader = component_manager
         self.output_dir = output_dir
-        self.output_dir.mkdir(parents=True, exist_ok=True)
-        logger.info(f"SetupManager initialized. Output directory: {self.output_dir}")
 
-    def _generate_env_content(
-        self, user_variables: Dict[str, str], component_context: Dict[str, Any]
-    ) -> str:
+    def initialize_environment(self) -> bool:
         """
-        Generates the content for the main .env file by merging user-provided
-        variables and global configuration context.
+        Creates the necessary base directories for the deployment.
         """
-        # Start with a base set of standard context variables (like the output path)
-        env_vars = {
-            "CONFIG_BASE_PATH": str(self.output_dir),
-            "COMPOSE_PROJECT_NAME": "piselfhosting",
-            # Add any project-wide defaults here
-        }
-
-        # Merge in the global variables derived from the component context
-        # (e.g., Traefik settings that are used globally)
-        for key, value in component_context.items():
-            if key.startswith("GLOBAL_"):
-                env_vars[key.replace("GLOBAL_", "")] = str(value)
-
-        # Merge in all user-provided variables (these have the highest precedence)
-        env_vars.update(user_variables)
-
-        # Format as .env file content
-        content = [f"{key}={value}" for key, value in env_vars.items()]
-        return "\n".join(content)
-
-    def _generate_docker_compose(
-        self,
-        selected_components_data: List[Dict[str, Any]],
-        global_vars: Dict[str, Any],
-    ) -> str:
-        """
-        Generates the final, combined docker-compose.yml content.
-        This includes rendering each component's template and merging them
-        into a single dictionary structure before dumping to YAML.
-        """
-        final_services_dict = {}
-        base_context = {**global_vars}  # Ensure global vars are in the base context
-
-        for component_data in selected_components_data:
-            component_id = component_data.get("id")
-            if not component_id:
-                logger.warning("Skipping component with missing ID.")
-                continue
-
-            # Generate the rendered template content for the component
-            rendered_template = self.component_manager.render_component_template(
-                component_id, base_context.copy()
-            )
-
-            # Extract the 'services' section from the rendered YAML
-            try:
-                comp_yaml = yaml.safe_load(rendered_template)
-                # Handle case where template might be empty or have no services
-                if not comp_yaml:
-                    continue
-
-                services = comp_yaml.get("services", {})
-                for service_name, service_data in services.items():
-                    # Add a mandatory label for component ID (for deployment checks)
-                    service_data.setdefault("labels", []).append(
-                        f"piselfhosting.component.id={component_id}"
-                    )
-                    # Add the service definition to the master dictionary
-                    final_services_dict[service_name] = service_data
-            except yaml.YAMLError as e:
-                logger.error(
-                    f"YAML parsing failed for component {component_id}'s template: {e}"
-                )
-                raise ValueError(f"Template YAML error in {component_id}: {e}")
-
-        # Construct the final structure
-        full_compose_structure = {
-            "version": "3.7",
-            "services": final_services_dict,
-        }
-
-        # Return the dumped YAML string
-        return yaml.dump(
-            full_compose_structure, default_flow_style=False, sort_keys=False
-        )
-
-    def prepare_deployment_package(
-        self,
-        selected_components: List[str],
-        user_variables: Dict[str, str],
-        _managed_devices: List[Dict[str, Any]],
-    ) -> Tuple[bool, List[str]]:
-        """
-        Main entry point to generate the deployment files.
-
-        Returns:
-            Tuple[bool, List[str]]: Success status and a list of errors.
-        """
-        errors: List[str] = []
-
-        # 1. Gather all component data needed for template generation
-        all_components = self.component_manager.get_all_components()
-        all_components_dict = {c["id"]: c for c in all_components}
-
-        selected_components_data: List[Dict[str, Any]] = [
-            all_components_dict[comp_id]
-            for comp_id in selected_components
-            if comp_id in all_components_dict
-        ]
-
-        # 2. Extract GLOBAL variables from user_variables
-        global_vars = {}
-        component_specific_vars = {}
-        for key, value in user_variables.items():
-            if key.startswith("GLOBAL_"):
-                global_vars[key] = value
-            else:
-                component_specific_vars[key] = value
-
-        # 3. Validation Gate: Ensure all templates and variables are valid
-        for comp_data in selected_components_data:
-            comp_id = comp_data["id"]
-            try:
-                template_content = (
-                    self.component_manager.get_component_template_content(comp_id)
-                )
-                comp_vars = comp_data.get("required_variables", [])
-
-                self.component_manager.validate_component_configuration(
-                    comp_id, template_content, comp_vars
-                )
-            except ValueError as e:
-                errors.append(f"Validation Failed for {comp_id}: {str(e)}")
-                return False, errors
-            except Exception as e:
-                errors.append(f"Validation Error for {comp_id}: {str(e)}")
-                return False, errors
-
-        # 4. Generate Files
         try:
-            # Generate Docker Compose file
-            compose_content = self._generate_docker_compose(
-                selected_components_data, global_vars
-            )
-            (self.output_dir / "docker-compose.yml").write_text(
-                compose_content, "utf-8"
-            )
+            if not self.output_dir.exists():
+                self.output_dir.mkdir(parents=True, exist_ok=True)
+                logger.info(f"Created base directory at {self.output_dir}")
 
-            # Generate .env file
-            env_content = self._generate_env_content(
-                component_specific_vars, global_vars
-            )
-            (self.output_dir / GLOBAL_ENV_FILE_NAME).write_text(env_content, "utf-8")
+            # Create a sub-folder for logs
+            log_dir = self.output_dir / "logs"
+            log_dir.mkdir(exist_ok=True)
 
-            # Generate deployment context file (used for service link discovery)
-            context_file = self.output_dir / "deployment_context.json"
-            context_file.write_text(json.dumps(global_vars, indent=2), "utf-8")
-
+            return True
         except Exception as e:
-            errors.append(f"File Generation Failed: {str(e)}")
-            return False, errors
+            logger.error(f"Failed to initialize environment: {e}")
+            return False
 
-        return True, errors
+    def verify_component_setup(self, component_id: str) -> bool:
+        """
+        Checks if a component exists in the metadata before attempting setup.
+        """
+        details = self.reader.get_component_details(component_id)
+        if not details:
+            logger.warning(f"Component {component_id} not found in metadata.")
+            return False
+
+        logger.info(f"Verified component {component_id} for setup.")
+        return True
+
+    def get_setup_report(self) -> Dict[str, Any]:
+        """
+        Returns a summary of the current environment setup.
+        """
+        return {
+            "base_path": str(self.output_dir),
+            "status": "ready" if self.output_dir.exists() else "uninitialized",
+            "components_available": len(self.reader.get_all_components()),
+        }

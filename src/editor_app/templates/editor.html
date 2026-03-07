@@ -38,6 +38,39 @@
             color: #58151c !important;
             transition: background-color 0.2s ease-in-out;
         }
+           /* Styling for the View Switcher (Groups/Packages) */
+        #view-tabs {
+            background-color: #e9ecef;
+            padding: 3px;
+            border-radius: 0.5rem;
+            margin-bottom: 1rem;
+        }
+
+        #view-tabs .nav-link {
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: #6c757d;
+            border: none;
+            transition: all 0.2s ease-in-out;
+        }
+
+        #view-tabs .nav-link.active {
+            background-color: #ffffff;
+            color: #0d6efd;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        /* Specific styling for Package headers in the sidebar */
+        .group-header[data-group-id^="pkg-"] {
+            background-color: #e7f1ff;
+            border-left: 4px solid #0d6efd;
+            color: #084298;
+        }
+
+        /* Helper for empty sections */
+        .italic {
+            font-style: italic;
+        }
     </style>
 </head>
 <body>
@@ -68,12 +101,20 @@
             <div class="d-flex justify-content-between align-items-center">
                 <h4>Components</h4>
                 <button class="btn btn-sm btn-outline-secondary" id="manage-groups-btn" title="Manage Groups"><i class="bi bi-gear"></i></button>
+                <button class="btn btn-sm btn-outline-info ms-1" id="manage-packages-btn" title="Manage Packages">
+    <i class="bi bi-box-seam"></i>
+</button>
             </div>
             <hr>
             <div class="d-grid gap-2 mb-3">
                 <button class="btn btn-primary" id="create-new-btn">Create New Component</button>
             </div>
-            <div id="sidebar-controls" class="mb-3"></div>
+            <div id="sidebar-controls" class="mb-3">
+                <div class="nav nav-pills nav-fill mb-2" id="view-tabs" role="tablist">
+                    <button class="nav-link active py-1" id="view-groups-tab" data-view="groups" type="button">Groups</button>
+                    <button class="nav-link py-1" id="view-packages-tab" data-view="packages" type="button">Packages</button>
+                </div>
+            </div>
         </div>
         <div class="list-group" id="component-list"></div>
     </div>
@@ -136,6 +177,28 @@
                         <textarea id="template-editor"></textarea>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="manage-packages-modal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-box-seam"></i> Manage Packages</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3 border-bottom pb-3">
+                    <h6>Create New Package</h6>
+                    <div class="input-group">
+                        <input type="text" id="new-pkg-id" class="form-control form-control-sm" placeholder="ID (e.g., nextcloud-stack)">
+                        <input type="text" id="new-pkg-name" class="form-control form-control-sm" placeholder="Display Name">
+                        <button class="btn btn-primary btn-sm" id="create-pkg-submit">Create</button>
+                    </div>
+                </div>
+                <div id="manage-packages-list"></div>
             </div>
         </div>
     </div>
