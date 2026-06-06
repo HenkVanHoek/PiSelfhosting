@@ -716,7 +716,7 @@
         `;
     };
 
-    const renderStep3_SelectSoftware = async () => {
+const renderStep3_SelectSoftware = async () => {
         wizardHeader.innerHTML = '<strong>Step 2 of 4: Select Software</strong>';
         wizardBody.innerHTML = `
             <div class="text-center">
@@ -748,13 +748,14 @@
 
             // Add Packages tab first if packages exist
             if (Object.keys(packages).length > 0) {
+                const activeClass = active ? 'show active' : '';
                 tabNavHTML += `
                     <li class="nav-item" role="presentation">
                         <button class="nav-link ${active}" data-bs-toggle="tab" data-bs-target="#tab-packages" type="button">
                             <i class="fa-solid fa-layer-group me-1"></i> Packages
                         </button>
                     </li>`;
-                tabContentHTML += `<div class="tab-pane fade show ${active} p-3" id="tab-packages" role="tabpanel">`;
+                tabContentHTML += `<div class="tab-pane fade ${activeClass} p-3" id="tab-packages" role="tabpanel">`;
                 tabContentHTML += `<p class="text-muted small mb-3">Select a package to instantly deploy a fully integrated stack of services.</p>`;
 
                 Object.keys(packages).forEach(pkgId => {
@@ -780,11 +781,14 @@
                 const tabId = `tab-${groupName.replace(/\s+/g, '-')}`;
                 tabNavHTML += `
                     <li class="nav-item" role="presentation">
-                        <button class="nav-link ${active}" data-bs-toggle="tab" data-bs-target="#tab-standalone" type="button">
+                        <button class="nav-link ${active}" data-bs-toggle="tab" data-bs-target="#${tabId}" type="button">
                             ${escapeHTML(groupName)}
                         </button>
                     </li>`;
-                tabContentHTML += `<div class="tab-pane fade show ${active} p-3" id="${tabId}" role="tabpanel">`;
+
+                // Mitigation: activeClass helper applies 'show active' strictly to the active tab to prevent transparent transition bug
+                const activeClass = active ? 'show active' : '';
+                tabContentHTML += `<div class="tab-pane fade ${activeClass} p-3" id="${tabId}" role="tabpanel">`;
 
                 const groupInfo = groups[groupName];
                 const isExclusive = Array.isArray(groupInfo) ? false : groupInfo.is_exclusive;
@@ -792,7 +796,6 @@
                 const inputType = isExclusive ? 'radio' : 'checkbox';
 
                 compList.forEach(compId => {
-                    // Safe lookup: gets the id property if compId is an object, otherwise uses compId directly
                     const targetId = typeof compId === 'object' && compId ? compId.id : compId;
                     const component = allSoftwareCache.find(c => c.id === targetId);
                     if (component) {
@@ -803,6 +806,8 @@
                 active = '';
             });
 
+            // Standalone Tab
+            const activeClass = active ? 'show active' : '';
             tabNavHTML += `
                 <li class="nav-item" role="presentation">
                     <button class="nav-link ${active}" data-bs-toggle="tab" data-bs-target="#tab-standalone" type="button">
@@ -810,7 +815,7 @@
                     </button>
                 </li>
             `;
-            tabContentHTML += `<div class="tab-pane fade show ${active} p-3" id="tab-standalone" role="tabpanel">`;
+            tabContentHTML += `<div class="tab-pane fade ${activeClass} p-3" id="tab-standalone" role="tabpanel">`;
             allSoftwareCache.forEach(component => {
                 if (!allGroupedComponents.has(component.id)) {
                     tabContentHTML += createComponentInput(component, 'standalone', 'checkbox');
