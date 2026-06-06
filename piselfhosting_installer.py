@@ -1,152 +1,114 @@
 import os
 import sys
-
-# NEW: Import the standard library for parsing TOML files
-import tomllib
+from typing import Generator
 
 from dotenv import load_dotenv
 
+from managers.artifact_generator import ArtifactGenerator
+from managers.component_reader import ComponentReader
 
-def get_project_root():
-    """
-    Returns the correct root path whether running from source or as a
-    PyInstaller bundle. In a bundle, this points to the temporary directory
-    where all assets are unpacked.
-    """
-    if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
-        # Running in a PyInstaller bundle (frozen).
-        # noinspection PyProtectedMember
-        return sys._MEIPASS
-    else:
-        # Running in a normal Python environment (from source)
-        # This is complex to get the project root, not the file location in src
-        return os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+# Import verified utilities and managers
+from utils.resource_utils import get_project_root, get_project_version
 
 
-# NEW: A function to read the version from pyproject.toml
-def get_project_version(project_root):
+def run_installation() -> Generator[str, None, None]:
     """
-    Reads the project version from the pyproject.toml file.
+    Orchestrates the installation process:
+    1. Generates unified Docker Compose artifacts.
+    2. Executes deployment via Ansible.
     """
-    try:
-        pyproject_path = os.path.join(project_root, "pyproject.toml")
-        with open(pyproject_path, "rb") as f:
-            data = tomllib.load(f)
-            return data["project"]["version"]
-    except (FileNotFoundError, KeyError):
-        # Fallback if the file is missing or the version key is not found
-        return "latest"
-
-
-def run_installation():
-    """
-    A generator function that runs the Ansible playbook and yields its
-    output line by line.
-    """
-    # --- Path and Module Setup ---
     project_root = get_project_root()
-    src_path = os.path.join(project_root, "src")
-    if src_path not in sys.path:
-        sys.path.insert(0, src_path)
+    src_path = project_root / "src"
+
+    if str(src_path) not in sys.path:
+        sys.path.insert(0, str(src_path))
 
     import ansible_runner
 
-    # The correct import path assumes piselfhosting_installer is outside src
-    from managers.component_manager import ComponentManager
-
-    # --- Environment and Configuration ---
-    env_path = os.path.join(project_root, ".env")
-    load_dotenv(dotenv_path=env_path)
+    load_dotenv(dotenv_path=project_root / ".env")
 
     yield "--- PiSelfHosting Installer ---"
-    yield "Starting the installation process..."
 
-    # NEW: Get the project version
-    project_version = get_project_version(project_root)
-    yield f"Using Project Version: {project_version}"
+    version = get_project_version()
+    yield f"Project Version: {version}"
 
-    # --- Load Selected Components ---
-    selected_components_file = os.path.join(project_root, "selected_components.txt")
-    if not os.path.exists(selected_components_file):
-        yield f"ERROR: Could not find '{selected_components_file}'."
-        yield "Please make your selections in the web UI first."
+    # --- Initialize Managers ---
+    reader = ComponentReader(
+        metadata_path=project_root / "config" / "components_metadata.json",
+        templates_path=project_root / "component_templates",
+    )
+    generator = ArtifactGenerator(reader)
+
+    # --- Step 1: Load Selections ---
+    selected_file = project_root / "selected_components.txt"
+    if not selected_file.exists():
+        yield f"ERROR: '{selected_file}' missing. Run the UI first."
         return
 
-    with open(selected_components_file, "r") as f:
-        selected_ids = f.read().strip().split()
-
+    selected_ids = selected_file.read_text().strip().split()
     if not selected_ids:
-        yield "ERROR: No components were selected for installation."
+        yield "ERROR: No components selected."
         return
 
-    # --- Initialize Component Manager ---
-    metadata_file = os.path.join(project_root, "config", "components_metadata.json")
-    manager = ComponentManager(metadata_file)
-    components_to_install = manager.get_components_by_id(selected_ids)
+    # --- Step 2: Generate Artifacts ---
+    yield "Generating unified deployment package..."
 
-    yield f"Found {len(components_to_install)} components to install:"
-    for comp in components_to_install:
-        yield f"- {comp['name']} ({comp['id']})"
+    deployment_vars = {}
+    for cid in selected_ids:
+        deployment_vars[cid] = {
+            "PI_IP": os.getenv("PI_IP"),
+            "DOMAIN": os.getenv("DOMAIN", "piselfhosting.com"),
+        }
+
+    output_path = project_root / "generated_deployments"
+
+    # Call your existing create_artifacts method
+    success = generator.create_artifacts(
+        out_path=output_path, components=selected_ids, user_variables=deployment_vars
+    )
+
+    if not success:
+        yield "FATAL ERROR: Could not create deployment artifacts."
+        return
+
+    yield "Deployment package generated successfully."
     yield "---------------------------------"
 
-    # --- Prepare Ansible Runner ---
+    # --- Step 3: Deployment ---
     pi_ip = os.getenv("PI_IP")
     ssh_user = os.getenv("SSH_USER")
-    ssh_pass = os.getenv("SSH_PASSWORD")
 
     if not all([pi_ip, ssh_user]):
-        yield "ERROR: Missing PI_IP or SSH_USER in the .env file."
+        yield "ERROR: Missing PI_IP or SSH_USER in .env."
         return
 
-    extravars = {
-        "selected_components": components_to_install,
-        "ansible_user": ssh_user,
-        # NEW: Add the project version so Ansible can use it in templates
-        "project_version": project_version,
-    }
-    if ssh_pass:
-        extravars["ansible_password"] = ssh_pass
-        extravars["ansible_become_password"] = ssh_pass
-
     inventory = {"hosts": {pi_ip: None}}
-    playbook_path = os.path.join(project_root, "ansible", "playbook.yml")
+    playbook_path = project_root / "ansible" / "playbook.yml"
 
-    yield "Preparing to run Ansible..."
-    yield f"Target: {ssh_user}@{pi_ip}"
-    yield "This process can take a long time. Please be patient."
-    yield "---------------------------------"
+    yield f"Deploying to {ssh_user}@{pi_ip} via Ansible..."
 
-    # --- Run Ansible and Stream Output ---
     try:
-        runner_thread, runner = ansible_runner.run_async(
-            private_data_dir=project_root,
-            playbook=playbook_path,
+        runner = ansible_runner.run(
+            private_data_dir=str(project_root),
+            playbook=str(playbook_path),
             inventory=inventory,
-            extravars=extravars,
+            extravars={"ansible_user": ssh_user, "project_version": version},
             quiet=True,
         )
 
         for event in runner.events:
             if event["event"] == "runner_on_ok":
-                if "stdout" in event["event_data"]["res"]:
-                    for line in event["event_data"]["res"]["stdout_lines"]:
+                res = event["event_data"].get("res", {})
+                if "stdout_lines" in res:
+                    for line in res["stdout_lines"]:
                         yield line
             elif event["event"] in ["runner_on_failed", "runner_on_unreachable"]:
-                yield f"ERROR on task '{event['event_data']['task']}':"
-                if "res" in event["event_data"] and "msg" in event["event_data"]["res"]:
-                    yield event["event_data"]["res"]["msg"]
-                else:
-                    yield str(event)
+                task = event["event_data"].get("task", "Unknown Task")
+                msg = event["event_data"].get("res", {}).get("msg", "No message")
+                yield f"TASK FAILED [{task}]: {msg}"
 
-        runner_thread.join()
-        status = runner.status
-        rc = runner.rc
         yield "---------------------------------"
-        yield f"Ansible playbook finished with status: {status} (RC: {rc})"
-        if rc != 0:
-            yield "There were errors during the installation. Please review the log."
-        else:
-            yield "Installation completed successfully!"
+        yield f"Installation finished with status: {runner.status}"
 
     except Exception as e:
-        yield f"FATAL: An unexpected error occurred while running Ansible: {e}"
+        yield f"FATAL Error during Ansible run: {e}"

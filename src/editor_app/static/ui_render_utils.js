@@ -415,6 +415,20 @@ export function renderEditor(details, componentData, markTabDirtyCallback, handl
     const datalistGroups = document.createElement('datalist');
     datalistGroups.id = 'group-datalist';
 
+    if (componentData && componentData.groups) {
+        // Use a Set to ensure unique values and clean up the list
+        const seenGroups = new Set();
+        componentData.groups.forEach(group => {
+            if (!seenGroups.has(group.id)) {
+                const option = document.createElement('option');
+                option.value = group.id; // Value submitted to backend
+                option.textContent = group.name || group.id; // Friendly name for user
+                datalistGroups.appendChild(option);
+                seenGroups.add(group.id);
+            }
+        });
+    }
+
     // --- Datalist for Packages ---
     const datalistPackages = document.createElement('datalist');
     datalistPackages.id = 'package-datalist';
@@ -456,6 +470,14 @@ export function renderEditor(details, componentData, markTabDirtyCallback, handl
     // --- Checkboxes ---
     metadataPane.appendChild(renderMetadataField('checkbox', 'comp-has-ui', 'Has Web UI', details.has_ui, false, true));
     metadataPane.appendChild(renderMetadataField('checkbox', 'comp-has-config', 'Has User Configuration', details.has_configuration, false, true));
+
+    // --- UI Port Variable ---
+    metadataPane.appendChild(renderMetadataField(
+        'text',
+        'comp-ui-port-variable',
+        'UI Port Variable (for Configurator Access Links)',
+        details.ui_port_variable || ''
+    ));
 
     // --- Traefik Support Checkbox ---
     const hasTraefikSupportField = renderMetadataField(
@@ -507,7 +529,7 @@ export function renderEditor(details, componentData, markTabDirtyCallback, handl
         });
     }
 
-        // --- AI Orchestration Section (New) ---
+    // --- AI Orchestration Section (New) ---
     const aiSectionHeader = document.createElement('h5');
     aiSectionHeader.className = 'mt-4 mb-3 text-info';
     aiSectionHeader.innerHTML = '<i class="bi bi-robot"></i> AI & Package Orchestration';
@@ -516,13 +538,42 @@ export function renderEditor(details, componentData, markTabDirtyCallback, handl
     const rowAi = document.createElement('div');
     rowAi.className = 'row';
 
-    // Package ID Dropdown
+    // Package ID Dropdown (Converted to select dropdown for validated choices)
     const colPkg = document.createElement('div');
     colPkg.className = 'col-md-6 mb-3';
-    // Logic to render package selection dropdown
-    const pkgField = renderMetadataField('text', 'comp-package-id', 'Package ID', details.package_id, false, false, 1, 'package-datalist');
-    colPkg.appendChild(pkgField.firstChild);
-    colPkg.appendChild(pkgField.lastChild);
+
+    const pkgLabel = document.createElement('label');
+    pkgLabel.htmlFor = 'comp-package-id';
+    pkgLabel.className = 'form-label';
+    pkgLabel.textContent = 'Package ID';
+    colPkg.appendChild(pkgLabel);
+
+    const pkgSelect = document.createElement('select');
+    pkgSelect.className = 'form-select';
+    pkgSelect.id = 'comp-package-id';
+
+    // Add a default unassigned Standalone option at the top of select dropdown
+    const noneOption = document.createElement('option');
+    noneOption.value = '';
+    noneOption.textContent = 'None / Standalone (Unassigned)';
+    if (!details.package_id) {
+        noneOption.selected = true;
+    }
+    pkgSelect.appendChild(noneOption);
+
+    if (componentData && componentData.packages) {
+        Object.keys(componentData.packages).forEach(pkgId => {
+            const pkg = componentData.packages[pkgId];
+            const option = document.createElement('option');
+            option.value = pkgId;
+            option.textContent = pkg.name || pkgId;
+            if (pkgId === details.package_id) {
+                option.selected = true;
+            }
+            pkgSelect.appendChild(option);
+        });
+    }
+    colPkg.appendChild(pkgSelect);
 
     // AI Tags (Comma-separated)
     const colTags = document.createElement('div');

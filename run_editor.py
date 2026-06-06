@@ -1,3 +1,5 @@
+# run_editor.py
+
 """
 Development runner for the PiSelfhosting Editor application.
 
@@ -8,9 +10,10 @@ any data modification is immediately reflected in the running application
 without requiring a manual restart.
 """
 
+import os
 from pathlib import Path
 
-from src.editor_app import create_app
+from src.editor_app.app import create_app
 
 
 def find_files_to_watch():
@@ -39,9 +42,11 @@ if __name__ == "__main__":
     # Find all JSON data files that should trigger a reload on change
     extra_files_to_watch = find_files_to_watch()
 
-    # Run the app in debug mode with the enhanced file watching
+    # Run the app dynamically based on environmental configuration
+    debug_mode = os.environ.get("FLASK_DEBUG", "False").lower() in ("true", "1")
+
     editor_app.run(
-        debug=True,
+        debug=debug_mode,
         port=5001,  # Using 5001 to avoid conflicts with the main app
         extra_files=extra_files_to_watch,
     )

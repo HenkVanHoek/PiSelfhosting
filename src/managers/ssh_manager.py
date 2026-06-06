@@ -54,17 +54,15 @@ class SSHManager:
     def connect(self) -> Tuple[bool, str]:
         """Establishes the SSH connection, preferring keys to passwords."""
         try:
-            self.client = SSHClient()
-            # Security suppression for local network discovery.
-            # noinspection PyTypeChecker
-            self.client.set_missing_host_key_policy(
-                paramiko.AutoAddPolicy()  # nosec B507
-            )
+            client = SSHClient()
+            # Enforce RejectPolicy and load system host keys to prevent MitM
+            client.load_system_host_keys()
+            client.set_missing_host_key_policy(paramiko.RejectPolicy())
 
             # Attempt key-based authentication first if a key exists
             if self.key_file.exists():
                 try:
-                    self.client.connect(
+                    client.connect(
                         hostname=self.hostname,
                         username=self.username,
                         port=self.port,
@@ -73,18 +71,20 @@ class SSHManager:
                         look_for_keys=False,
                         allow_agent=False,
                     )
+                    self.client = client
                     return True, "Connection successful (via SSH Key)."
                 except paramiko.AuthenticationException:
                     pass  # Fallback to password
 
             # Fallback to password-based authentication
-            self.client.connect(
+            client.connect(
                 hostname=self.hostname,
                 username=self.username,
                 password=self.password,
                 port=self.port,
                 timeout=10,
             )
+            self.client = client
             return True, "Connection successful (via Password)."
         except Exception as e:
             self.client = None
@@ -118,7 +118,7 @@ class SSHManager:
     def execute_command(
         self,
         command: str,
-        log_callback: Callable[..., None],
+        log_callback: Callable[[str], None],
         *,
         check_exit_code: bool = True,
     ) -> Tuple[int, str]:
@@ -171,8 +171,9 @@ class SSHManager:
         if not self.client:
             return False, "Client not connected."
         try:
-            self.sftp = self.client.open_sftp()
-            with self.sftp.open(remote_path, "wb") as f:
+            sftp = self.client.open_sftp()
+            self.sftp = sftp
+            with sftp.open(remote_path, "wb") as f:
                 f.set_pipelined(True)
                 f.write(content_bytes)
             return True, "File content uploaded successfully."
@@ -184,6 +185,9 @@ class SSHManager:
 
     def close(self) -> None:
         """Closes the SSH connection."""
+        if self.sftp:
+            self.sftp.close()
+            self.sftp = None
         if self.client:
             self.client.close()
             self.client = None

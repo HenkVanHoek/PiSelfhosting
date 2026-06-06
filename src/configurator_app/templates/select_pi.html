@@ -46,6 +46,17 @@
     const nmapStdoutPre = document.getElementById('nmap-stdout');
     const nmapStderrPre = document.getElementById('nmap-stderr');
 
+    // Simple HTML escape helper to prevent DOM-XSS
+    function escapeHTML(str) {
+        if (!str) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#x27;');
+    }
+
     scanForm.addEventListener('submit', async (event) => {
         event.preventDefault();
 
@@ -65,8 +76,14 @@
                 body: JSON.stringify(data)
             });
 
+            // Mitigation: Handle error directly and return early to avoid locally-caught throw warning
             if (!response.ok) {
-                throw new Error(`HTTP error! Status: ${response.status}`);
+                resultsDiv.innerHTML = '';
+                const p = document.createElement('p');
+                p.className = 'error';
+                p.textContent = `An unexpected error occurred: HTTP error! Status: ${response.status}`;
+                resultsDiv.appendChild(p);
+                return;
             }
 
             const resultData = await response.json();
@@ -84,7 +101,12 @@
             }
 
         } catch (error) {
-            resultsDiv.innerHTML = `<p class="error">An unexpected error occurred: ${error.message}</p>`;
+            const err = /** @type {Error} */ (error);
+            resultsDiv.innerHTML = '';
+            const p = document.createElement('p');
+            p.className = 'error';
+            p.textContent = `An unexpected error occurred: ${err.message}`;
+            resultsDiv.appendChild(p);
         } finally {
             loadingDiv.style.display = 'none';
         }
@@ -104,13 +126,18 @@
             html += '<h3>✔️ Devices Ready to Configure</h3>';
             for (const serial in data.success) {
                 const device = data.success[serial];
+                const safeModel = escapeHTML(device.model);
+                const safeIp = escapeHTML(device.connections[0].ip);
+                const safeMac = escapeHTML(device.connections[0].mac);
+                const safeSerial = escapeHTML(device.serial);
+
                 html += `<div class="pi-item">
-                           <p><strong>Model:</strong> ${device.model}</p>
-                           <p><strong>IP Address:</strong> ${device.connections[0].ip}</p>
-                           <p><strong>MAC Address:</strong> ${device.connections[0].mac}</p>
-                           <p><strong>Serial:</strong> ${device.serial}</p>
+                           <p><strong>Model:</strong> ${safeModel}</p>
+                           <p><strong>IP Address:</strong> ${safeIp}</p>
+                           <p><strong>MAC Address:</strong> ${safeMac}</p>
+                           <p><strong>Serial:</strong> ${safeSerial}</p>
                            <form action="/select-pi" method="post" style="margin-top: 1em;">
-                               <input type="hidden" name="pi_ip" value="${device.connections[0].ip}">
+                               <input type="hidden" name="pi_ip" value="${safeIp}">
                                <button type="submit">Select this Pi</button>
                            </form>
                        </div>`;
@@ -120,9 +147,12 @@
         if (hasFailed) {
             html += '<h3>⚠️ Devices Found (Authentication Failed)</h3>';
              data.failed.forEach(device => {
+                 const safeIp = escapeHTML(device.ip);
+                 const safeMac = escapeHTML(device.mac);
+
                  html += `<div class="pi-item">
-                            <p><strong>IP Address:</strong> ${device.ip}</p>
-                            <p><strong>MAC Address:</strong> ${device.mac}</p>
+                            <p><strong>IP Address:</strong> ${safeIp}</p>
+                            <p><strong>MAC Address:</strong> ${safeMac}</p>
                             <p class="error">Could not connect via SSH. Please check username/password and network connectivity.</p>
                         </div>`;
              });

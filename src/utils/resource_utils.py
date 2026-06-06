@@ -1,36 +1,50 @@
 # src/utils/resource_utils.py
-import os
 import sys
+import tomllib
+from pathlib import Path
 
 
-def resource_path(relative_path):
-    """Get absolute path to a resource, works for dev and for PyInstaller"""
+def resource_path(relative_path: str = "") -> Path:
+    """
+    Get absolute path to a resource, works for dev and for PyInstaller.
+    Uses getattr to prevent PyCharm from flagging sys._MEIPASS as unresolved.
+    """
+    base_path_str: str | None = getattr(sys, "_MEIPASS", None)
+
+    if base_path_str is None:
+        # Development path: three levels up from src/utils/resource_utils.py
+        # to the project root
+        base_path = Path(__file__).resolve().parent.parent.parent
+    else:
+        base_path = Path(base_path_str)
+
+    return base_path / relative_path
+
+
+def get_project_root() -> Path:
+    """Returns the project root directory as a Path object."""
+    return Path(resource_path("")).resolve()
+
+
+def get_project_version() -> str:
+    """Reads the project version from pyproject.toml at the project root."""
+    project_root = get_project_root()
+    pyproject_path = project_root / "pyproject.toml"
     try:
-        # PyInstaller creates a temp folder and stores path in _MEIPASS.
-        # The # noinspection comment tells the PyCharm linter to ignore this specific
-        # warning, as this is the officially documented way to get the path.
-        # noinspection PyProtectedMember
-        base_path = sys._MEIPASS
-    except AttributeError:
-        # An AttributeError will be raised if _MEIPASS does not exist, which means
-        # we are not running in a PyInstaller bundle. We are in development.
-        base_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-
-    return os.path.join(base_path, relative_path)
+        with open(pyproject_path, "rb") as f:
+            data = tomllib.load(f)
+            return str(data["project"]["version"])
+    except (FileNotFoundError, KeyError, PermissionError):
+        # Fallback to ensure the application continues even if the file is missing
+        return "latest"
 
 
-# START OF FIX: Add function to provide global template context for Jinja
 def get_global_template_context():
     """
     Provides the required context variables for the base Jinja templates
-    to access global macros and placeholder values (like DOTENV).
+    to access global macros and placeholder values.
     """
-    # NOTE: This is the minimal set required to prevent the 'DOTENV'
-    # is undefined error during editor_app rendering.
     return {
         "DOTENV": {},
         "CONFIG_BASE_PATH": "/default/path",
     }
-
-
-# END OF FIX: Add function to provide global template context for Jinja

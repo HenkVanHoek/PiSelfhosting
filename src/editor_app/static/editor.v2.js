@@ -1,5 +1,7 @@
 // src/editor_app/static/editor.v2.js
 
+/* noinspection JSUnusedGlobalSymbols,JSUnresolvedFunction,JSCheckFunctionSignatures */
+
 import { renderEditor, renderVariablesPane } from './ui_render_utils.js';
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -10,11 +12,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const editorContent = document.getElementById('editor-content');
     const saveChangesBtn = document.getElementById('save-changes-btn');
     const discardChangesBtn = document.getElementById('discard-changes-btn');
-    const editorTabs = document.querySelectorAll('#editorTabs button[data-bs-toggle="tab"]');
+    const editorTabs = document.querySelectorAll(
+        '#editorTabs button[data-bs-toggle="tab"]'
+    );
 
     let codeEditor = null;
     let currentVariables = [];
-    let internalRenderVariablesRows = null; // Stores the inner render function from ui_render_utils
+    let internalRenderVariablesRows = null;
 
     /**
      * @typedef {object} ComponentSummary
@@ -29,8 +33,15 @@ document.addEventListener('DOMContentLoaded', () => {
      * @property {ComponentSummary[]} components
      */
     /**
+     * @typedef {object} PackageDetails
+     * @property {string} id
+     * @property {string} name
+     * @property {string} [description]
+     */
+    /**
      * @typedef {object} ComponentData
      * @property {Group[]} groups
+     * @property {Object.<string, PackageDetails>} packages
      */
     /** @type {ComponentData | null} */
     let componentData = null;
@@ -46,17 +57,26 @@ document.addEventListener('DOMContentLoaded', () => {
      * @property {'dotenv'} [source]
      */
 
+    /** @type {Set<string>} */
     const dirtyTabs = new Set();
     let nextTabTarget = null;
-    const unsavedChangesModal = new bootstrap.Modal(document.getElementById('unsavedChangesModal'));
+
+    const unsavedChangesModalEl = document.getElementById('unsavedChangesModal');
+    const unsavedChangesModal = unsavedChangesModalEl
+        ? new bootstrap.Modal(
+            /** @type {HTMLElement} */ (unsavedChangesModalEl)
+          )
+        : null;
 
     const updateUiForDirtyState = () => {
         const isDirty = dirtyTabs.size > 0;
-        saveChangesBtn.disabled = !isDirty;
-        if (isDirty) {
-            discardChangesBtn.classList.remove('d-none');
-        } else {
-            discardChangesBtn.classList.add('d-none');
+        if (saveChangesBtn) saveChangesBtn.disabled = !isDirty;
+        if (discardChangesBtn) {
+            if (isDirty) {
+                discardChangesBtn.classList.remove('d-none');
+            } else {
+                discardChangesBtn.classList.add('d-none');
+            }
         }
         editorTabs.forEach(tabButton => {
             const paneId = tabButton.getAttribute('data-bs-target').substring(1);
@@ -83,8 +103,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const rows = document.querySelectorAll('#variables-list .card');
         rows.forEach(row => {
             const idEl = row.querySelector('[data-field="id"]');
-            // CRITICAL FIX: Add defensive checks for all variable fields.
-            // If querySelector returns null, accessing .value throws a TypeError.
             const labelEl = row.querySelector('[data-field="label"]');
             const descEl = row.querySelector('[data-field="description"]');
             const typeEl = row.querySelector('[data-field="type"]');
@@ -97,7 +115,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     id: idEl.value,
                     label: labelEl ? labelEl.value : '',
                     description: descEl ? descEl.value : '',
-                    type: typeEl ? typeEl.value : 'text', // Default to 'text' if missing
+                    type: typeEl ? typeEl.value : 'text',
                     source: sourceEl ? sourceEl.value : '',
                     default: defaultEl ? defaultEl.value : '',
                     required: requiredEl ? requiredEl.value : ''
@@ -116,7 +134,8 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 const errorData = await response.json();
                 errorMsg = errorData.error || errorMsg;
-            } catch (e) { /* Ignore non-JSON errors */
+            } catch (e) {
+                // Ignore non-JSON errors
             }
             throw new Error(errorMsg);
         }
@@ -131,47 +150,59 @@ document.addEventListener('DOMContentLoaded', () => {
         return response.text();
     }
 
+    // Mitigation for DOM text reinterpreted as HTML (DOM-XSS)
     const showAlert = (message, type = 'success') => {
         if (!feedbackAlert) {
             console.error('Feedback alert element not found');
             return;
         }
         feedbackAlert.className = `alert alert-${type} alert-dismissible fade show`;
-        const closeButton = '<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>';
-        feedbackAlert.innerHTML = `${message}${closeButton}`;
+        feedbackAlert.textContent = message;
+
+        const closeBtn = document.createElement('button');
+        closeBtn.type = 'button';
+        closeBtn.className = 'btn-close';
+        closeBtn.setAttribute('data-bs-dismiss', 'alert');
+        closeBtn.setAttribute('aria-label', 'Close');
+        feedbackAlert.appendChild(closeBtn);
+
         setTimeout(() => {
             const alertInstance = bootstrap.Alert.getOrCreateInstance(feedbackAlert);
             if (alertInstance) alertInstance.close();
         }, 5000);
     };
 
-    // --- Save Handlers (Including Conflict Gatekeeper) ---
+    // --- Save Handlers ---
 
-/**
-     * Collects all metadata from the UI and sends it to the backend.
-     * Includes the new AI tags and resource profiles.
-     */
     const saveMetadata = async (componentId) => {
         const portInput = document.getElementById('comp-traefik-port');
+        const uiPortInput = document.getElementById('comp-ui-port-variable');
 
         const payload = {
             name: document.getElementById('comp-name').value,
             description: document.getElementById('comp-desc').value,
             group: document.getElementById('comp-group').value || null,
-            // NEW: AI and Package fields
-            package_id: document.getElementById('comp-package-id').value || 'general-stack',
-            tags: document.getElementById('comp-tags').value.split(',').map(s => s.trim()).filter(Boolean),
+            package_id: document.getElementById('comp-package-id').value || null,
+            tags: document.getElementById('comp-tags').value
+                .split(',').map(s => s.trim()).filter(Boolean),
             resource_profile: {
                 cpu: document.getElementById('comp-cpu').value,
                 ram: document.getElementById('comp-ram').value,
                 storage_type: document.getElementById('comp-storage').value
             },
-            depends_on: document.getElementById('comp-deps').value.split(',').map(s => s.trim()).filter(Boolean),
-            conflicts_with: document.getElementById('comp-conflicts').value.split(',').map(s => s.trim()).filter(Boolean),
+            depends_on: document.getElementById('comp-deps').value
+                .split(',').map(s => s.trim()).filter(Boolean),
+            conflicts_with: document.getElementById('comp-conflicts').value
+                .split(',').map(s => s.trim()).filter(Boolean),
             has_ui: document.getElementById('comp-has-ui').checked,
             has_configuration: document.getElementById('comp-has-config').checked,
             has_traefik_support: document.getElementById('comp-has-traefik').checked,
-            traefik_internal_port: portInput.disabled ? null : parseInt(portInput.value) || null
+            ui_port_variable: uiPortInput
+                ? (uiPortInput.value.trim() || null)
+                : null,
+            traefik_internal_port: portInput.disabled
+                ? null
+                : parseInt(portInput.value) || null
         };
 
         await fetchJson(`/api/components/${componentId}`, {
@@ -182,7 +213,6 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const saveVariables = async (componentId) => {
-        // This relies on the fix to collectVariablesFromDOM being present
         const payload = { variables: collectVariablesFromDOM() };
         await fetchJson(`/api/components/${componentId}/variables`, {
             method: 'PUT',
@@ -201,12 +231,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     };
 
-    /**
-     * CRITICAL: Calls the new backend API endpoint to validate the conflicts_with list.
-     * This relies on the already-tested Python logic for correctness.
-     * @param {string} componentId - The ID of the component being saved.
-     * @returns {Promise<boolean>} - True if validation succeeded (200), False otherwise (400).
-     */
     const runConflictGatekeeper = async (componentId) => {
         const conflictsWithList = document.getElementById('comp-conflicts').value
             .split(',')
@@ -214,17 +238,13 @@ document.addEventListener('DOMContentLoaded', () => {
             .filter(Boolean);
 
         try {
-            // New dedicated validation API call
             await fetchJson(`/api/components/${componentId}/validate_metadata_conflicts`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ conflicts_with: conflictsWithList })
             });
-
-            // If the API returns 200, validation is successful
             return true;
         } catch (error) {
-            // The API returns a 400 with the specific error message from ComponentManager
             showAlert(`Conflict Validation Failed: ${error.message}`, 'danger');
             return false;
         }
@@ -232,21 +252,27 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const handleSaveChanges = async (componentId) => {
         saveChangesBtn.disabled = true;
-        saveChangesBtn.innerHTML = `<span class="spinner-border spinner-border-sm"></span> Saving...`;
+        saveChangesBtn.innerHTML =
+            `<span class="spinner-border spinner-border-sm"></span> Saving...`;
 
         try {
-            // CRITICAL STEP: Run the new conflict gatekeeper before saving
             if (!(await runConflictGatekeeper(componentId))) {
-                return; // Stop the save process if the gatekeeper fails
+                return;
             }
 
-            // Save is atomic after validation passes
-            await Promise.all([saveMetadata(componentId), saveVariables(componentId), saveTemplate(componentId)]);
+            await Promise.all([
+                saveMetadata(componentId),
+                saveVariables(componentId),
+                saveTemplate(componentId)
+            ]);
             showAlert('All changes saved successfully!', 'success');
             clearAllDirtyState();
             await loadComponents();
             const selector = `.component-list-item[data-component-id="${componentId}"]`;
-            document.querySelector(selector)?.classList.add('active');
+            const activeLink = document.querySelector(selector);
+            if (activeLink && activeLink.classList) {
+                activeLink.classList.add('active');
+            }
         } catch (error) {
             console.error('Error saving changes:', error);
             showAlert(`Error: ${error.message}`, 'danger');
@@ -260,7 +286,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const validateBtn = document.getElementById('validate-template-btn');
         if (validateBtn) {
             validateBtn.disabled = true;
-            validateBtn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span> Validating...`;
+            validateBtn.innerHTML =
+                `<span class="spinner-border spinner-border-sm me-1"></span> Validating...`;
         }
 
         const variablesFromDOM = collectVariablesFromDOM();
@@ -285,22 +312,21 @@ document.addEventListener('DOMContentLoaded', () => {
         } finally {
             if (validateBtn) {
                 validateBtn.disabled = false;
-                validateBtn.innerHTML = `<i class="bi bi-check-circle"></i> Validate Template`;
+                validateBtn.innerHTML =
+                    `<i class="bi bi-check-circle"></i> Validate Template`;
             }
         }
     };
 
-
     const handleDeleteComponent = async (componentId) => {
-        if (confirm(`Are you sure you want to delete the component '${componentId}'? This action cannot be undone and will remove all associated files and data.`)) {
+        if (confirm(`Are you sure you want to delete the component '${componentId}'?`)) {
             try {
                 await fetch(`/api/components/${componentId}`, { method: 'DELETE' });
                 showAlert(`Component '${componentId}' deleted successfully!`, 'success');
-                editorContent.classList.add('d-none');
-                placeholder.classList.remove('d-none');
+                if (editorContent) editorContent.classList.add('d-none');
+                if (placeholder) placeholder.classList.remove('d-none');
                 await loadComponents();
-            } catch (error)
-            {
+            } catch (error) {
                 showAlert(`Error deleting component: ${error.message}`, 'danger');
             }
         }
@@ -308,40 +334,30 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Variables Pane Handlers ---
 
-    /**
-     * Handles the state mutation for the variables pane and triggers a re-render.
-     * @param {number|undefined} [indexToRemove] - Optional index of a variable to remove.
-     */
     const handleVariablesStateAndRender = (indexToRemove) => {
-        // If an index is provided, mutate the array
         if (indexToRemove !== undefined) {
             currentVariables.splice(indexToRemove, 1);
         }
-
         if (internalRenderVariablesRows) {
             internalRenderVariablesRows();
         }
     };
 
     const handleAddVariable = () => {
-        currentVariables.push({ id: '', label: '', description: '', type: 'text', source: '', default: '', required: '' });
+        currentVariables.push({
+            id: '', label: '', description: '', type: 'text',
+            source: '', default: '', required: ''
+        });
         handleVariablesStateAndRender();
         markTabAsDirty('variables-pane');
     };
 
     // --- Component Loading & Rendering ---
 
-    /**
-     * @param {object} details - The component details object from the API.
-     * @param {string} details.id
-     * @param {string[]|string} [details.conflicts_with]
-     * @param {ComponentVariable[]} [details.required_variables]
-     */
     const applicationRenderEditor = async (details) => {
         const componentId = details.id;
         currentVariables = details.required_variables || [];
 
-        // 1. Render Metadata
         renderEditor(
             details,
             componentData,
@@ -350,35 +366,35 @@ document.addEventListener('DOMContentLoaded', () => {
             handleDeleteComponent
         );
 
-        // 2. Render Variables Pane
         internalRenderVariablesRows = renderVariablesPane({
             variables: currentVariables,
             renderAllRowsCallback: handleVariablesStateAndRender,
             markTabDirtyCallback: () => markTabAsDirty('variables-pane'),
-            onAddVariable: handleAddVariable, // Pass the handler
+            onAddVariable: handleAddVariable,
         });
 
         const addVariableBtn = document.getElementById('add-variable-btn');
         if (addVariableBtn) {
-            // FIX: Re-attach the handler cleanly to fix potential regression where
-            // the button event logic was relying on a dynamically attached handler
-            // inside renderVariablesPane that might not be firing correctly.
             addVariableBtn.onclick = handleAddVariable;
         }
 
-        // 3. Setup CodeMirror
         if (!codeEditor) {
-            const selectedTheme = document.getElementById('theme-selector').value;
-            codeEditor = CodeMirror.fromTextArea(document.getElementById('template-editor'), {
-                lineNumbers: true, mode: 'yaml', theme: selectedTheme, tabSize: 2
-            });
+            const themeSelector = /** @type {HTMLSelectElement} */ (
+                document.getElementById('theme-selector')
+            );
+            const selectedTheme = themeSelector ? themeSelector.value : 'default';
+            codeEditor = CodeMirror.fromTextArea(
+                document.getElementById('template-editor'),
+                {
+                    lineNumbers: true, mode: 'yaml', theme: selectedTheme, tabSize: 2
+                }
+            );
         }
         if (codeEditor.dirtyMarker) codeEditor.off('change', codeEditor.dirtyMarker);
         const dirtyMarker = () => markTabAsDirty('template-pane');
         codeEditor.on('change', dirtyMarker);
         codeEditor.dirtyMarker = dirtyMarker;
 
-        // 4. Final Setup
         setupEditorImportFeatures();
 
         const validateBtn = document.getElementById('validate-template-btn');
@@ -386,17 +402,15 @@ document.addEventListener('DOMContentLoaded', () => {
             validateBtn.onclick = () => runValidation(componentId);
         }
 
-        placeholder.classList.add('d-none');
-        editorContent.classList.remove('d-none');
-        setTimeout(() => codeEditor.setSize("100%", "100%"), 50);
+        if (placeholder) placeholder.classList.add('d-none');
+        if (editorContent) editorContent.classList.remove('d-none');
+        setTimeout(() => { if (codeEditor) codeEditor.setSize("100%", "100%"); }, 50);
         await loadTemplateContent(componentId);
     };
 
     const loadTemplateContent = async (componentId) => {
         if (!codeEditor) return;
-
         if (codeEditor.dirtyMarker) codeEditor.off('change', codeEditor.dirtyMarker);
-
         try {
             const templateText = await fetchText(`/api/components/${componentId}/template`);
             codeEditor.setValue(templateText);
@@ -410,36 +424,52 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const loadComponentDetails = async (componentId, force = false) => {
         if (dirtyTabs.size > 0 && !force) {
-            if (!confirm('You have unsaved changes that will be lost. Are you sure you want to load a new component?')) {
+            if (!confirm('You have unsaved changes that will be lost. Are you sure?')) {
                 return;
             }
         }
         clearAllDirtyState();
 
-        document.querySelectorAll('.component-list-item.active').forEach(item => item.classList.remove('active'));
+        const sidebarItems = document.querySelectorAll('.component-list-item');
+        sidebarItems.forEach(item => item.classList.remove('active'));
         const selector = `.component-list-item[data-component-id="${componentId}"]`;
-        document.querySelector(selector)?.classList.add('active');
-        placeholder.classList.add('d-none');
-        editorContent.classList.add('d-none');
-        if (!document.getElementById('loading-indicator')) {
-            editorPane.insertAdjacentHTML('afterbegin', '<div id="loading-indicator" class="text-center text-muted"><p>Loading...</p></div>');
+        const activeLink = document.querySelector(selector);
+        if (activeLink && activeLink.classList) {
+            activeLink.classList.add('active');
         }
+
+        if (placeholder) placeholder.classList.add('d-none');
+        if (editorContent) editorContent.classList.add('d-none');
+
+        if (!document.getElementById('loading-indicator')) {
+            const loader = document.createElement('div');
+            loader.id = 'loading-indicator';
+            loader.className = 'text-center text-muted';
+            loader.textContent = 'Loading...';
+            if (editorPane) editorPane.appendChild(loader);
+        }
+
         try {
             const details = await fetchJson(`/api/components/${componentId}`);
             details.id = componentId;
             await applicationRenderEditor(details);
         } catch (error) {
             console.error('Error loading component details:', error);
-            editorPane.innerHTML = `<p class="text-center text-danger">Failed to load details: ${error.message}</p>`;
+            if (editorContent) editorContent.classList.add('d-none');
+            if (placeholder) {
+                placeholder.classList.remove('d-none');
+                placeholder.textContent = '';
+                const failHeader = document.createElement('h4');
+                failHeader.className = 'text-danger';
+                failHeader.textContent = `Failed to load details: ${error.message}`;
+                placeholder.appendChild(failHeader);
+            }
         } finally {
-            document.getElementById('loading-indicator')?.remove();
+            const loader = document.getElementById('loading-indicator');
+            if (loader) loader.remove();
             clearAllDirtyState();
         }
     };
-
-    // --- Setup & Lifecycle Functions (Cleaned) ---
-
-    // (runValidation is defined above for scope, though it was in the original context)
 
     const setupResizableSidebar = () => {
         const sidebar = document.getElementById('sidebar');
@@ -490,7 +520,9 @@ document.addEventListener('DOMContentLoaded', () => {
             e.preventDefault();
             editorWrapper.classList.add('drag-over');
         });
-        editorWrapper.addEventListener('dragleave', () => editorWrapper.classList.remove('drag-over'));
+        editorWrapper.addEventListener('dragleave', () =>
+            editorWrapper.classList.remove('drag-over')
+        );
         editorWrapper.addEventListener('drop', (e) => {
             e.preventDefault();
             editorWrapper.classList.remove('drag-over');
@@ -500,9 +532,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const handleFile = (file) => {
             const reader = new FileReader();
             reader.onload = (e) => {
-                codeEditor.setValue(e.target.result);
-                markTabAsDirty('template-pane');
-                showAlert('Template imported successfully!');
+                if (codeEditor) {
+                    codeEditor.setValue(e.target.result);
+                    markTabAsDirty('template-pane');
+                    showAlert('Template imported successfully!');
+                }
             };
             reader.onerror = () => showAlert('Error reading the file.', 'danger');
             reader.readAsText(file);
@@ -525,7 +559,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const createBtn = document.getElementById('create-new-btn');
         const modalElement = document.getElementById('create-component-modal');
         if (!createBtn || !modalElement) return;
-        const modal = new bootstrap.Modal(modalElement);
+        const modal = new bootstrap.Modal(
+            /** @type {HTMLElement} */ (modalElement)
+        );
         const form = document.getElementById('create-component-form');
 
         if (!form) {
@@ -537,7 +573,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const compNameInput = document.getElementById('new-component-name');
         createBtn.addEventListener('click', () => {
             form.reset();
-            modal.show();
+            modal["show"]();
         });
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -545,7 +581,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const componentName = compNameInput.value.trim();
             const validIdPattern = /^[a-z0-9-]+$/;
             if (!validIdPattern.test(componentId)) {
-                showAlert('Invalid Component ID. Use only lowercase letters, numbers, and hyphens.', 'warning');
+                showAlert(
+                    'Invalid ID. Use only lowercase letters, numbers, and hyphens.',
+                    'warning'
+                );
                 compIdInput.classList.add('is-invalid');
                 return;
             }
@@ -558,11 +597,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 await fetchJson('/api/components', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ id: componentId, name: componentName })
+                    body: JSON.stringify({
+                        id: componentId,
+                        meta: { name: componentName }
+                    })
                 });
                 showAlert(`Component '${componentName}' created successfully!`, 'success');
-                modal.hide();
+                modal["hide"]();
                 await loadComponents();
+                await loadComponentDetails(componentId, false);
             } catch (error) {
                 showAlert(`Error creating component: ${error.message}`, 'danger');
             }
@@ -573,7 +616,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const manageBtn = document.getElementById('manage-groups-btn');
         const modalElement = document.getElementById('manage-groups-modal');
         if (!manageBtn || !modalElement) return;
-        const modal = new bootstrap.Modal(modalElement);
+        const modal = new bootstrap.Modal(
+            /** @type {HTMLElement} */ (modalElement)
+        );
         const groupsList = document.getElementById('manage-groups-list');
         if (!groupsList) {
             console.error('Manage groups list not found in the DOM.');
@@ -585,23 +630,61 @@ document.addEventListener('DOMContentLoaded', () => {
             componentData.groups.forEach(group => {
                 const isUsed = group.components.length > 0;
                 const listItem = document.createElement('li');
-                listItem.className = 'list-group-item d-flex justify-content-between align-items-center';
-                listItem.innerHTML = `
-                    <div class="flex-grow-1 me-2">
-                        <span class="group-name-display">${group.name}</span>
-                        <input type="text" class="form-control d-none group-name-input" value="${group.name}">
-                    </div>
-                    <div>
-                        <button class="btn btn-sm btn-outline-primary me-1" data-action="edit"><i class="bi bi-pencil"></i></button>
-                        <button class="btn btn-sm btn-outline-success d-none me-1" data-action="save"><i class="bi bi-check-lg"></i></button>
-                        <button class="btn btn-sm btn-outline-danger" data-action="delete" data-group-id="${group.id}" ${isUsed ? 'disabled title="Cannot delete a group that contains components"' : ''}>
-                            <i class="bi bi-trash"></i>
-                        </button>
-                    </div>
-                `;
+                listItem.className =
+                    'list-group-item d-flex justify-content-between align-items-center';
+
+                const textDiv = document.createElement('div');
+                textDiv.className = 'flex-grow-1 me-2';
+
+                const nameSpan = document.createElement('span');
+                nameSpan.className = 'group-name-display';
+                nameSpan.textContent = group.name;
+
+                const nameInput = document.createElement('input');
+                nameInput.type = 'text';
+                nameInput.className = 'form-control d-none group-name-input';
+                nameInput.value = group.name;
+
+                textDiv.appendChild(nameSpan);
+                textDiv.appendChild(nameInput);
+
+                const btnDiv = document.createElement('div');
+
+                const editBtn = document.createElement('button');
+                editBtn.className = 'btn btn-sm btn-outline-primary me-1';
+                editBtn.dataset.action = 'edit';
+                const editIcon = document.createElement('i');
+                editIcon.className = 'bi bi-pencil';
+                editBtn.appendChild(editIcon);
+
+                const saveBtn = document.createElement('button');
+                saveBtn.className = 'btn btn-sm btn-outline-success d-none me-1';
+                saveBtn.dataset.action = 'save';
+                const checkIcon = document.createElement('i');
+                checkIcon.className = 'bi bi-check-lg';
+                saveBtn.appendChild(checkIcon);
+
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'btn btn-sm btn-outline-danger';
+                deleteBtn.dataset.action = 'delete';
+                deleteBtn.dataset.groupId = group.id;
+                if (isUsed) {
+                    deleteBtn.disabled = true;
+                    deleteBtn.title = 'Cannot delete a group containing components';
+                }
+                const trashIcon = document.createElement('i');
+                trashIcon.className = 'bi bi-trash';
+                deleteBtn.appendChild(trashIcon);
+
+                btnDiv.appendChild(editBtn);
+                btnDiv.appendChild(saveBtn);
+                btnDiv.appendChild(deleteBtn);
+
+                listItem.appendChild(textDiv);
+                listItem.appendChild(btnDiv);
                 groupsList.appendChild(listItem);
             });
-            modal.show();
+            modal["show"]();
         });
         groupsList.addEventListener('click', async (e) => {
             const button = e.target.closest('button');
@@ -630,8 +713,8 @@ document.addEventListener('DOMContentLoaded', () => {
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ name: newName })
                         });
-                        showAlert(`Group renamed to '${newName}' successfully!`, 'success');
-                        modal.hide();
+                        showAlert(`Group renamed to '${newName}'!`, 'success');
+                        modal["hide"]();
                         await loadComponents();
                     } catch (error) {
                         showAlert(`Error renaming group: ${error.message}`, 'danger');
@@ -644,11 +727,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             } else if (action === 'delete') {
                 if (button.disabled) return;
-                if (confirm(`Are you sure you want to delete the group '${groupId}'? This cannot be undone.`)) {
+                if (confirm(`Are you sure you want to delete group '${groupId}'?`)) {
                     try {
                         await fetchJson(`/api/groups/${groupId}`, { method: 'DELETE' });
-                        showAlert(`Group '${groupId}' deleted successfully!`, 'success');
-                        modal.hide();
+                        showAlert(`Group '${groupId}' deleted!`, 'success');
+                        modal["hide"]();
                         await loadComponents();
                     } catch (error) {
                         showAlert(`Error deleting group: ${error.message}`, 'danger');
@@ -663,9 +746,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const hashGeneratorForm = document.getElementById('hash-generator-form');
         const hashUsernameInput = document.getElementById('hash-username');
         const hashPasswordInput = document.getElementById('hash-password');
-        const hashPasswordConfirmInput = document.getElementById('hash-password-confirm');
-        const passwordMatchFeedback = document.getElementById('password-match-feedback');
-        const generateHashSubmitBtn = document.getElementById('generate-hash-submit-btn');
+        const hashPasswordConfirmInput =
+            document.getElementById('hash-password-confirm');
+        const passwordMatchFeedback =
+            document.getElementById('password-match-feedback');
+        const generateHashSubmitBtn =
+            document.getElementById('generate-hash-submit-btn');
         const hashResultArea = document.getElementById('hash-result-area');
         const hashOutputInput = document.getElementById('hash-output');
         const copyHashBtn = document.getElementById('copy-hash-btn');
@@ -673,14 +759,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (!hashGeneratorModalEl || !generateHashBtn) return;
 
-        const hashGeneratorModal = new bootstrap.Modal(hashGeneratorModalEl);
+        const hashGeneratorModal = new bootstrap.Modal(
+            /** @type {HTMLElement} */ (hashGeneratorModalEl)
+        );
 
         generateHashBtn.addEventListener('click', () => {
             hashGeneratorForm.reset();
             hashPasswordInput.classList.remove('is-invalid');
             hashPasswordConfirmInput.classList.remove('is-invalid');
             hashResultArea.style.display = 'none';
-            hashGeneratorModal.show();
+            hashGeneratorModal["show"]();
         });
 
         hashGeneratorForm.addEventListener('submit', async (e) => {
@@ -707,7 +795,8 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             generateHashSubmitBtn.disabled = true;
-            generateHashSubmitBtn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span> Generating...`;
+            generateHashSubmitBtn.innerHTML =
+                `<span class="spinner-border spinner-border-sm me-1"></span> Generating...`;
 
             try {
                 const payload = { username, password };
@@ -717,11 +806,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     body: JSON.stringify(payload)
                 });
 
-                // noinspection JSUnresolvedVariable
                 hashOutputInput.value = response.hashed_user_string;
                 hashResultArea.style.display = 'block';
                 showAlert('Secure hash generated successfully!', 'success');
-
             } catch (error) {
                 showAlert(`Error generating hash: ${error.message}`, 'danger');
                 hashResultArea.style.display = 'none';
@@ -737,27 +824,26 @@ document.addEventListener('DOMContentLoaded', () => {
                 await navigator.clipboard.writeText(textToCopy);
                 showAlert('Hash string copied to clipboard!', 'success');
             } catch (err) {
-                // Fallback for older browsers
                 hashOutputInput.select();
-                // noinspection JSDeprecatedSymbols
-                document.execCommand('copy');
-                showAlert('Hash string copied to clipboard (Legacy fallback)!', 'success');
+                document["execCommand"]('copy');
+                showAlert('Hash string copied (Legacy fallback)!', 'success');
             }
         });
     };
 
     const setupSortableGroups = () => {
-        // CRITICAL FIX: Add defensive check for Sortable library existence
         if (typeof Sortable === 'undefined') {
-            console.error('Sortable.js library not loaded. Cannot set up group sorting.');
+            console.error('Sortable.js library not loaded. Cannot set up sorting.');
             return;
         }
+        if (!componentList) return;
         new Sortable(componentList, {
             animation: 150,
-            handle: '.group-header',
+            handle: '.group-drag-handle',
             onEnd: async () => {
-                const newOrder = Array.from(componentList.querySelectorAll('.group-header'))
-                    .map(header => header.dataset.groupId);
+                const newOrder = Array.from(
+                    componentList.querySelectorAll('.group-header')
+                ).map(header => header.dataset.groupId);
                 try {
                     await fetchJson('/api/groups/order', {
                         method: 'PUT',
@@ -772,180 +858,267 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     };
 
-    const saveComponentOrder = async (movedItem, fromGroup, toGroup) => {
-        const componentId = movedItem.dataset.componentId;
-        const fromGroupId = fromGroup.dataset.groupId;
-        const toGroupId = toGroup.dataset.groupId;
-        if (fromGroupId !== toGroupId) {
-            try {
-                await fetchJson(`/api/components/${componentId}/group`, {
-                    method: 'PUT',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({group: toGroupId})
-                });
-                 showAlert(`Moved ${componentId} to group ${toGroupId}`);
-            } catch (error) {
-                showAlert(`Error moving component: ${error.message}`, 'danger');
-                await loadComponents();
-                return;
-            }
+    const setupSortableComponents = () => {
+        if (typeof Sortable === 'undefined') {
+            console.error('Sortable.js not loaded. Cannot set up component sorting.');
+            return;
         }
-        const allComponentItems = document.querySelectorAll('.component-list-item');
-        const newOrder = Array.from(allComponentItems).map(item => item.dataset.componentId);
-        try {
-            await fetchJson('/api/components/order', {
-                method: 'PUT',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify(newOrder)
+
+        const wrappers = document.querySelectorAll('.component-list-wrapper');
+        wrappers.forEach(element => {
+            const wrapper = /** @type {HTMLElement} */ (element);
+            new Sortable(wrapper, {
+                group: 'shared-components', // Allows dragging between different groups!
+                animation: 150,
+                ghostClass: 'sortable-ghost',
+                onEnd: async (evt) => {
+                    const compId = evt.item.dataset.componentId;
+                    const fromGroupId = evt.from.dataset.groupId;
+                    const toGroupId = evt.to.dataset.groupId;
+
+                    if (!compId) return;
+
+                    // 1. If moved to a different group, update group in backend
+                    if (fromGroupId !== toGroupId) {
+                        try {
+                            await fetchJson(`/api/components/${compId}/group`, {
+                                method: 'PUT',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ group: toGroupId })
+                            });
+                            showAlert(`Moved component to group '${toGroupId}'`);
+                        } catch (error) {
+                            showAlert(`Failed to move component: ${error.message}`, 'danger');
+                            await loadComponents();
+                            return;
+                        }
+                    }
+
+                    // 2. Save the new global order of all components
+                    const newOrder = Array.from(
+                        document.querySelectorAll('.component-list-item')
+                    ).map(item => item.dataset.componentId).filter(Boolean);
+
+                    try {
+                        await fetchJson('/api/components/order', {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(newOrder)
+                        });
+                    } catch (error) {
+                        showAlert(`Failed to save components order: ${error.message}`, 'danger');
+                    }
+                }
             });
-            if (fromGroupId === toGroupId) {
-                console.log('Component order saved');
-            }
-        } catch (error) {
-            showAlert(`Error saving component order: ${error.message}`, 'danger');
-        }
+        });
     };
 
-    /**
-     * Loads components and renders them in the sidebar based on the selected view (groups or packages).
-     */
     const loadComponents = async () => {
         try {
-            componentData = await fetchJson('/api/components');
+            const [rawData, groupRules, packagesData] = await Promise.all([
+                  fetchJson('/api/components'),
+                fetchJson('/api/groups').catch(() => ({})),
+                fetchJson('/api/packages').catch(() => ({}))
+            ]);
+
+            const groupsMap = new Map();
+            const packagesMap = new Map();
+
+            Object.entries(packagesData).forEach(([pkgId, pkg]) => {
+                packagesMap.set(pkgId, { id: pkgId, name: pkg.name || pkgId });
+            });
+
+            Object.entries(rawData).forEach(([compId, comp]) => {
+                if (!comp || typeof comp !== 'object') {
+                    throw new Error(`Data corruption: Entry for '${compId}' is null.`);
+                }
+                comp.id = compId;
+                const gId = comp.group || 'general';
+                const pId = comp.package_id || 'general-stack';
+
+                if (!groupsMap.has(gId)) {
+                    const customName = (groupRules[gId] && groupRules[gId].name)
+                        ? groupRules[gId].name
+                        : gId.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+
+                    groupsMap.set(gId, {
+                        id: gId,
+                        name: customName,
+                        is_exclusive: groupRules[gId]
+                            ? !!groupRules[gId].is_exclusive
+                            : false,
+                        components: []
+                    });
+                }
+                groupsMap.get(gId).components.push(comp);
+
+                if (!packagesMap.has(pId)) {
+                    packagesMap.set(pId, { id: pId, name: pId });
+                }
+            });
+
+            componentData = {
+                groups: Array.from(groupsMap.values()),
+                packages: Object.fromEntries(packagesMap)
+            };
+
             const sidebarControls = document.getElementById('sidebar-controls');
             const viewTabs = document.getElementById('view-tabs');
 
-            // Current view state (default to groups)
             if (!window.currentView) window.currentView = 'groups';
 
-            // 1. Setup Search (remains the same)
-            if (!document.getElementById('component-search')) {
+            if (sidebarControls && !document.getElementById('component-search')) {
                 const searchInput = document.createElement('div');
-                searchInput.innerHTML = `<input type="text" id="component-search" class="form-control" placeholder="Search components...">`;
+                const searchBox = document.createElement('input');
+                searchBox.type = 'text';
+                searchBox.id = 'component-search';
+                searchBox.className = 'form-control';
+                searchBox.placeholder = 'Search components...';
+                searchInput.appendChild(searchBox);
                 sidebarControls.appendChild(searchInput);
-                searchInput.addEventListener('input', (e) => {
+                searchBox.addEventListener('input', (e) => {
                     const searchTerm = e.target.value.toLowerCase();
                     document.querySelectorAll('.group-container').forEach(container => {
-                        const headerText = container.querySelector('.group-header').dataset.groupId.toLowerCase();
-                        const itemsText = Array.from(container.querySelectorAll('.component-list-item'))
-                            .map(item => item.textContent.toLowerCase())
-                            .join(' ');
-                        const isVisible = headerText.includes(searchTerm) || itemsText.includes(searchTerm);
+                        const headerText = container.querySelector('.group-header')
+                            .dataset.groupId.toLowerCase();
+                        const itemsText = Array.from(
+                            container.querySelectorAll('.component-list-item')
+                        ).map(item => item.textContent.toLowerCase()).join(' ');
+                        const isVisible = headerText.includes(searchTerm)
+                            || itemsText.includes(searchTerm);
                         container.style.display = isVisible ? '' : 'none';
                     });
                 });
             }
 
-            // 2. Setup View Toggles
             if (viewTabs && !viewTabs.dataset.init) {
                 viewTabs.dataset.init = "true";
-                viewTabs.addEventListener('click', (e) => {
+                viewTabs.addEventListener('click', async (e) => {
                     const btn = e.target.closest('button');
                     if (!btn) return;
-                    viewTabs.querySelectorAll('.nav-link').forEach(t => t.classList.remove('active'));
+                    viewTabs.querySelectorAll('.nav-link')
+                        .forEach(t => t.classList.remove('active'));
                     btn.classList.add('active');
                     window.currentView = btn.dataset.view;
-                    loadComponents(); // Re-render with new view
+                    await loadComponents();
                 });
             }
 
-            componentList.innerHTML = '';
+            if (componentList) componentList.innerHTML = '';
             const createComponentLink = (component) => {
                 const link = document.createElement('a');
                 link.href = '#';
-                link.className = 'list-group-item list-group-item-action component-list-item';
+                link.className =
+                    'list-group-item list-group-item-action component-list-item';
                 link.textContent = component.name || component.id;
                 link.dataset.componentId = component.id;
-                link.addEventListener('click', (e) => {
+                link.addEventListener('click', async (e) => {
                     e.preventDefault();
-                    void loadComponentDetails(component.id, false);
+                    await loadComponentDetails(component.id, false);
                 });
                 return link;
             };
 
-            // 3. Render based on currentView
             if (window.currentView === 'groups') {
                 renderGroupsView(createComponentLink);
             } else {
                 renderPackagesView(createComponentLink);
             }
+            setupSortableComponents();
 
         } catch (error) {
             console.error('Error loading components:', error);
-            componentList.innerHTML = '<li class="list-group-item list-group-item-danger">Error loading components.</li>';
+            if (componentList) {
+                componentList.innerHTML = '';
+                const errLi = document.createElement('li');
+                errLi.className = 'list-group-item list-group-item-danger';
+                errLi.textContent = 'Error loading components.';
+                componentList.appendChild(errLi);
+            }
         }
     };
 
-    /**
-     * Renders the traditional groups-based view.
-     */
     const renderGroupsView = (createLinkFn) => {
         if (!componentData || !componentData.groups) return;
         componentData.groups.forEach(group => {
-            renderSection(group.id, group.name, group.is_exclusive, group.components, createLinkFn);
+            renderSection(
+                group.id, group.name, group.is_exclusive,
+                group.components, createLinkFn
+            );
         });
     };
 
-    /**
-     * Renders the new packages-based view by grouping all components by their package_id.
-     */
     const renderPackagesView = (createLinkFn) => {
         if (!componentData || !componentData.packages) return;
-
-        // 1. Create a map to hold components for each package ID
         const packageMembers = {};
 
-        // Initialize the map with keys from our defined packages
         Object.keys(componentData.packages).forEach(pkgId => {
             packageMembers[pkgId] = [];
         });
 
-        // 2. Flatten all components from the groups and assign them to their packages
-        // Since each component now has a package_id after migration.
         componentData.groups.forEach(group => {
             group.components.forEach(comp => {
-                // We need the full details to see the package_id.
-                // For now, we use a fallback if package_id isn't in the summary.
-                const pkgId = comp.package_id || 'general-stack';
-
-                if (!packageMembers[pkgId]) {
-                    packageMembers[pkgId] = []; // Fallback for undefined packages
+                const pkgId = comp.package_id;
+                if (pkgId && packageMembers[pkgId] !== undefined) {
+                    packageMembers[pkgId].push(comp);
                 }
-                packageMembers[pkgId].push(comp);
             });
         });
 
-        // 3. Render each package section in the sidebar
         Object.keys(componentData.packages).forEach(pkgId => {
             const pkg = componentData.packages[pkgId];
             const components = packageMembers[pkgId];
-
-            // Use a special prefix for IDs to allow specific CSS styling
-            renderSection(`pkg-${pkgId}`, pkg.name, false, components, createLinkFn);
+            if (components && components.length > 0) {
+                renderSection(
+                    `pkg-${pkgId}`, pkg.name, false, components, createLinkFn
+                );
+            }
         });
     };
 
-    /**
-     * Helper to render a collapsible section in the sidebar.
-     */
     const renderSection = (id, name, isExclusive, components, createLinkFn) => {
         const container = document.createElement('div');
         container.className = 'group-container mb-2';
-        const collapseId = `collapse-${id}`;
+
+        // Sanitize the collapse ID (replace spaces, ampersands, etc. with hyphens)
+        // to make it a valid CSS selector for querySelector / Bootstrap
+        const sanitizedId = id.replace(/[^a-zA-Z0-9_-]/g, '-');
+        const collapseId = `collapse-${sanitizedId}`;
 
         const header = document.createElement('a');
-        header.className = 'list-group-item list-group-item-secondary group-header d-flex justify-content-between align-items-center';
+        header.className = 'list-group-item list-group-item-secondary group-header d-flex ' +
+            'justify-content-between align-items-center';
         header.href = `#${collapseId}`;
         header.dataset.bsToggle = 'collapse';
-        header.dataset.groupId = id;
-        header.innerHTML = `<strong>${name}</strong> <i class="bi bi-chevron-down"></i>`;
+        header.dataset.groupId = id; // Keep original id for the API sorting logic
+        header.setAttribute('role', 'button');
+        header.setAttribute('aria-expanded', 'true');
+
+        const leftDiv = document.createElement('div');
+        leftDiv.className = 'd-flex align-items-center';
+
+        const dragHandle = document.createElement('i');
+        dragHandle.className = 'fa-solid fa-grip-vertical group-drag-handle me-2 text-muted';
+        dragHandle.style.cursor = 'grab';
+        leftDiv.appendChild(dragHandle);
+
+        const strongEl = document.createElement('strong');
+        strongEl.textContent = name;
+        leftDiv.appendChild(strongEl);
+
+        header.appendChild(leftDiv);
+
+        const iconEl = document.createElement('i');
+        iconEl.className = 'bi bi-chevron-down ms-2';
+        header.appendChild(iconEl);
+
         if (isExclusive) header.classList.add('group-header-exclusive');
 
         container.appendChild(header);
         const wrapper = document.createElement('div');
-        wrapper.id = collapseId;
+        wrapper.id = collapseId; // HTML id uses the sanitized, safe ID
         wrapper.className = 'collapse show component-list-wrapper';
-        wrapper.dataset.groupId = id;
+        wrapper.dataset.groupId = id; // Keep original id for the API sorting logic
 
         if (components.length === 0) {
             const empty = document.createElement('div');
@@ -957,42 +1130,113 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         container.appendChild(wrapper);
-        componentList.appendChild(container);
+        if (componentList) componentList.appendChild(container);
     };
 
     const setupManagePackagesModal = () => {
         const manageBtn = document.getElementById('manage-packages-btn');
         const modalElement = document.getElementById('manage-packages-modal');
         if (!manageBtn || !modalElement) return;
-        const modal = new bootstrap.Modal(modalElement);
+        const modal = new bootstrap.Modal(
+            /** @type {HTMLElement} */ (modalElement)
+        );
         const listContainer = document.getElementById('manage-packages-list');
 
+        const newPkgIdInput = document.getElementById('new-pkg-id');
+        const newPkgNameInput = document.getElementById('new-pkg-name');
+        const createPkgSubmitBtn = document.getElementById('create-pkg-submit');
+
         manageBtn.addEventListener('click', async () => {
-            renderPackagesList();
-            modal.show();
+            await renderPackagesList();
+            modal["show"]();
         });
 
         const renderPackagesList = async () => {
-            // Refresh data from API
             const packages = await fetchJson('/api/packages');
-            listContainer.innerHTML = '';
-            Object.keys(packages).forEach(id => {
-                const pkg = packages[id];
-                const div = document.createElement('div');
-                div.className = 'card mb-2 p-2';
-                div.innerHTML = `
-                    <div class="d-flex justify-content-between">
-                        <strong>${id}</strong>
-                        <button class="btn btn-sm btn-outline-danger" onclick="deletePackage('${id}')">Delete</button>
-                    </div>
-                    <div class="mt-2">
-                        <input type="text" class="form-control form-control-sm mb-1" value="${pkg.name}" onchange="updatePackage('${id}', {name: this.value})">
-                        <textarea class="form-control form-control-sm" placeholder="Description" onchange="updatePackage('${id}', {description: this.value})">${pkg.description || ''}</textarea>
-                    </div>
-                `;
-                listContainer.appendChild(div);
-            });
+            if (listContainer) {
+                listContainer.innerHTML = '';
+                Object.keys(packages).forEach(id => {
+                    const pkg = packages[id];
+                    const div = document.createElement('div');
+                    div.className = 'card mb-2 p-2';
+
+                    const topDiv = document.createElement('div');
+                    topDiv.className = 'd-flex justify-content-between';
+
+                    const strongId = document.createElement('strong');
+                    strongId.textContent = id;
+                    topDiv.appendChild(strongId);
+
+                    const delBtn = document.createElement('button');
+                    delBtn.className = 'btn btn-sm btn-outline-danger';
+                    delBtn.textContent = 'Delete';
+                    delBtn.addEventListener('click', () => deletePackage(id));
+                    topDiv.appendChild(delBtn);
+
+                    const botDiv = document.createElement('div');
+                    botDiv.className = 'mt-2';
+
+                    const nameInp = document.createElement('input');
+                    nameInp.type = 'text';
+                    nameInp.className = 'form-control form-control-sm mb-1';
+                    nameInp.value = pkg.name;
+                    nameInp.addEventListener('change', (e) =>
+                        updatePackage(id, { name: e.target.value })
+                    );
+                    botDiv.appendChild(nameInp);
+
+                    const descText = document.createElement('textarea');
+                    descText.className = 'form-control form-control-sm';
+                    descText.placeholder = 'Description';
+                    descText.textContent = pkg.description || '';
+                    descText.addEventListener('change', (e) =>
+                        updatePackage(id, { description: e.target.value })
+                    );
+                    botDiv.appendChild(descText);
+
+                    div.appendChild(topDiv);
+                    div.appendChild(botDiv);
+                    listContainer.appendChild(div);
+                });
+            }
         };
+
+        if (createPkgSubmitBtn && newPkgIdInput && newPkgNameInput) {
+            createPkgSubmitBtn.addEventListener('click', async () => {
+                const pkgId = newPkgIdInput.value.trim();
+                const pkgName = newPkgNameInput.value.trim();
+                const validIdPattern = /^[a-z0-9-]+$/;
+
+                if (!pkgId || !validIdPattern.test(pkgId)) {
+                    showAlert('Invalid ID string.', 'warning');
+                    newPkgIdInput.classList.add('is-invalid');
+                    return;
+                }
+                newPkgIdInput.classList.remove('is-invalid');
+
+                if (!pkgName) {
+                    showAlert('Package Display Name is required.', 'warning');
+                    newPkgNameInput.classList.add('is-invalid');
+                    return;
+                }
+                newPkgNameInput.classList.remove('is-invalid');
+
+                try {
+                    await fetchJson(`/api/packages/${pkgId}`, {
+                        method: 'PUT',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ name: pkgName })
+                    });
+                    showAlert(`Package '${pkgName}' created!`, 'success');
+                    newPkgIdInput.value = '';
+                    newPkgNameInput.value = '';
+                    await renderPackagesList();
+                    await loadComponents();
+                } catch (error) {
+                    showAlert(`Error creating package: ${error.message}`, 'danger');
+                }
+            });
+        }
 
         window.updatePackage = async (id, data) => {
             await fetchJson(`/api/packages/${id}`, {
@@ -1007,47 +1251,95 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!confirm('Delete package?')) return;
             try {
                 await fetchJson(`/api/packages/${id}`, { method: 'DELETE' });
-                renderPackagesList();
+                await renderPackagesList();
                 showAlert('Package deleted');
             } catch (e) { showAlert(e.message, 'danger'); }
         };
     };
+
     const setupDirtyFormHandling = () => {
         editorTabs.forEach(tab => {
             tab.addEventListener('show.bs.tab', (event) => {
                 if (dirtyTabs.size > 0) {
                     event.preventDefault();
                     nextTabTarget = event.target;
-                    unsavedChangesModal.show();
+                    if (unsavedChangesModal) unsavedChangesModal["show"]();
                 }
             });
         });
 
-        document.getElementById('discard-and-continue-btn').addEventListener('click', () => {
-            clearAllDirtyState();
-            unsavedChangesModal.hide();
-            if (nextTabTarget) {
-                new bootstrap.Tab(nextTabTarget).show();
-                nextTabTarget = null;
+        const discardBtn = document.getElementById('discard-and-continue-btn');
+        if (discardBtn) {
+            discardBtn.addEventListener('click', () => {
+                clearAllDirtyState();
+                if (unsavedChangesModal) unsavedChangesModal["hide"]();
+                if (nextTabTarget) {
+                    new bootstrap.Tab(nextTabTarget).show();
+                    nextTabTarget = null;
+                }
+            });
+        }
+
+        const saveContinueBtn = document.getElementById('save-and-continue-btn');
+        if (saveContinueBtn) {
+            saveContinueBtn.addEventListener('click', async () => {
+                const componentId = document.getElementById('comp-id').value;
+                await handleSaveChanges(componentId);
+                if (unsavedChangesModal) unsavedChangesModal["hide"]();
+                if (dirtyTabs.size === 0 && nextTabTarget) {
+                    new bootstrap.Tab(nextTabTarget).show();
+                    nextTabTarget = null;
+                }
+            });
+        }
+
+        if (discardChangesBtn) {
+            discardChangesBtn.addEventListener('click', async () => {
+                const componentId = document.getElementById('comp-id').value;
+                if (componentId) {
+                    await loadComponentDetails(componentId, true);
+                }
+            });
+        }
+    };
+
+    const setupOnboardingGuide = () => {
+        const guideCheckbox = document.getElementById('hide-onboarding-checkbox');
+        const showGuideLink = document.getElementById('show-onboarding-link');
+        const detailedGuide = document.getElementById('welcome-detailed-guide');
+        const minimalGuide = document.getElementById('welcome-minimal');
+
+        if (!guideCheckbox || !showGuideLink || !detailedGuide || !minimalGuide) return;
+
+        const updateGuideVisibility = () => {
+            const isHidden = localStorage.getItem('editor_hide_welcome_guide') === 'true';
+            if (isHidden) {
+                detailedGuide.classList.add('d-none');
+                minimalGuide.classList.remove('d-none');
+                guideCheckbox.checked = true;
+            } else {
+                detailedGuide.classList.remove('d-none');
+                minimalGuide.classList.add('d-none');
+                guideCheckbox.checked = false;
             }
+        };
+
+        guideCheckbox.addEventListener('change', (e) => {
+            if (e.target.checked) {
+                localStorage.setItem('editor_hide_welcome_guide', 'true');
+            } else {
+                localStorage.removeItem('editor_hide_welcome_guide');
+            }
+            updateGuideVisibility();
         });
 
-        document.getElementById('save-and-continue-btn').addEventListener('click', async () => {
-            const componentId = document.getElementById('comp-id').value;
-            await handleSaveChanges(componentId);
-            unsavedChangesModal.hide();
-            if (dirtyTabs.size === 0 && nextTabTarget) {
-                new bootstrap.Tab(nextTabTarget).show();
-                nextTabTarget = null;
-            }
+        showGuideLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            localStorage.removeItem('editor_hide_welcome_guide');
+            updateGuideVisibility();
         });
 
-        discardChangesBtn.addEventListener('click', () => {
-            const componentId = document.getElementById('comp-id').value;
-            if (componentId) {
-                void loadComponentDetails(componentId, true);
-            }
-        });
+        updateGuideVisibility();
     };
 
     // --- Main Initialization ---
@@ -1062,6 +1354,7 @@ document.addEventListener('DOMContentLoaded', () => {
         setupManagePackagesModal();
         setupDirtyFormHandling();
         setupHashGenerator();
+        setupOnboardingGuide();
         updateUiForDirtyState();
     })();
 });

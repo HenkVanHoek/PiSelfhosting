@@ -1,12 +1,14 @@
-import os
+# tests/test_resource_utils.py
+
 import sys
+from pathlib import Path
 
 from src.utils.resource_utils import resource_path
 
 
 def test_resource_path_in_dev_mode():
-    """
-    Tests if the resource_path function returns the correct path when not running
+    """Tests if the resource_path function returns the correct path when not running
+
     in a PyInstaller bundle (i.e., in a normal development/test environment).
     """
     # Arrange
@@ -15,26 +17,26 @@ def test_resource_path_in_dev_mode():
     # To verify its output, we must determine the project root from this test's location
 
     # Get the directory containing this test file (e.g., .../tests)
-    current_test_dir = os.path.dirname(os.path.abspath(__file__))
+    current_test_dir = Path(__file__).resolve().parent
 
     # The project root is one level up from the 'tests' directory.
-    project_root = os.path.dirname(current_test_dir)
+    project_root = current_test_dir.parent
 
-    relative_path_to_test = os.path.join("my_folder", "my_file.txt")
+    relative_path_to_test = Path("my_folder") / "my_file.txt"
 
     # The expected full path is the project root joined with the relative path.
-    expected_path = os.path.join(project_root, relative_path_to_test)
+    expected_path = project_root / relative_path_to_test
 
     # Act
-    actual_path = resource_path(relative_path_to_test)
+    actual_path = resource_path(str(relative_path_to_test))
 
     # Assert
-    assert actual_path == expected_path
+    assert str(actual_path) == str(expected_path)
 
 
 def test_resource_path_in_pyinstaller_mode(monkeypatch):
-    """
-    Tests if the resource_path function returns the correct path when
+    """Tests if the resource_path function returns the correct path when
+
     simulating a PyInstaller environment.
     """
     # Arrange: Mock the sys attributes that PyInstaller sets when running as a bundle.
@@ -44,11 +46,11 @@ def test_resource_path_in_pyinstaller_mode(monkeypatch):
     monkeypatch.setattr(sys, "frozen", True, raising=False)
     monkeypatch.setattr(sys, "_MEIPASS", temp_bundle_dir, raising=False)
 
-    relative = os.path.join("my_folder", "my_file.txt")
-    expected_path = os.path.join(temp_bundle_dir, relative)
+    relative = "my_folder/my_file.txt"
+    expected_path = str(Path(temp_bundle_dir) / relative)
 
     # Act: Call the function.
     actual_path = resource_path(relative)
 
     # Assert: Check if the function correctly used the _MEIPASS path.
-    assert actual_path == expected_path
+    assert str(actual_path) == expected_path

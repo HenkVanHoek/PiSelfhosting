@@ -50,19 +50,22 @@
 
         checkboxes.forEach(checkbox => {
             checkbox.addEventListener('change', (event) => {
-                if (!event.target.checked) {
+                const target = /** @type {HTMLInputElement} */ (event.target);
+                if (!target.checked) {
                     return; // Only enforce rules when checking a box
                 }
 
-                const uniquenessGroup = event.target.dataset.uniquenessGroup;
+                // Mitigation: getAttribute avoids PyCharm's dataset camelCase unresolved variable warning
+                const uniquenessGroup = target.getAttribute('data-uniqueness-group');
                 if (!uniquenessGroup) {
                     return;
                 }
 
                 // Uncheck all other boxes in the same uniqueness group
                 checkboxes.forEach(otherCheckbox => {
-                    if (otherCheckbox !== event.target && otherCheckbox.dataset.uniquenessGroup === uniquenessGroup) {
-                        otherCheckbox.checked = false;
+                    const otherInput = /** @type {HTMLInputElement} */ (otherCheckbox);
+                    if (otherInput !== target && otherInput.getAttribute('data-uniqueness-group') === uniquenessGroup) {
+                        otherInput.checked = false;
                     }
                 });
             });

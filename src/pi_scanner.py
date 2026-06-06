@@ -192,7 +192,7 @@ class PiScanner:
         return processes
 
     @staticmethod
-    def _parse_resource_metrics(ram_raw, disk_raw):
+    def _parse_resource_metrics(ram_raw: str, disk_raw: str):
         resources = {
             "ram": {"total_mb": 0, "used_mb": 0},
             "disk": {"size": "N/A", "pcent": "N/A"},

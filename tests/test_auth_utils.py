@@ -1,13 +1,14 @@
 # tests/test_auth_utils.py
 
+# noinspection PyUnresolvedReferences
 from passlib.hash import argon2
 
 from src.utils.auth_utils import generate_basic_auth_hash
 
 
 def test_generate_basic_auth_hash_creates_valid_argon2_output():
-    """
-    Test that the function generates a securely hashed string in the
+    """Test that the function generates a securely hashed string in the
+
     'username:hash' format using the Argon2ID algorithm.
     """
     username = "testuser"
@@ -31,13 +32,13 @@ def test_generate_basic_auth_hash_creates_valid_argon2_output():
     assert hash_string.startswith("$argon2id$")
 
     # 3. Assert the hash is verifiable (the core security test)
-    # Use passlib's argon2 verification method
+    # Use the argon2 verification method from passlib
     assert argon2.verify(password, hash_string)
 
 
 def test_generate_basic_auth_hash_is_unique_on_each_call():
-    """
-    Test that calling the function twice with the same input yields two
+    """Test that calling the function twice with the same input yields two
+
     DIFFERENT hashes, verifying that a unique salt is generated.
     """
     username = "testuser"

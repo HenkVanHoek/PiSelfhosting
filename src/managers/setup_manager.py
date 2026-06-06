@@ -1,7 +1,9 @@
 # src/managers/setup_manager.py
+import json
 import logging
+import shutil
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 from managers.component_reader import ComponentReader
 
@@ -60,3 +62,55 @@ class SetupManager:
             "status": "ready" if self.output_dir.exists() else "uninitialized",
             "components_available": len(self.reader.get_all_components()),
         }
+
+    def prepare_deployment_package(
+        self, selected_components: list, user_variables: dict, managed_devices: list
+    ) -> tuple[bool, list]:
+        """
+        Prepares the deployment files by generating the .env file and copying templates.
+        Returns a tuple of (success_boolean, list_of_errors).
+        """
+        errors: List[str] = []
+        try:
+            # Ensure the base directories exist
+            self.initialize_environment()
+
+            # 1. Write all user-provided variables (from the UI) to a hidden .env file
+            env_path = self.output_dir / ".env"
+            with open(env_path, "w") as f:
+                for key, value in user_variables.items():
+                    f.write(f"{key}={value}\n")
+            logger.info(f"Generated .env file at {env_path}")
+
+            # 2. Save a state file documenting the deployment configuration
+            state_path = self.output_dir / "deployment_state.json"
+            state_data = {"components": selected_components, "devices": managed_devices}
+            with open(state_path, "w") as f:
+                json.dump(state_data, f, indent=4)
+
+            # 3. Copy the appropriate template directories
+            # (containing docker-compose files) to the output directory
+            if hasattr(self.reader, "templates_path"):
+                base_template_path = Path(self.reader.templates_path)
+                for comp_id in selected_components:
+                    src_dir = base_template_path / comp_id
+                    dst_dir = self.output_dir / comp_id
+
+                    if src_dir.exists():
+                        # If the directory already exists from a previous run,
+                        # clear it first
+                        if dst_dir.exists():
+                            shutil.rmtree(dst_dir)
+                        shutil.copytree(src_dir, dst_dir)
+                        logger.info(f"Copied template for {comp_id} to {dst_dir}")
+                    else:
+                        logger.warning(
+                            f"Template directory for {comp_id} not found at {src_dir}"
+                        )
+
+            return True, errors
+
+        except Exception as e:
+            logger.error(f"Failed to prepare deployment package: {e}", exc_info=True)
+            errors.append(str(e))
+            return False, errors

@@ -4,17 +4,17 @@ services:
     container_name: piselfhosting-sonarr
     restart: unless-stopped
     environment:
-      - "PUID={{PUID}}"
-      - "PGID={{PGID}}"
-      - "TZ={{TZ}}"
+      - "PUID={{ PUID | default('1000') }}"
+      - "PGID={{ PGID | default('1000') }}"
+      - "TZ={{ TZ | default('Europe/Amsterdam') }}"
     volumes:
-      - "{{DATA_ROOT}}/sonarr/config:/config"
+      - "{{ CONFIG_BASE_PATH }}/sonarr/config:/config"
       # Point this to your TV shows library, should be the same as Jellyfin's TV folder
-      - "{{DATA_ROOT}}/jellyfin/tvshows:/tv"
+      - "{{ CONFIG_BASE_PATH }}/jellyfin/tvshows:/tv"
       # Point this to where your download client saves completed files
-      - "{{DATA_ROOT}}/downloads:/downloads"
+      - "{{ CONFIG_BASE_PATH }}/downloads:/downloads"
     ports:
-      - "8989:8989"
+      - "{{ SONARR_WEB_PORT | default('8989') }}:8989"
     networks:
       - piselfhosting_net
 

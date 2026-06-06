@@ -3,92 +3,96 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PiSelfhosting Configurator</title>
+    <title>PiSelfhosting Deployment Wizard</title>
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='images/favicon.ico') }}">
 
-    <!-- Favicon links -->
-    <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/piselfhosting-icon192x192.png') }}">
-    <link rel="apple-touch-icon" href="{{ url_for('static', filename='images/piselfhosting-icon192x192.png') }}">
-
-    <!-- Bootstrap CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-
-    <!-- Link to our local, fetched stylesheet -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='piselfhosting-style.css') }}">
-
-    <!-- Google Fonts: Montserrat and Roboto -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700&family=Roboto:wght@400;700&display=swap" rel="stylesheet">
-
-    <!-- Font Awesome (Classic CDN Method) -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkcmfRyVX3pBnMFcV7oQPJkl9QevSCWr3W6A==" crossorigin="anonymous" referrerpolicy="no-referrer" />
-
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/piselfhosting-style.css') }}">
 </head>
-<body>
-    <div class="container my-5">
-        <div class="row justify-content-center">
-            <div class="col-lg-12">
+<body class="bg-light">
 
-                <div class="text-center mb-4">
-                    <img src="{{ url_for('static', filename='images/piselfhosting-icon192x192.png') }}" alt="PiSelfhosting Logo" style="height: 120px;">
-                    <h1 class="h2 mt-3">PiSelfhosting Configurator</h1>
-                </div>
+<nav class="navbar navbar-dark bg-dark mb-4">
+    <div class="container-fluid">
+        <span class="navbar-brand mb-0 h1 d-flex align-items-center">
+            <img src="{{ url_for('static', filename='images/piselfhosting-icon192x192.png') }}"
+                 alt="PiSelfhosting Logo"
+                 width="32"
+                 height="32"
+                 class="d-inline-block align-text-top me-3 rounded">
+            PiSelfhosting Deployment Wizard
+        </span>
+    </div>
+</nav>
 
-                <div class="card shadow-sm" id="wizard-card">
-                    <div class="card-header text-center bg-light" id="wizard-header">
-                        <strong>Step 1 of 5: Find Your Devices</strong>
-                    </div>
-                    <div class="card-body p-4 p-md-5 text-center" id="wizard-body">
+<div class="container bg-white shadow-sm rounded p-4 mb-5">
 
-                        <h2 class="h4">Scan Your Network</h2>
-                        <p class="text-muted">
-                            PiSelfhosting will scan your local network to find any available Raspberry Pi devices.
-                        </p>
+    <div class="row text-center mb-4">
+        <div class="d-flex align-items-center mb-4">
+            <img src="{{ url_for('static', filename='images/piselfhosting-icon192x192.png') }}" alt="PiSelfhosting Logo" style="height: 50px; margin-right: 20px;">
 
-                        <div class="d-grid gap-2 col-8 mx-auto my-4">
-                            <button id="begin-scan-btn" class="btn btn-primary btn-lg">
-                                <i class="fa-solid fa-magnifying-glass me-2"></i>
-                                Begin Scan
-                            </button>
-                        </div>
-
-                        <a class="small" data-bs-toggle="collapse" href="#advancedScanOptions" role="button" aria-expanded="false" aria-controls="advancedScanOptions">
-                            Need to scan a different network? <strong>Show Advanced Options</strong>
-                        </a>
-
-                        <div class="collapse mt-4" id="advancedScanOptions">
-                            <div class="card card-body bg-light text-start">
-                                <h3 class="h6 mb-3">Advanced Scan Options</h3>
-                                <div class="form-check">
-                                    <input class="form-check-input" type="radio" name="scanType" id="autoDetectRadio" value="auto" checked>
-                                    <label class="form-check-label" for="autoDetectRadio">
-                                        Auto-detect my local subnet (Recommended)
-                                    </label>
-                                </div>
-                                <div class="form-check mt-2">
-                                    <input class="form-check-input" type="radio" name="scanType" id="manualScanRadio" value="manual">
-                                    <label class="form-check-label" for="manualScanRadio">
-                                        Manually specify a subnet or IP range:
-                                    </label>
-                                </div>
-                                <input type="text" class="form-control form-control-sm mt-2" id="manualSubnetInput" placeholder="e.g., 192.168.1.0/24" disabled aria-label="Manual subnet input">
-                            </div>
-                        </div>
-                    </div>
-                    <div class="card-footer bg-light" id="wizard-footer" style="min-height: 50px; display: flex; align-items: center; justify-content: center;">
-                        <p class="text-muted small mb-0">Waiting to start...</p>
-                    </div>
-                </div>
-
+            <div class="flex-grow-1">
+                <ul class="nav nav-pills nav-fill ...">
+                    <li id="step-1-indicator" class="col step-indicator active pb-2">1. Welcome</li>
+                    <li id="step-2-indicator" class="col step-indicator pb-2">2. Discovery & SSH</li>
+                    <li id="step-3-indicator" class="col step-indicator pb-2">3. Components</li>
+                    <li id="step-4-indicator" class="col step-indicator pb-2">4. Review & Deploy</li>
+                </ul>
             </div>
         </div>
     </div>
 
-    <!-- Bootstrap JS Bundle -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <div class="card border-0">
 
-    <!-- Application-specific JavaScript -->
-    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+        <div id="wizard-header" class="card-header text-center py-3 bg-light border-bottom">
+            <strong>Step 1 of 5: Welcome & Discovery</strong>
+        </div>
 
+        <div id="wizard-body" class="card-body p-4 p-md-5">
+            <div class="text-center">
+                <img src="{{ url_for('static', filename='images/piselfhosting-icon192x192.png') }}"
+                     alt="PiSelfhosting Logo"
+                     class="d-block mx-auto mb-3"
+                     style="height: 4.5rem; width: auto; max-width: 100%;">
+                <h2 class="h4 mb-3">Network Discovery</h2>
+                <p class="text-muted mb-4">We need to find the Raspberry Pi(s) on your network to begin.</p>
+
+                <div class="card bg-light mx-auto mb-4 text-start" style="max-width: 500px;">
+                    <div class="card-body">
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="radio" name="scanMethod" id="autoDetectRadio" checked>
+                            <label class="form-check-label fw-bold" for="autoDetectRadio">
+                                Auto-Detect (Recommended)
+                            </label>
+                            <div class="form-text mt-0">Scans your current local subnet automatically.</div>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="scanMethod" id="manualScanRadio">
+                            <label class="form-check-label fw-bold" for="manualScanRadio">
+                                Manual Subnet Scan
+                            </label>
+                            <div class="form-text mt-0 mb-2">Use this if you are on a different VLAN or VPN.</div>
+                            <input type="text" class="form-control" id="manualSubnetInput" placeholder="e.g. 192.168.1.0/24" aria-label="Manual Subnet IP" disabled>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="d-grid gap-2 col-8 mx-auto my-4">
+                    <button id="begin-scan-btn" class="btn btn-primary btn-lg">
+                        <i class="fa-solid fa-search me-2"></i> Begin Scan
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div id="wizard-footer" class="card-footer text-center py-3 bg-light border-top">
+            <p class="text-muted small mb-0">Select a scanning method to find PiSelfhosting devices on your network.</p>
+        </div>
+
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
 </body>
 </html>
