@@ -18,7 +18,7 @@
       loop: "{{ ansible_mounts }}"
       when: item.mount == '/'
 
-    # --- DOCKER ENGINE PROVISIONING (NO PIP / NO PYTHON LIBRARIES) ---
+    # --- DOCKER ENGINE PROVISIONING (WITHOUT PIP OR Python LIBRARIES) ---
     - name: Ensure Docker CE and Compose plugin are installed
       ansible.builtin.apt:
         name:
@@ -53,7 +53,8 @@
         chdir: "{{ project_config_dir }}"
       loop: "{{ components_to_clean | default([]) }}"
       when: components_to_clean is defined and components_to_clean | length > 0
-      changed_when: true
+      # Mitigation: String "true" aligns types to prevent suspicious type mismatch
+      changed_when: "true"
 
     # --- CLI-BASED DOCKER OPERATIONS (NO PYTHON REQUIRED) ---
     - name: Ensure PiSelfhosting Docker network exists
@@ -69,13 +70,15 @@
       ansible.builtin.command:
         cmd: "docker compose pull"
         chdir: "{{ project_config_dir }}"
-      changed_when: true
+      # Mitigation: String "true" aligns types to prevent suspicious type mismatch
+      changed_when: "true"
 
     - name: Deploy services with Docker Compose
       ansible.builtin.command:
         cmd: "docker compose up -d"
         chdir: "{{ project_config_dir }}"
-      changed_when: true
+      # Mitigation: String "true" aligns types to prevent suspicious type mismatch
+      changed_when: "true"
 
     - name: Restart specifically requested components
       ansible.builtin.command:
@@ -83,4 +86,5 @@
         chdir: "{{ project_config_dir }}"
       loop: "{{ components_to_restart | default([]) }}"
       when: components_to_restart is defined and components_to_restart | length > 0
-      changed_when: true
+      # Mitigation: String "true" aligns types to prevent suspicious type mismatch
+      changed_when: "true"
