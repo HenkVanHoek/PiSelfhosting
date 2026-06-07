@@ -18,6 +18,18 @@
       loop: "{{ ansible_mounts }}"
       when: item.mount == '/'
 
+    # --- DOCKER ENGINE PROVISIONING (NO PIP / NO PYTHON LIBRARIES) ---
+    - name: Ensure Docker CE and Compose plugin are installed
+      ansible.builtin.apt:
+        name:
+          - docker-ce               # Official Docker CE
+          - docker-ce-cli           # Official Docker CE CLI
+          - containerd.io           # Official Containerd
+          - docker-compose-plugin   # Official Docker Compose V2 plugin
+        state: present
+        update_cache: yes
+
+    # --- DIRECTORY & FILE DEPLOYMENT ---
     - name: Ensure project directory exists
       ansible.builtin.file:
         path: "{{ project_config_dir }}"
@@ -43,17 +55,27 @@
       when: components_to_clean is defined and components_to_clean | length > 0
       changed_when: true
 
+    # --- CLI-BASED DOCKER OPERATIONS (NO PYTHON REQUIRED) ---
     - name: Ensure PiSelfhosting Docker network exists
-      community.docker.docker_network:
-        name: piselfhosting_net
-        state: present
-        driver: bridge
+      ansible.builtin.command:
+        cmd: "docker network create piselfhosting_net"
+      register: network_create
+      failed_when:
+        - network_create.rc != 0
+        - "'already exists' not in network_create.stderr"
+      changed_when: "network_create.rc == 0"
+
+    - name: Pull latest service images
+      ansible.builtin.command:
+        cmd: "docker compose pull"
+        chdir: "{{ project_config_dir }}"
+      changed_when: true
 
     - name: Deploy services with Docker Compose
-      community.docker.docker_compose_v2:
-        project_src: "{{ project_config_dir }}"
-        state: present
-        pull: always
+      ansible.builtin.command:
+        cmd: "docker compose up -d"
+        chdir: "{{ project_config_dir }}"
+      changed_when: true
 
     - name: Restart specifically requested components
       ansible.builtin.command:
