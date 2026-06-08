@@ -19,7 +19,7 @@ filterwarnings = [
 
 [project]
 name = "PiSelfhosting"
-version = "0.4.46-Alpha"
+version = "0.4.46-Beta"
 description = "A project to self-host services on a Raspberry Pi."
 requires-python = ">=3.11"
 dependencies = [
@@ -61,7 +61,7 @@ dev = [
 ]
 
 [tool.bumpversion]
-current_version = "0.4.46-Alpha"
+current_version = "0.4.46-Beta"
 commit = true
 tag = true
 commit_args = "--no-verify"
