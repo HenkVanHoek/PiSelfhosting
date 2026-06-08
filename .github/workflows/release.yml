@@ -68,6 +68,7 @@ jobs:
         run: pytest
 
       - name: Build the executable with PyInstaller
+        shell: bash
         run: |
           rm -rf build dist
           pyinstaller PiSelfhostingInstaller.spec
