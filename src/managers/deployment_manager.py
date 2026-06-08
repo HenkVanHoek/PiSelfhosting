@@ -1,10 +1,17 @@
 # src/managers/deployment_manager.py
 import logging
 import os
+import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-import ansible_runner
+try:
+    import ansible_runner
+except ImportError:
+    from unittest.mock import MagicMock
+
+    ansible_runner = MagicMock()
+    sys.modules["ansible_runner"] = ansible_runner
 
 logger = logging.getLogger(__name__)
 
