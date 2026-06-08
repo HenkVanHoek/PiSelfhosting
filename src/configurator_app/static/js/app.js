@@ -245,11 +245,20 @@
     let lastSubnetInput = '';
 
     // Bulletproof: Hide progress bar row and wizard-header directly via CSS selectors
-    // const toggleProgressBarVisibility = (show) => {
-    //     const stepsBar = document.querySelector('.row.text-center.mb-4, .d-flex.align-items-center.mb-4');
-    //     if (stepsBar) {
-    //         stepsBar.style.display = show ? '' : 'none';
+    // const toggleProgressBarVisibility = (show, percentage = 0) => {
+    //     // Toggle the slim 4px progress bar container in the card
+    //     const progressBarContainer = document.querySelector('.card > .progress');
+    //     if (progressBarContainer) {
+    //         progressBarContainer.style.display = show ? '' : 'none';
     //     }
+    //
+    //     // Update the bar width dynamically
+    //     const progressBar = document.getElementById('wizard-progress-bar');
+    //     if (progressBar && show) {
+    //         progressBar.style.width = `${percentage}%`;
+    //     }
+    //
+    //     // Toggle the wizard header gray bar
     //     if (wizardHeader) {
     //         wizardHeader.style.display = show ? '' : 'none';
     //     }
@@ -257,7 +266,7 @@
 
     const renderStep1_Welcome = () => {
         // Option B: Hide progress bar and gray header bar on the Welcome screen (Step 0)
-        toggleProgressBarVisibility(false);
+        toggleProgressBarVisibility(false, 0);
 
         updateWizardFooter('Select a scanning method to find PiSelfhosting devices on your network.');
 
@@ -269,7 +278,7 @@
                     <!-- Custom 300x300 high-res brand logo centered on Step 0 Onboarding -->
                     <img src="/static/images/piselfhosting-icon512x512.png"
                          alt="PiSelfhosting Logo"
-                         style="width: 350px; height: 350px;">
+                         style="width: 300px; height: 300px;">
                 </div>
                 <h2 class="h4">Network Discovery</h2>
                 <p class="text-muted small">We need to find the Raspberry Pi(s) on your network to begin.</p>
@@ -277,7 +286,7 @@
                 <div class="card card-body bg-light text-start mx-auto mb-4" style="max-width: 500px;">
                     <div class="form-check mb-2">
                         <input class="form-check-input" type="radio" name="scanMethod" id="autoDetectRadio" checked>
-                        <label class="form-check-label" for="autoDetectRadio">
+                        <label class="form-check-label fw-bold" for="autoDetectRadio">
                             <strong>Auto-Detect (Recommended)</strong>
                             <span class="d-block small text-muted">Scans your current local subnet automatically.</span>
                         </label>
@@ -306,8 +315,8 @@
 
     /** @param {ScanData} scanData */
     const renderStep2_ConfigureDevices = (scanData) => {
-        // Option B: Visual progress bar and header bar start here!
-        toggleProgressBarVisibility(true);
+        // Option B: Visual progress bar and header bar start here at 25%!
+        toggleProgressBarVisibility(true, 25);
         if (wizardHeader) {
             wizardHeader.innerHTML = '<strong>Step 1 of 4: Discovery &amp; SSH</strong>';
         }
@@ -318,44 +327,45 @@
             2. PiSelfhosting Virtual Pis by checking for the
                '/etc/piselfhosting-virtual-pi-server' file inside the guest OS.
         `.trim();
-        wizardBody.innerHTML = `
-            <div class="text-start">
-                <h2 class="h4 text-center">
-                    Device Configuration
-                    <i class="fa-solid fa-circle-question text-muted ms-2" style="font-size: 0.8em; cursor: pointer;"
-                       data-bs-toggle="popover" data-bs-trigger="hover focus"
-                       data-bs-title="How Detection Works"
-                       data-bs-content="${escapeHTML(popoverContent)}"></i>
-                </h2>
-                <p class="text-muted text-center small mb-4">
-                    Found ${scanData.hosts.length} potential Pi network interfaces.
-                    Provide credentials for each device to get more details.
-                </p>
-                <div class="card card-body bg-light mb-4">
-                    <h3 class="h6">Common Actions</h3>
-                    <p class="small text-muted">
-                        Use these fields to apply credentials to all devices, or to clear all selections.
+// Changed grid columns to support up to 6 Pis on desktop, and set gap to g-3
+            wizardBody.innerHTML = `
+                <div class="text-start">
+                    <h2 class="h4 text-center">
+                        Device Configuration
+                        <i class="fa-solid fa-circle-question text-muted ms-2" style="font-size: 0.8em; cursor: pointer;"
+                           data-bs-toggle="popover" data-bs-trigger="hover focus"
+                           data-bs-title="How Detection Works"
+                           data-bs-content="${escapeHTML(popoverContent)}"></i>
+                    </h2>
+                    <p class="text-muted text-center small mb-4">
+                        Found ${scanData.hosts.length} potential Pi network interfaces.
+                        Provide credentials for each device to get more details.
                     </p>
-                    <div class="row g-2">
-                        <div class="col-sm-4">
-                            <input type="text" class="form-control form-control-sm" id="master-username" placeholder="Username">
-                        </div>
-                        <div class="col-sm-4">
-                            <input type="password" class="form-control form-control-sm" id="master-password" placeholder="Password">
-                        </div>
-                        <div class="col-sm-2 d-grid">
-                            <button class="btn btn-secondary btn-sm" id="apply-to-all-btn">Apply</button>
-                        </div>
-                        <div class="col-sm-2 d-grid">
-                            <button class="btn btn-outline-secondary btn-sm" id="deselect-all-btn">Clear All</button>
+                    <div class="card card-body bg-light mb-4">
+                        <h3 class="h6">Common Actions</h3>
+                        <p class="small text-muted">
+                            Use these fields to apply credentials to all devices, or to clear all selections.
+                        </p>
+                        <div class="row g-2">
+                            <div class="col-sm-4">
+                                <input type="text" class="form-control form-control-sm" id="master-username" placeholder="Username">
+                            </div>
+                            <div class="col-sm-4">
+                                <input type="password" class="form-control form-control-sm" id="master-password" placeholder="Password">
+                            </div>
+                            <div class="col-sm-2 d-grid">
+                                <button class="btn btn-secondary btn-sm" id="apply-to-all-btn">Apply</button>
+                            </div>
+                            <div class="col-sm-2 d-grid">
+                                <button class="btn btn-outline-secondary btn-sm" id="deselect-all-btn">Clear All</button>
+                            </div>
                         </div>
                     </div>
+                    <div id="device-cards-container" class="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 row-cols-xl-5 row-cols-xxl-6 g-3"></div>
+                    <div class="d-grid gap-2 col-8 mx-auto my-4" id="step2-action-area"></div>
                 </div>
-                <div id="device-cards-container" class="row row-cols-1 row-cols-md-2 row-cols-lg-3 row-cols-xl-4 g-4"></div>
-                <div class="d-grid gap-2 col-8 mx-auto my-4" id="step2-action-area"></div>
-            </div>
-        `;
-        const container = document.getElementById('device-cards-container');
+            `;
+            const container = document.getElementById('device-cards-container');
         scanData.hosts.forEach((host, index) => {
             const cachedDevice = managedDeviceCache[host.ip];
             const isManaged = !!cachedDevice;
@@ -716,14 +726,12 @@
         `;
     };
 
-const renderStep3_SelectSoftware = async () => {
-        wizardHeader.innerHTML = '<strong>Step 2 of 4: Select Software</strong>';
-        wizardBody.innerHTML = `
-            <div class="text-center">
-                <i class="fa-solid fa-spinner fa-spin fa-2x text-muted"></i>
-                <p class="mt-2">Loading available software...</p>
-            </div>
-        `;
+    const renderStep3_SelectSoftware = async () => {
+        // Option B: Visual progress bar at 50%
+        toggleProgressBarVisibility(true, 50);
+        if (wizardHeader) {
+            wizardHeader.innerHTML = '<strong>Step 2 of 4: Select Software</strong>';
+        }
         updateWizardFooter('Choose software to install. Selections in a category are mutually exclusive.');
 
         try {
@@ -977,7 +985,11 @@ const renderStep3_SelectSoftware = async () => {
 
     const renderStep4_ConfigureServices = async () => {
         selectedComponentsCache = Array.from(document.querySelectorAll('#softwareTabsContent .form-check-input:not(.package-checkbox):checked')).map(input => (/** @type {HTMLInputElement} */ (input)).value);
-        wizardHeader.innerHTML = '<strong>Step 3 of 4: Configure Services</strong>';
+        // Option B: Visual progress bar at 75%
+        toggleProgressBarVisibility(true, 75);
+        if (wizardHeader) {
+            wizardHeader.innerHTML = '<strong>Step 3 of 4: Configure Services</strong>';
+        }
         updateWizardFooter('Provide the required values for your selected software.');
 
         if (selectedComponentsCache.length === 0) {
@@ -1309,7 +1321,11 @@ const renderStep3_SelectSoftware = async () => {
     };
 
     const renderStep5_Confirmation = () => {
-        wizardHeader.innerHTML = '<strong>Step 4 of 4: Confirmation</strong>';
+        // Option B: Visual progress bar at 100%
+        toggleProgressBarVisibility(true, 100);
+        if (wizardHeader) {
+            wizardHeader.innerHTML = '<strong>Step 4 of 4: Confirmation</strong>';
+        }
         updateWizardFooter('Please review your selections before generating files and deploying.');
 
         // Mitigation: string-fallbacks ensure we always pass a pure string to escapeHTML
@@ -1379,6 +1395,9 @@ const renderStep3_SelectSoftware = async () => {
                     components_to_clean: componentsToCleanCache,
                 })
             });
+
+            // Mitigation: Hide progress bar entirely on final completed success screen
+            toggleProgressBarVisibility(false, 0);
 
             wizardHeader.innerHTML = '<strong>Setup Complete</strong>';
             updateWizardFooter('Ready for deployment.');
@@ -1481,6 +1500,9 @@ const renderStep3_SelectSoftware = async () => {
         wizardHeader.innerHTML = '<strong>Deploying The Services</strong>';
         updateWizardFooter('Deploying services to your Raspberry Pi(s)...', 'primary');
 
+        // Mitigation: Hide progress bar entirely during active deployment
+        toggleProgressBarVisibility(false, 0);
+
         try {
             const selectedComponentsData = selectedComponentsCache
                 .map(id => allSoftwareCache.find(c => c.id === id))
@@ -1531,18 +1553,32 @@ const renderStep3_SelectSoftware = async () => {
                 logOutput.parentElement.scrollTop = logOutput.parentElement.scrollHeight;
             };
 
-            eventSource.onerror = () => {
+eventSource.onerror = () => {
                 clearTimeout(watchdogTimer);
                 eventSource.close();
                 if (hasErrors) {
                     setButtonState(deployButton, false, {text: '<i class="fa-solid fa-triangle-exclamation me-2"></i>Show Error Report'});
-                wizardHeader.innerHTML = '<strong>Deployment Finished with Errors</strong>';
+                    wizardHeader.innerHTML = '<strong>Deployment Finished with Errors</strong>';
                     updateWizardFooter('Deployment completed, but some steps failed.', 'warning');
                     deployButton.onclick = () => showErrorSummary(taskId);
                 } else {
                     setButtonState(deployButton, false, {text: '<i class="fa-solid fa-circle-check me-2"></i>Deployment Finished'});
-                wizardHeader.innerHTML = '<strong>Deployment Finished</strong>';
+                    wizardHeader.innerHTML = '<strong>Deployment Finished</strong>';
                     updateWizardFooter('Deployment process completed successfully.', 'success');
+
+                    // Mitigation: Dynamically update the card title to show precise target success
+                    const h2 = document.querySelector('#wizard-body h2');
+                    if (h2) {
+                        const targetHosts = Object.values(managedDeviceCache)
+                            .map(d => `${escapeHTML(d.hostname || 'Unknown Host')} (${escapeHTML(d.ip)})`)
+                            .join(', ');
+                        h2.textContent = `Deployment Successful on ${targetHosts}!`;
+                    }
+                    const pMuted = document.querySelector('#wizard-body p.text-muted');
+                    if (pMuted) {
+                        pMuted.textContent = 'All services are up and running on your Raspberry Pi.';
+                    }
+
                     const finalActions = document.getElementById('final-actions-container');
                     if (finalActions) {
                         finalActions.innerHTML = `
@@ -1747,13 +1783,24 @@ const renderStep3_SelectSoftware = async () => {
     };
 
     // Modern helper to toggle top horizontal progress bar and small logo visibility
-    const toggleProgressBarVisibility = (show) => {
+    const toggleProgressBarVisibility = (show, percentage = 0) => {
         const stepsBar = document.querySelector('.row.text-center.mb-4, .d-flex.align-items-center.mb-4');
         if (stepsBar) {
             stepsBar.style.display = show ? '' : 'none';
         }
         if (wizardHeader) {
             wizardHeader.style.display = show ? '' : 'none';
+        }
+
+        // Mitigation: Safely update the new slim 4px horizontal progress line in the card
+        const progressBarContainer = document.querySelector('.card > .progress');
+        if (progressBarContainer) {
+            progressBarContainer.style.display = show ? '' : 'none';
+        }
+
+        const progressBar = document.getElementById('wizard-progress-bar');
+        if (progressBar && show) {
+            progressBar.style.width = `${percentage}%`;
         }
     };
 

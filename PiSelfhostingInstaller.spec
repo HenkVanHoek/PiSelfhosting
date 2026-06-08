@@ -10,7 +10,7 @@ if platform.system() == "Windows":
     icon_file = "images/favicon.ico"
 elif platform.system() == "Darwin":  # Darwin is the system name for macOS
     # Activate the icon for macOS using the file you provided.
-    icon_file = "images/piselfhosting-appl.icns"
+    icon_file = "images/piselfhosting-apple.icns"
 # For other systems (like Linux), icon_file remains None.
 
 a = Analysis(

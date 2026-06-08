@@ -1,3 +1,5 @@
+<!-- src/configurator_app/templates/index.html -->
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -12,43 +14,48 @@
 </head>
 <body class="bg-light">
 
-<nav class="navbar navbar-dark bg-dark mb-4">
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
     <div class="container-fluid">
-        <span class="navbar-brand mb-0 h1 d-flex align-items-center">
+        <a class="navbar-brand d-flex align-items-center" href="https://piselfhosting.com" target="_blank">
             <img src="{{ url_for('static', filename='images/piselfhosting-icon192x192.png') }}"
                  alt="PiSelfhosting Logo"
                  width="32"
                  height="32"
                  class="d-inline-block align-text-top me-3 rounded">
             PiSelfhosting Deployment Wizard
-        </span>
+        </a>
+        <!-- Responsive Hamburger menu button for mobile screens -->
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <!-- Right-aligned clean utility links -->
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav ms-auto">
+                <li class="nav-item"><a class="nav-link" href="https://piselfhosting.com" target="_blank"><i class="fa-solid fa-globe me-1"></i> Website</a></li>
+                <li class="nav-item"><a class="nav-link" href="https://github.com/HenkVanHoek/piselfhosting/wiki" target="_blank"><i class="fa-solid fa-book-open me-1"></i> Wiki</a></li>
+                <li class="nav-item"><a class="nav-link" href="https://github.com/HenkVanHoek/PiSelfhosting" target="_blank"><i class="fa-brands fa-github me-1"></i> GitHub</a></li>
+            </ul>
+        </div>
     </div>
 </nav>
 
-<div class="container bg-white shadow-sm rounded p-4 mb-5">
-
-    <div class="row text-center mb-4">
-        <div class="d-flex align-items-center mb-4">
-            <img src="{{ url_for('static', filename='images/piselfhosting-icon192x192.png') }}" alt="PiSelfhosting Logo" style="height: 50px; margin-right: 20px;">
-
-            <div class="flex-grow-1">
-                <ul class="nav nav-pills nav-fill ...">
-                    <li id="step-1-indicator" class="col step-indicator active pb-2">1. Welcome</li>
-                    <li id="step-2-indicator" class="col step-indicator pb-2">2. Discovery & SSH</li>
-                    <li id="step-3-indicator" class="col step-indicator pb-2">3. Components</li>
-                    <li id="step-4-indicator" class="col step-indicator pb-2">4. Review & Deploy</li>
-                </ul>
-            </div>
-        </div>
-    </div>
+<!-- Whitespace Reduction: Container max-width set to 800px for a compact, professional look -->
+<div class="container bg-white shadow-sm rounded p-3 mb-5" style="max-width: 1400px;">
 
     <div class="card border-0">
-
-        <div id="wizard-header" class="card-header text-center py-3 bg-light border-bottom">
-            <strong>Step 1 of 5: Welcome & Discovery</strong>
+        <!-- Subtle 4px progress line integrated at the very top edge of the card -->
+        <div class="progress" style="height: 4px; border-radius: 0;">
+            <!--suppress CssRedundantUnit -->
+            <div id="wizard-progress-bar" class="progress-bar bg-primary" role="progressbar"
+                 style="width: 0%; transition: width 0.3s ease-in-out;" aria-label="Wizard progress"></div>
         </div>
 
-        <div id="wizard-body" class="card-body p-4 p-md-5">
+        <div id="wizard-header" class="card-header text-center py-3 bg-light border-bottom" style="display: none;">
+            <strong>Step 1 of 4: Discovery &amp; SSH</strong>
+        </div>
+
+        <!-- Whitespace Reduction: Card-body padding reduced to p-3 p-md-4 -->
+        <div id="wizard-body" class="card-body p-3 p-md-4">
             <div class="text-center">
                 <img src="{{ url_for('static', filename='images/piselfhosting-icon192x192.png') }}"
                      alt="PiSelfhosting Logo"
