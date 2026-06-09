@@ -70,8 +70,14 @@ class ComponentWriter:
         config_dir.mkdir(parents=True, exist_ok=True)
 
         self._save_json(config_dir / "variables.json", {"variables": []})
+        header = (
+            '# status: "untested"\n'
+            '# last_tested_version: "none"\n'
+            '# platform_notes: "None"\n'
+            '# breaking_changes: "None"\n'
+        )
         (comp_dir / "docker-compose.template.yml").write_text(
-            "services:\n", encoding="utf-8"
+            header + "services:\n", encoding="utf-8"
         )
 
         # Update master metadata

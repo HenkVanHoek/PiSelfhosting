@@ -1,3 +1,7 @@
+# status: "untested"
+# last_tested_version: "none"
+# platform_notes: "None"
+# breaking_changes: "None"
 services:
   dashy:
     container_name: piselfhosting-dashy

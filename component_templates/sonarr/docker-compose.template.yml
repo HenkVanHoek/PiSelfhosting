@@ -1,3 +1,7 @@
+# status: "untested"
+# last_tested_version: "none"
+# platform_notes: "None"
+# breaking_changes: "None"
 services:
   sonarr:
     image: lscr.io/linuxserver/sonarr:{{ component_version }}

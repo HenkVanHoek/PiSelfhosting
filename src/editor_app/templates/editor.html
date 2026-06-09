@@ -15,6 +15,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/monokai.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/dracula.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/solarized.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/merge/merge.min.css">
     <style>
         body, html { height: 100%; overflow: hidden; }
         .main-container { display: flex; height: 100vh; padding-top: 56px; }
@@ -70,6 +71,20 @@
         .italic {
             font-style: italic;
         }
+
+        #git-diff-modal .modal-content {
+            resize: both;
+            overflow: auto;
+            min-width: 600px;
+            min-height: 400px;
+        }
+
+        .group-header .bi-chevron-down {
+            transition: transform 0.2s ease;
+        }
+        .group-header.collapsed .bi-chevron-down {
+            transform: rotate(-90deg);
+        }
     </style>
 </head>
 <body>
@@ -84,6 +99,8 @@
         </button>
         <div class="collapse navbar-collapse" id="navbarNav">
             <ul class="navbar-nav ms-auto">
+                <li class="nav-item"><a class="nav-link d-flex align-items-center" href="#" id="git-sync-btn"><i class="bi bi-git me-1"></i> Git Sync<span id="git-sync-badge" class="badge bg-danger ms-1 d-none" title="Globale metadata niet gepusht">!</span></a></li>
+                <li class="nav-item"><a class="nav-link" href="#" id="git-upload-btn" title="Read-only: Checking permissions..." data-bs-toggle="tooltip"><i class="bi bi-cloud-arrow-up"></i> Upload to Repo</a></li>
                 <li class="nav-item"><a class="nav-link" href="https://github.com/HenkVanHoek/piselfhosting/wiki" target="_blank" id="help-link"><i class="bi bi-question-circle"></i> Help</a></li>
                 <li class="nav-item"><a class="nav-link" href="https://github.com/HenkVanHoek/PiSelfhosting" target="_blank"><i class="bi bi-github"></i> GitHub</a></li>
                 <li class="nav-item"><a class="nav-link" href="https://github.com/HenkVanHoek/PiSelfhosting/releases" target="_blank"><i class="bi bi-tag"></i> Releases</a></li>
@@ -99,14 +116,19 @@
         <div class="sidebar-header">
             <div class="d-flex justify-content-between align-items-center">
                 <h4>Components</h4>
-                <button class="btn btn-sm btn-outline-secondary" id="manage-groups-btn" title="Manage Groups"><i class="bi bi-gear"></i></button>
-                <button class="btn btn-sm btn-outline-info ms-1" id="manage-packages-btn" title="Manage Packages">
-    <i class="bi bi-box-seam"></i>
-</button>
+                <div class="d-flex align-items-center">
+                    <button class="btn btn-sm btn-outline-primary me-1" id="expand-all-btn" title="Expand All"><i class="bi bi-chevron-double-down"></i></button>
+                    <button class="btn btn-sm btn-outline-primary me-2" id="collapse-all-btn" title="Collapse All"><i class="bi bi-chevron-double-up"></i></button>
+                    <button class="btn btn-sm btn-outline-secondary" id="manage-groups-btn" title="Manage Groups"><i class="bi bi-gear"></i></button>
+                    <button class="btn btn-sm btn-outline-info ms-1" id="manage-packages-btn" title="Manage Packages">
+                        <i class="bi bi-box-seam"></i>
+                    </button>
+                </div>
             </div>
             <hr>
             <div class="d-grid gap-2 mb-3">
                 <button class="btn btn-primary" id="create-new-btn">Create New Component</button>
+                <button class="btn btn-success" id="git-upload-sidebar-btn" title="Read-only: Checking permissions..." data-bs-toggle="tooltip"><i class="bi bi-cloud-arrow-up"></i> Upload to Repo</button>
             </div>
             <div id="sidebar-controls" class="mb-3">
                 <div class="nav nav-pills nav-fill mb-2" id="view-tabs" role="tablist">
@@ -204,6 +226,9 @@
                         <option value="dracula">Dracula</option>
                         <option value="solarized light">Solarized Light</option>
                     </select>
+                    <button class="btn btn-outline-warning btn-sm me-3" id="component-sync-btn" title="Sync / Diff with Repo">
+                        <i class="bi bi-git"></i> Sync &amp; Diff
+                    </button>
                     <button class="btn btn-outline-secondary ms-3 d-none" id="discard-changes-btn"><i class="bi bi-arrow-counterclockwise"></i> Discard Changes</button>
                     <button class="btn btn-primary ms-2" id="save-changes-btn"><i class="bi bi-save"></i> Save All Changes</button>
                     <button class="btn btn-danger ms-2" id="delete-component-btn"><i class="bi bi-trash"></i> Delete Component</button>
@@ -232,6 +257,7 @@
                 </div>
                 <div class="tab-pane fade d-flex flex-column flex-grow-1" id="template-pane">
                     <div class="d-flex justify-content-end mb-2">
+                        <button class="btn btn-sm btn-outline-success me-2" id="add-header-btn"><i class="bi bi-file-earmark-plus"></i> Add PiSelfhosting Header</button>
                         <button class="btn btn-sm btn-outline-info me-2" id="validate-template-btn"><i class="bi bi-check-circle"></i> Validate Template</button>
                         <button class="btn btn-sm btn-outline-secondary" id="import-template-btn"><i class="bi bi-upload"></i> Import from File</button>
                         <input type="file" id="template-file-input" accept=".yml,.yaml,.txt" style="display: none;" aria-label="Import template file">
@@ -382,7 +408,81 @@
         </div>
     </div>
 </div>
+
+<!-- Git Sync Manager Modal -->
+<div class="modal fade" id="git-sync-modal" tabindex="-1" aria-labelledby="gitSyncModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="gitSyncModalLabel"><i class="bi bi-git"></i> Git Sync Manager</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <button class="btn btn-primary btn-sm" id="git-fetch-btn">
+                        <i class="bi bi-arrow-clockwise"></i> Fetch / Check Status
+                    </button>
+                    <div>
+                        <button class="btn btn-success btn-sm me-2" id="git-sync-all-btn" disabled>
+                            <i class="bi bi-check-all"></i> Sync All to Local
+                        </button>
+                        <button class="btn btn-warning btn-sm" id="git-upload-all-btn" disabled title="Read-only: Checking permissions..." data-bs-toggle="tooltip"><i class="bi bi-cloud-arrow-up"></i> Upload All to Remote</button>
+                    </div>
+                </div>
+                <div id="git-global-warning-alert" class="alert alert-danger small py-2 mb-3 d-none">
+                    <i class="bi bi-exclamation-triangle-fill"></i>
+                    <strong>Waarschuwing:</strong> Globale metadata-wijzigingen (packages, groepregels of groepsvolgorde) zijn lokaal aangepast maar nog niet naar de remote repository gepusht. Gebruik de knop om alles te uploaden om deze te synchroniseren.
+                </div>
+                <div id="git-sync-info-alert" class="alert alert-secondary small py-2 mb-3">
+                    Click Fetch to retrieve the latest components from the Git repository.
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover align-middle">
+                        <thead>
+                            <tr>
+                                <th>Component ID</th>
+                                <th>Status</th>
+                                <th class="text-end">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="git-sync-list">
+                            <tr>
+                                <td colspan="3" class="text-center text-muted py-3">No status data loaded. Click Fetch.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Git Diff Modal -->
+<div class="modal fade" id="git-diff-modal" tabindex="-1" aria-labelledby="gitDiffModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="gitDiffModalLabel"><i class="bi bi-git"></i> Component Differences</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" style="min-height: 550px; display: flex; flex-direction: column;">
+                <div id="diff-meta-comparison" class="mb-3"></div>
+                <div class="alert alert-info small py-2 mb-2">
+                    <strong>Note:</strong> Left is your Local version of <code>docker-compose.template.yml</code>. Right is the Remote Git repository version.
+                </div>
+                <div id="diff-view-container" style="flex-grow: 1; border: 1px solid #dee2e6; border-radius: 4px; overflow: hidden;"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-warning" id="diff-sync-action-btn"><i class="bi bi-cloud-arrow-down"></i> Sync This Component</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/diff-match-patch/20121111/diff_match_patch.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/merge/merge.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/yaml/yaml.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>

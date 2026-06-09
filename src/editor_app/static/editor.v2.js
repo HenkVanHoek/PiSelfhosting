@@ -172,6 +172,30 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 5000);
     };
 
+    const refreshSyncStatusBadge = async () => {
+        try {
+            const statusData = await fetchJson("/api/sync/status");
+            const badge = document.getElementById("git-sync-badge");
+            if (badge) {
+                if (statusData.global_metadata_out_of_sync) {
+                    badge.classList.remove("d-none");
+                } else {
+                    badge.classList.add("d-none");
+                }
+            }
+            const globalAlert = document.getElementById("git-global-warning-alert");
+            if (globalAlert) {
+                if (statusData.global_metadata_out_of_sync) {
+                    globalAlert.classList.remove("d-none");
+                } else {
+                    globalAlert.classList.add("d-none");
+                }
+            }
+        } catch (err) {
+            console.error("Failed to refresh sync status badge:", err);
+        }
+    };
+
     // --- Save Handlers ---
 
     const saveMetadata = async (componentId) => {
@@ -268,6 +292,7 @@ document.addEventListener('DOMContentLoaded', () => {
             showAlert('All changes saved successfully!', 'success');
             clearAllDirtyState();
             await loadComponents();
+            await refreshSyncStatusBadge();
             const selector = `.component-list-item[data-component-id="${componentId}"]`;
             const activeLink = document.querySelector(selector);
             if (activeLink && activeLink.classList) {
@@ -326,6 +351,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (editorContent) editorContent.classList.add('d-none');
                 if (placeholder) placeholder.classList.remove('d-none');
                 await loadComponents();
+                await refreshSyncStatusBadge();
             } catch (error) {
                 showAlert(`Error deleting component: ${error.message}`, 'danger');
             }
@@ -402,6 +428,26 @@ document.addEventListener('DOMContentLoaded', () => {
             validateBtn.onclick = () => runValidation(componentId);
         }
 
+        const addHeaderBtn = document.getElementById('add-header-btn');
+        if (addHeaderBtn) {
+            addHeaderBtn.onclick = () => {
+                if (!codeEditor) return;
+                const currentVal = codeEditor.getValue();
+                if (currentVal.startsWith('# status:')) {
+                    showAlert("Metadata header is already present in this template.", "info");
+                    return;
+                }
+                const defaultHeader =
+                    '# status: "untested"\n' +
+                    '# last_tested_version: "none"\n' +
+                    '# platform_notes: "None"\n' +
+                    '# breaking_changes: "None"\n';
+                codeEditor.setValue(defaultHeader + currentVal);
+                markTabAsDirty('template-pane');
+                showAlert("Metadata header added successfully!", "success");
+            };
+        }
+
         if (placeholder) placeholder.classList.add('d-none');
         if (editorContent) editorContent.classList.remove('d-none');
         setTimeout(() => { if (codeEditor) codeEditor.setSize("100%", "100%"); }, 50);
@@ -434,8 +480,15 @@ document.addEventListener('DOMContentLoaded', () => {
         sidebarItems.forEach(item => item.classList.remove('active'));
         const selector = `.component-list-item[data-component-id="${componentId}"]`;
         const activeLink = document.querySelector(selector);
-        if (activeLink && activeLink.classList) {
-            activeLink.classList.add('active');
+        if (activeLink) {
+            if (activeLink.classList) {
+                activeLink.classList.add('active');
+            }
+            const wrapper = activeLink.closest('.component-list-wrapper');
+            if (wrapper && !wrapper.classList.contains('show')) {
+                const bsCollapse = bootstrap.Collapse.getOrCreateInstance(wrapper);
+                if (bsCollapse) bsCollapse.show();
+            }
         }
 
         if (placeholder) placeholder.classList.add('d-none');
@@ -504,6 +557,28 @@ document.addEventListener('DOMContentLoaded', () => {
             document.removeEventListener('mousemove', onMouseMove);
             document.removeEventListener('mouseup', onMouseUp);
         };
+    };
+
+    const setupSidebarCollapseActions = () => {
+        const expandAllBtn = document.getElementById("expand-all-btn");
+        const collapseAllBtn = document.getElementById("collapse-all-btn");
+        if (!expandAllBtn || !collapseAllBtn) return;
+
+        expandAllBtn.addEventListener("click", () => {
+            const wrappers = document.querySelectorAll(".component-list-wrapper");
+            wrappers.forEach(wrapper => {
+                const bsCollapse = bootstrap.Collapse.getOrCreateInstance(wrapper);
+                if (bsCollapse) bsCollapse.show();
+            });
+        });
+
+        collapseAllBtn.addEventListener("click", () => {
+            const wrappers = document.querySelectorAll(".component-list-wrapper");
+            wrappers.forEach(wrapper => {
+                const bsCollapse = bootstrap.Collapse.getOrCreateInstance(wrapper);
+                if (bsCollapse) bsCollapse.hide();
+            });
+        });
     };
 
     const setupEditorImportFeatures = () => {
@@ -606,6 +681,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 modal["hide"]();
                 await loadComponents();
                 await loadComponentDetails(componentId, false);
+                await refreshSyncStatusBadge();
             } catch (error) {
                 showAlert(`Error creating component: ${error.message}`, 'danger');
             }
@@ -716,6 +792,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         showAlert(`Group renamed to '${newName}'!`, 'success');
                         modal["hide"]();
                         await loadComponents();
+                        await refreshSyncStatusBadge();
                     } catch (error) {
                         showAlert(`Error renaming group: ${error.message}`, 'danger');
                     }
@@ -733,6 +810,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         showAlert(`Group '${groupId}' deleted!`, 'success');
                         modal["hide"]();
                         await loadComponents();
+                        await refreshSyncStatusBadge();
                     } catch (error) {
                         showAlert(`Error deleting group: ${error.message}`, 'danger');
                     }
@@ -851,6 +929,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         body: JSON.stringify(newOrder)
                     });
                     showAlert('Group order saved!');
+                    await refreshSyncStatusBadge();
                 } catch (error) {
                     showAlert(`Error saving group order: ${error.message}`, 'danger');
                 }
@@ -905,6 +984,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify(newOrder)
                         });
+                        await refreshSyncStatusBadge();
                     } catch (error) {
                         showAlert(`Failed to save components order: ${error.message}`, 'danger');
                     }
@@ -1092,7 +1172,8 @@ document.addEventListener('DOMContentLoaded', () => {
         header.dataset.bsToggle = 'collapse';
         header.dataset.groupId = id; // Keep original id for the API sorting logic
         header.setAttribute('role', 'button');
-        header.setAttribute('aria-expanded', 'true');
+        header.setAttribute('aria-expanded', 'false');
+        header.classList.add('collapsed');
 
         const leftDiv = document.createElement('div');
         leftDiv.className = 'd-flex align-items-center';
@@ -1117,7 +1198,7 @@ document.addEventListener('DOMContentLoaded', () => {
         container.appendChild(header);
         const wrapper = document.createElement('div');
         wrapper.id = collapseId; // HTML id uses the sanitized, safe ID
-        wrapper.className = 'collapse show component-list-wrapper';
+        wrapper.className = 'collapse component-list-wrapper';
         wrapper.dataset.groupId = id; // Keep original id for the API sorting logic
 
         if (components.length === 0) {
@@ -1232,6 +1313,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     newPkgNameInput.value = '';
                     await renderPackagesList();
                     await loadComponents();
+                    await refreshSyncStatusBadge();
                 } catch (error) {
                     showAlert(`Error creating package: ${error.message}`, 'danger');
                 }
@@ -1245,6 +1327,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 body: JSON.stringify(data)
             });
             showAlert('Package updated');
+            await refreshSyncStatusBadge();
         };
 
         window.deletePackage = async (id) => {
@@ -1252,7 +1335,9 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 await fetchJson(`/api/packages/${id}`, { method: 'DELETE' });
                 await renderPackagesList();
+                await loadComponents();
                 showAlert('Package deleted');
+                await refreshSyncStatusBadge();
             } catch (e) { showAlert(e.message, 'danger'); }
         };
     };
@@ -1342,12 +1427,479 @@ document.addEventListener('DOMContentLoaded', () => {
         updateGuideVisibility();
     };
 
+    const setupGitSyncFeatures = () => {
+        const gitSyncModalEl = document.getElementById('git-sync-modal');
+        const gitDiffModalEl = document.getElementById('git-diff-modal');
+        const gitSyncBtn = document.getElementById('git-sync-btn');
+        const componentSyncBtn = document.getElementById('component-sync-btn');
+
+        if (!gitSyncModalEl || !gitDiffModalEl || !gitSyncBtn || !componentSyncBtn) return;
+
+        const gitSyncModal = new bootstrap.Modal(gitSyncModalEl);
+        const gitDiffModal = new bootstrap.Modal(gitDiffModalEl);
+
+        const gitFetchBtn = document.getElementById('git-fetch-btn');
+        const gitSyncAllBtn = document.getElementById('git-sync-all-btn');
+        const gitSyncList = document.getElementById('git-sync-list');
+        const gitSyncInfoAlert = document.getElementById('git-sync-info-alert');
+        const diffMetaComparison = document.getElementById('diff-meta-comparison');
+        const diffViewContainer = document.getElementById('diff-view-container');
+        const diffSyncActionBtn = document.getElementById('diff-sync-action-btn');
+
+        const renderSyncList = (statusData) => {
+            if (!gitSyncList) return;
+            gitSyncList.innerHTML = '';
+            const components = statusData.components || {};
+            const keys = Object.keys(components);
+            if (keys.length === 0) {
+                gitSyncList.innerHTML = '<tr><td colspan="3" class="text-center py-3">No components found.</td></tr>';
+                if (gitSyncAllBtn) gitSyncAllBtn.disabled = true;
+                return;
+            }
+
+            let canSyncAll = false;
+
+            keys.forEach(compId => {
+                const status = components[compId];
+                const tr = document.createElement('tr');
+
+                const tdId = document.createElement('td');
+                tdId.textContent = compId;
+                tr.appendChild(tdId);
+
+                const tdStatus = document.createElement('td');
+                let badgeClass = 'bg-secondary';
+                let statusText = status;
+
+                if (status === 'synced') {
+                    badgeClass = 'bg-success';
+                    statusText = 'Synced';
+                } else if (status === 'modified') {
+                    badgeClass = 'bg-warning text-dark';
+                    statusText = 'Modified';
+                    canSyncAll = true;
+                } else if (status === 'remote_only') {
+                    badgeClass = 'bg-info text-dark';
+                    statusText = 'New in Repo';
+                    canSyncAll = true;
+                } else if (status === 'local_only') {
+                    badgeClass = 'bg-secondary';
+                    statusText = 'Local Only';
+                }
+
+                const badge = document.createElement('span');
+                badge.className = `badge ${badgeClass}`;
+                badge.textContent = statusText;
+                tdStatus.appendChild(badge);
+                tr.appendChild(tdStatus);
+
+                const tdActions = document.createElement('td');
+                tdActions.className = 'text-end';
+
+                if (status === 'modified' || status === 'remote_only') {
+                    const diffBtn = document.createElement('button');
+                    diffBtn.className = 'btn btn-xs btn-outline-primary me-1 py-0 px-2';
+                    diffBtn.textContent = 'Diff & Sync';
+                    diffBtn.addEventListener('click', () => {
+                        gitSyncModal.hide();
+                        showDiffForComponent(compId);
+                    });
+                    tdActions.appendChild(diffBtn);
+                }
+
+                tr.appendChild(tdActions);
+                gitSyncList.appendChild(tr);
+            });
+
+            if (gitSyncAllBtn) gitSyncAllBtn.disabled = !canSyncAll;
+        };
+
+        const renderMetadataDiff = (localMeta, remoteMeta, differingFiles) => {
+            if (!diffMetaComparison) return;
+            const keys = new Set([...Object.keys(localMeta || {}), ...Object.keys(remoteMeta || {})]);
+            let rowsHtml = '';
+
+            keys.forEach(key => {
+                const valLoc = localMeta ? localMeta[key] : undefined;
+                const valRem = remoteMeta ? remoteMeta[key] : undefined;
+
+                const strLoc = typeof valLoc === 'object' ? JSON.stringify(valLoc) : String(valLoc || '');
+                const strRem = typeof valRem === 'object' ? JSON.stringify(valRem) : String(valRem || '');
+
+                if (strLoc !== strRem) {
+                    rowsHtml += `
+                        <tr>
+                            <td><strong>${key}</strong></td>
+                            <td class="text-danger">${strLoc || '<em>None</em>'}</td>
+                            <td class="text-success">${strRem || '<em>None</em>'}</td>
+                        </tr>
+                    `;
+                }
+            });
+
+            if (rowsHtml) {
+                diffMetaComparison.innerHTML = `
+                    <div class="card mb-3">
+                        <div class="card-header bg-light py-1"><strong>Metadata Differences</strong></div>
+                        <table class="table table-sm table-bordered mb-0 small">
+                            <thead>
+                                <tr>
+                                    <th>Field</th>
+                                    <th>Local</th>
+                                    <th>Remote (Git)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${rowsHtml}
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+            } else {
+                if (differingFiles && differingFiles.length > 0) {
+                    diffMetaComparison.innerHTML = '<div class="alert alert-warning small py-1 mb-3">Metadata is identical. Only template differs.</div>';
+                } else {
+                    diffMetaComparison.innerHTML = '<div class="alert alert-success small py-1 mb-3">Metadata and templates are fully synchronized!</div>';
+                }
+            }
+        };
+
+        const renderFilesDiff = (differingFiles) => {
+            let fileAlert = document.getElementById('diff-files-list-alert');
+            if (!fileAlert) {
+                fileAlert = document.createElement('div');
+                fileAlert.id = 'diff-files-list-alert';
+                diffMetaComparison.parentNode.insertBefore(
+                    fileAlert,
+                    diffViewContainer
+                );
+            }
+            fileAlert.innerHTML = '';
+
+            if (differingFiles && differingFiles.length > 0) {
+                fileAlert.className = 'alert alert-warning small py-2 mb-2';
+                const fileList = differingFiles
+                    .map(f => `<li><code>${f}</code></li>`)
+                    .join('');
+                fileAlert.innerHTML = `
+                    <i class="bi bi-exclamation-triangle-fill"></i>
+                    <strong>Verschillen gedetecteerd in de bestanden:</strong>
+                    <ul class="mb-0 mt-1">${fileList}</ul>
+                `;
+            } else {
+                fileAlert.className = 'd-none';
+            }
+        };
+
+        const showDiffForComponent = async (compId) => {
+            if (!diffViewContainer) return;
+            diffViewContainer.innerHTML = '<div class="text-center text-muted p-5"><span class="spinner-border spinner-border-sm me-1"></span>Loading diff...</div>';
+            if (diffMetaComparison) diffMetaComparison.innerHTML = '';
+            gitDiffModal.show();
+
+            try {
+                const diffData = await fetchJson(`/api/sync/diff/${compId}`);
+                renderMetadataDiff(diffData.local_meta, diffData.remote_meta, diffData.differing_files || []);
+                renderFilesDiff(diffData.differing_files || []);
+
+                setTimeout(() => {
+                    diffViewContainer.innerHTML = '';
+                    const mv = CodeMirror.MergeView(diffViewContainer, {
+                        value: diffData.local_template || '',
+                        origLeft: null,
+                        orig: diffData.remote_template || '',
+                        lineNumbers: true,
+                        mode: 'yaml',
+                        theme: 'material-darker',
+                        readOnly: true,
+                        revertButtons: false,
+                        connect: 'align',
+                        collapseIdentical: false
+                    });
+
+                    if (window.ResizeObserver) {
+                        const ro = new ResizeObserver(() => {
+                            mv.edit.refresh();
+                            if (mv.right) mv.right.orig.refresh();
+                        });
+                        ro.observe(diffViewContainer);
+                        diffViewContainer.resizeObserver = ro;
+                    }
+                }, 200);
+
+                if (diffSyncActionBtn) {
+                    diffSyncActionBtn.onclick = async () => {
+                        diffSyncActionBtn.disabled = true;
+                        diffSyncActionBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Syncing...';
+                        try {
+                            await fetchJson(`/api/sync/component/${compId}`, { method: 'POST' });
+                            showAlert(`Component ${compId} successfully synchronized!`, 'success');
+                            gitDiffModal.hide();
+                            await loadComponents();
+                            const currentId = document.getElementById('comp-id');
+                            if (currentId && currentId.value === compId) {
+                                await loadComponentDetails(compId, true);
+                            }
+                        } catch (err) {
+                            showAlert(`Sync failed: ${err.message}`, 'danger');
+                        } finally {
+                            diffSyncActionBtn.disabled = false;
+                            diffSyncActionBtn.innerHTML = '<i class="bi bi-cloud-arrow-down"></i> Sync This Component';
+                        }
+                    };
+                }
+            } catch (err) {
+                diffViewContainer.innerHTML = `<div class="alert alert-danger m-3">Error loading diff: ${err.message}</div>`;
+            }
+        };
+
+        const loadSyncStatus = async () => {
+            try {
+                const statusData = await fetchJson('/api/sync/status');
+                renderSyncList(statusData);
+                if (statusData.remote_fetched && gitSyncInfoAlert) {
+                    gitSyncInfoAlert.className = 'alert alert-info small py-2 mb-3';
+                    gitSyncInfoAlert.textContent = 'Remote cache loaded. Check status below.';
+                }
+                const badge = document.getElementById('git-sync-badge');
+                if (badge) {
+                    if (statusData.global_metadata_out_of_sync) {
+                        badge.classList.remove('d-none');
+                    } else {
+                        badge.classList.add('d-none');
+                    }
+                }
+                const globalAlert = document.getElementById('git-global-warning-alert');
+                if (globalAlert) {
+                    if (statusData.global_metadata_out_of_sync) {
+                        globalAlert.classList.remove('d-none');
+                    } else {
+                        globalAlert.classList.add('d-none');
+                    }
+                }
+            } catch (err) {
+                showAlert(`Failed to load sync status: ${err.message}`, 'danger');
+            }
+        };
+
+        if (gitFetchBtn) {
+            gitFetchBtn.addEventListener('click', async () => {
+                gitFetchBtn.disabled = true;
+                gitFetchBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Fetching...';
+                try {
+                    await fetchJson('/api/sync/fetch', { method: 'POST' });
+                    showAlert('Successfully fetched latest templates from Git repository', 'success');
+                    await loadSyncStatus();
+                } catch (err) {
+                    showAlert(`Failed to fetch from remote: ${err.message}`, 'danger');
+                } finally {
+                    gitFetchBtn.disabled = false;
+                    gitFetchBtn.innerHTML = '<i class="bi bi-arrow-clockwise"></i> Fetch / Check Status';
+                }
+            });
+        }
+
+        if (gitSyncAllBtn) {
+            gitSyncAllBtn.addEventListener('click', async () => {
+                if (!confirm('Are you sure you want to synchronize all components from remote repository? This will overwrite your local changes.')) {
+                    return;
+                }
+                gitSyncAllBtn.disabled = true;
+                gitSyncAllBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Syncing all...';
+                try {
+                    await fetchJson('/api/sync/all', { method: 'POST' });
+                    showAlert('All components successfully synchronized!', 'success');
+                    gitSyncModal.hide();
+                    await loadComponents();
+                    const currentCompIdEl = document.getElementById('comp-id');
+                    if (currentCompIdEl && currentCompIdEl.value) {
+                        await loadComponentDetails(currentCompIdEl.value, true);
+                    }
+                } catch (err) {
+                    showAlert(`Failed to sync all: ${err.message}`, 'danger');
+                } finally {
+                    gitSyncAllBtn.disabled = false;
+                    gitSyncAllBtn.innerHTML = '<i class="bi bi-check-all"></i> Sync All to Local';
+                }
+            });
+        }
+
+        gitSyncBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            gitSyncModal.show();
+            loadSyncStatus();
+        });
+
+        componentSyncBtn.addEventListener('click', () => {
+            const compIdEl = document.getElementById('comp-id');
+            if (compIdEl && compIdEl.value) {
+                showDiffForComponent(compIdEl.value);
+            }
+        });
+
+        const gitUploadBtn = document.getElementById('git-upload-btn');
+        const gitUploadSidebarBtn = document.getElementById('git-upload-sidebar-btn');
+        const gitUploadAllBtn = document.getElementById('git-upload-all-btn');
+
+        const checkGitPermissions = async () => {
+            try {
+                const data = await fetchJson('/api/git/check_permission');
+                if (data.has_write_access) {
+                    if (gitUploadBtn) {
+                        gitUploadBtn.classList.remove('disabled');
+                        gitUploadBtn.removeAttribute('style');
+                        gitUploadBtn.setAttribute('title', 'Upload active component to repository');
+                        new bootstrap.Tooltip(gitUploadBtn);
+                    }
+                    if (gitUploadSidebarBtn) {
+                        gitUploadSidebarBtn.disabled = false;
+                        gitUploadSidebarBtn.setAttribute('title', 'Upload active component to repository');
+                        new bootstrap.Tooltip(gitUploadSidebarBtn);
+                    }
+                    if (gitUploadAllBtn) {
+                        gitUploadAllBtn.disabled = false;
+                        gitUploadAllBtn.setAttribute('title', 'Upload all local components to repository');
+                        new bootstrap.Tooltip(gitUploadAllBtn);
+                    }
+                } else {
+                    const readOnlyMsg = "Read-only: No write permissions for this repository.";
+                    if (gitUploadBtn) {
+                        gitUploadBtn.classList.add('disabled');
+                        gitUploadBtn.style.pointerEvents = 'none';
+                        gitUploadBtn.style.opacity = '0.5';
+                        gitUploadBtn.setAttribute('title', readOnlyMsg);
+                        new bootstrap.Tooltip(gitUploadBtn);
+                    }
+                    if (gitUploadSidebarBtn) {
+                        gitUploadSidebarBtn.disabled = true;
+                        gitUploadSidebarBtn.setAttribute('title', readOnlyMsg);
+                        new bootstrap.Tooltip(gitUploadSidebarBtn);
+                    }
+                    if (gitUploadAllBtn) {
+                        gitUploadAllBtn.disabled = true;
+                        gitUploadAllBtn.setAttribute('title', readOnlyMsg);
+                        new bootstrap.Tooltip(gitUploadAllBtn);
+                    }
+                }
+            } catch (err) {
+                console.error("Failed to check git write permissions:", err);
+                const readOnlyMsg = "Read-only: No write permissions for this repository.";
+                if (gitUploadBtn) {
+                    gitUploadBtn.classList.add('disabled');
+                    gitUploadBtn.style.pointerEvents = 'none';
+                    gitUploadBtn.style.opacity = '0.5';
+                    gitUploadBtn.setAttribute('title', readOnlyMsg);
+                }
+                if (gitUploadSidebarBtn) {
+                    gitUploadSidebarBtn.disabled = true;
+                    gitUploadSidebarBtn.setAttribute('title', readOnlyMsg);
+                }
+                if (gitUploadAllBtn) {
+                    gitUploadAllBtn.disabled = true;
+                    gitUploadAllBtn.setAttribute('title', readOnlyMsg);
+                }
+            }
+        };
+
+        const handleUploadAction = async (e) => {
+            if (e) e.preventDefault();
+            const compIdEl = document.getElementById('comp-id');
+            if (!compIdEl || !compIdEl.value) {
+                showAlert("Please select a component first.", "warning");
+                return;
+            }
+            const compId = compIdEl.value;
+
+            // Show loading / upload state
+            const origHtmlNavbar = gitUploadBtn ? gitUploadBtn.innerHTML : "";
+            const origHtmlSidebar = gitUploadSidebarBtn ? gitUploadSidebarBtn.innerHTML : "";
+
+            if (gitUploadBtn) {
+                gitUploadBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Uploading...';
+                gitUploadBtn.style.pointerEvents = 'none';
+            }
+            if (gitUploadSidebarBtn) {
+                gitUploadSidebarBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Uploading...';
+                gitUploadSidebarBtn.disabled = true;
+            }
+
+            try {
+                const response = await fetch(`/api/git/upload/${compId}`, { method: 'POST' });
+                const resJson = await response.json();
+                if (response.ok) {
+                    showAlert(resJson.message || `Component ${compId} successfully uploaded!`, 'success');
+                    await fetchJson('/api/sync/fetch', { method: 'POST' }).catch(() => {});
+                    await refreshSyncStatusBadge();
+                } else {
+                    showAlert(resJson.error || "Upload failed.", 'danger');
+                }
+            } catch (err) {
+                showAlert(`Upload failed: ${err.message}`, 'danger');
+            } finally {
+                if (gitUploadBtn) {
+                    gitUploadBtn.innerHTML = origHtmlNavbar;
+                    gitUploadBtn.style.pointerEvents = '';
+                }
+                if (gitUploadSidebarBtn) {
+                    gitUploadSidebarBtn.innerHTML = origHtmlSidebar;
+                    gitUploadSidebarBtn.disabled = false;
+                }
+            }
+        };
+
+        const handleUploadAllAction = async (e) => {
+            if (e) e.preventDefault();
+            if (!confirm("Are you sure you want to upload all local components and metadata to the remote repository?")) {
+                return;
+            }
+
+            const origHtml = gitUploadAllBtn ? gitUploadAllBtn.innerHTML : "";
+            if (gitUploadAllBtn) {
+                gitUploadAllBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Uploading all...';
+                gitUploadAllBtn.disabled = true;
+            }
+
+            try {
+                const response = await fetch('/api/git/upload_all', { method: 'POST' });
+                const resJson = await response.json();
+                if (response.ok) {
+                    showAlert(resJson.message || "All components successfully uploaded!", 'success');
+                    gitSyncModal.hide();
+                    await fetchJson('/api/sync/fetch', { method: 'POST' }).catch(() => {});
+                    await refreshSyncStatusBadge();
+                } else {
+                    showAlert(resJson.error || "Bulk upload failed.", 'danger');
+                }
+            } catch (err) {
+                showAlert(`Bulk upload failed: ${err.message}`, 'danger');
+            } finally {
+                if (gitUploadAllBtn) {
+                    gitUploadAllBtn.innerHTML = origHtml;
+                    gitUploadAllBtn.disabled = false;
+                }
+            }
+        };
+
+        if (gitUploadBtn) {
+            gitUploadBtn.addEventListener('click', handleUploadAction);
+        }
+        if (gitUploadSidebarBtn) {
+            gitUploadSidebarBtn.addEventListener('click', handleUploadAction);
+        }
+        if (gitUploadAllBtn) {
+            gitUploadAllBtn.addEventListener('click', handleUploadAllAction);
+        }
+
+        checkGitPermissions();
+    };
+
     // --- Main Initialization ---
 
     (async () => {
         await loadComponents();
         setupThemeSelector();
         setupResizableSidebar();
+        setupSidebarCollapseActions();
         setupSortableGroups();
         setupCreateComponentModal();
         setupManageGroupsModal();
@@ -1355,6 +1907,8 @@ document.addEventListener('DOMContentLoaded', () => {
         setupDirtyFormHandling();
         setupHashGenerator();
         setupOnboardingGuide();
+        setupGitSyncFeatures();
         updateUiForDirtyState();
+        await refreshSyncStatusBadge();
     })();
 });

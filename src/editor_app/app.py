@@ -6,7 +6,7 @@ import os
 from flask import Flask, abort, jsonify, render_template, request
 
 from managers.component_manager import ComponentManager
-from utils.resource_utils import resource_path
+from utils.resource_utils import get_components_paths
 
 logging.basicConfig(level=logging.INFO)
 
@@ -19,13 +19,306 @@ def create_app(test_config=None):
     if test_config:
         app.config.update(test_config)
 
-    meta_file = str(resource_path("config/components_metadata.json"))
-    temp_path = str(resource_path("component_templates"))
+    meta_file_path, temp_path_obj = get_components_paths()
+    meta_file = str(meta_file_path)
+    temp_path = str(temp_path_obj)
 
     # Initialize the unified ComponentManager
     component_manager = ComponentManager(
         templates_path=temp_path, metadata_file_path=meta_file
     )
+
+    from managers.sync_manager import SyncManager  # type: ignore
+
+    sync_manager = SyncManager(
+        local_metadata_path=meta_file_path,
+        local_templates_path=temp_path_obj,
+    )
+
+    @app.route("/api/sync/status", methods=["GET"])
+    def sync_status():
+        try:
+            return jsonify(sync_manager.get_sync_status()), 200
+        except Exception as e:
+            logging.error(f"Failed to get sync status: {e}", exc_info=True)
+            abort(500, "Internal error getting sync status")
+
+    @app.route("/api/sync/fetch", methods=["POST"])
+    def sync_fetch():
+        try:
+            success = sync_manager.fetch_from_remote()
+            if success:
+                return (
+                    jsonify(
+                        {
+                            "status": "success",
+                            "message": (
+                                "Successfully fetched " "from remote repository"
+                            ),
+                        }
+                    ),
+                    200,
+                )
+            else:
+                return (
+                    jsonify(
+                        {
+                            "status": "error",
+                            "message": "Failed to fetch from remote repository",
+                        }
+                    ),
+                    500,
+                )
+        except Exception as e:
+            logging.error(f"Failed to fetch remote components: {e}", exc_info=True)
+            abort(500, "Internal error fetching from remote")
+
+    @app.route("/api/sync/component/<comp_id>", methods=["POST"])
+    def sync_component_route(comp_id):
+        try:
+            success = sync_manager.sync_component(comp_id)
+            if success:
+                return (
+                    jsonify(
+                        {
+                            "status": "success",
+                            "message": (
+                                f"Successfully synchronized " f"component {comp_id}"
+                            ),
+                        }
+                    ),
+                    200,
+                )
+            else:
+                return (
+                    jsonify(
+                        {
+                            "status": "error",
+                            "message": (
+                                f"Failed to synchronize " f"component {comp_id}"
+                            ),
+                        }
+                    ),
+                    500,
+                )
+        except Exception as e:
+            logging.error(f"Failed to sync component {comp_id}: {e}", exc_info=True)
+            abort(500, f"Internal error syncing component {comp_id}")
+
+    @app.route("/api/sync/all", methods=["POST"])
+    def sync_all_route():
+        try:
+            success = sync_manager.sync_all()
+            if success:
+                return (
+                    jsonify(
+                        {
+                            "status": "success",
+                            "message": ("Successfully synchronized " "all components"),
+                        }
+                    ),
+                    200,
+                )
+            else:
+                return (
+                    jsonify(
+                        {
+                            "status": "error",
+                            "message": "Failed to synchronize all components",
+                        }
+                    ),
+                    500,
+                )
+        except Exception as e:
+            logging.error(f"Failed to sync all components: {e}", exc_info=True)
+            abort(500, "Internal error syncing all components")
+
+    @app.route("/api/git/check_permission", methods=["GET"])
+    def git_check_permission():
+        try:
+            has_write = sync_manager.check_write_access()
+            return jsonify({"has_write_access": has_write}), 200
+        except Exception as e:
+            logging.error(f"Failed to check git permissions: {e}", exc_info=True)
+            abort(500, "Internal error checking git permissions")
+
+    @app.route("/api/git/upload/<comp_id>", methods=["POST"])
+    def git_upload_component(comp_id):
+        # 1. Pre-upload completeness/metadata validation (linter)
+        if not sync_manager.validate_metadata_header(comp_id):
+            return (
+                jsonify(
+                    {
+                        "error": (
+                            "Upload aborted: Metadata header "
+                            "is incomplete or malformed."
+                        )
+                    }
+                ),
+                400,
+            )
+
+        # 2. Proceed with commit and push
+        try:
+            success = sync_manager.upload_component(comp_id)
+            if success:
+                return (
+                    jsonify(
+                        {
+                            "status": "success",
+                            "message": f"Successfully uploaded component {comp_id}",
+                        }
+                    ),
+                    200,
+                )
+            else:
+                return (
+                    jsonify(
+                        {
+                            "status": "error",
+                            "message": f"Failed to upload component {comp_id}",
+                        }
+                    ),
+                    500,
+                )
+        except Exception as e:
+            logging.error(f"Failed to upload component {comp_id}: {e}", exc_info=True)
+            return (
+                jsonify({"error": f"Failed to upload component: {str(e)}"}),
+                500,
+            )
+
+    @app.route("/api/git/upload_all", methods=["POST"])
+    def git_upload_all_components():
+        try:
+            success = sync_manager.upload_all_components()
+            if success:
+                return (
+                    jsonify(
+                        {
+                            "status": "success",
+                            "message": "Successfully uploaded all components in bulk",
+                        }
+                    ),
+                    200,
+                )
+            else:
+                return (
+                    jsonify(
+                        {
+                            "status": "error",
+                            "message": "Failed to upload all components",
+                        }
+                    ),
+                    500,
+                )
+        except ValueError as ve:
+            return jsonify({"error": str(ve)}), 400
+        except Exception as e:
+            logging.error(f"Failed to upload all components: {e}", exc_info=True)
+            return (
+                jsonify({"error": f"Failed to upload all components: {str(e)}"}),
+                500,
+            )
+
+    @app.route("/api/sync/diff/<comp_id>", methods=["GET"])
+    def sync_diff_route(comp_id):
+        try:
+            local_tpl_path = (
+                sync_manager.local_templates_path
+                / comp_id
+                / "docker-compose.template.yml"
+            )
+            remote_tpl_path = (
+                sync_manager.cache_templates_path
+                / comp_id
+                / "docker-compose.template.yml"
+            )
+
+            local_template = ""
+            if local_tpl_path.exists():
+                local_template = local_tpl_path.read_text(encoding="utf-8").replace(
+                    "\r\n", "\n"
+                )
+
+            remote_template = ""
+            if remote_tpl_path.exists():
+                remote_template = remote_tpl_path.read_text(encoding="utf-8").replace(
+                    "\r\n", "\n"
+                )
+
+            local_meta = sync_manager._get_local_component_meta(comp_id)
+            remote_meta = sync_manager._get_remote_component_meta(comp_id)
+
+            differing_files = []
+            local_dir = sync_manager.local_templates_path / comp_id
+            remote_dir = sync_manager.cache_templates_path / comp_id
+
+            if local_dir.exists() and remote_dir.exists():
+                files1 = {
+                    f.relative_to(local_dir)
+                    for f in local_dir.rglob("*")
+                    if f.is_file()
+                }
+                files2 = {
+                    f.relative_to(remote_dir)
+                    for f in remote_dir.rglob("*")
+                    if f.is_file()
+                }
+                all_files = files1.union(files2)
+                for rel_path in all_files:
+                    f1 = local_dir / rel_path
+                    f2 = remote_dir / rel_path
+                    if not f1.exists() or not f2.exists():
+                        differing_files.append(str(rel_path))
+                        continue
+                    try:
+                        if rel_path.suffix.lower() in (
+                            ".yml",
+                            ".yaml",
+                            ".json",
+                            ".conf",
+                            ".rb",
+                            ".txt",
+                            ".sh",
+                            ".template",
+                        ):
+                            c1 = (
+                                f1.read_text(encoding="utf-8", errors="ignore")
+                                .replace("\r\n", "\n")
+                                .strip()
+                            )
+                            c2 = (
+                                f2.read_text(encoding="utf-8", errors="ignore")
+                                .replace("\r\n", "\n")
+                                .strip()
+                            )
+                            if c1 != c2:
+                                differing_files.append(str(rel_path))
+                        else:
+                            if f1.read_bytes() != f2.read_bytes():
+                                differing_files.append(str(rel_path))
+                    except Exception:
+                        differing_files.append(str(rel_path))
+
+            return (
+                jsonify(
+                    {
+                        "local_template": local_template,
+                        "remote_template": remote_template,
+                        "local_meta": local_meta,
+                        "remote_meta": remote_meta,
+                        "differing_files": differing_files,
+                    }
+                ),
+                200,
+            )
+        except Exception as e:
+            logging.error(
+                f"Failed to get diff for component {comp_id}: {e}",
+                exc_info=True,
+            )
+            abort(500, f"Internal error getting diff for {comp_id}")
 
     @app.route("/")
     def index():

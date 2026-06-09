@@ -18,7 +18,33 @@
       loop: "{{ ansible_mounts }}"
       when: item.mount == '/'
 
-    # --- DOCKER ENGINE PROVISIONING (WITHOUT PIP OR Python LIBRARIES) ---
+# --- DOCKER ENGINE PROVISIONING (WITHOUT PIP OR Python LIBRARIES) ---
+    - name: Ensure prerequisites for Docker repository are installed
+      ansible.builtin.apt:
+        name:
+          - ca-certificates
+          - curl
+        state: present
+        update_cache: yes
+
+    - name: Ensure directory for Docker archive keyring exists
+      ansible.builtin.file:
+        path: /etc/apt/keyrings
+        state: directory
+        mode: "0755"
+
+    - name: Download Docker official GPG key
+      ansible.builtin.get_url:
+        url: https://download.docker.com/linux/debian/gpg
+        dest: /etc/apt/keyrings/docker.asc
+        mode: "0644"
+
+    - name: Add Docker repository to Apt sources
+      ansible.builtin.apt_repository:
+        repo: "deb [arch={{ ansible_architecture if ansible_architecture != 'aarch64' else 'arm64' }} signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian {{ ansible_distribution_release }} stable"
+        state: present
+        filename: docker
+
     - name: Ensure Docker CE and Compose plugin are installed
       ansible.builtin.apt:
         name:

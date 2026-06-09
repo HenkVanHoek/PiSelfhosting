@@ -1,3 +1,7 @@
+# status: "testing"
+# last_tested_version: "none"
+# platform_notes: "Targeted for ARM architecture."
+# breaking_changes: "None"
 # templates/phpmyadmin/docker-compose.template.yml
 services:
   phpmyadmin:

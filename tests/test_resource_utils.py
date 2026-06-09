@@ -54,3 +54,68 @@ def test_resource_path_in_pyinstaller_mode(monkeypatch):
 
     # Assert: Check if the function correctly used the _MEIPASS path.
     assert str(actual_path) == expected_path
+
+
+def test_get_components_paths_env_override(monkeypatch):
+    """
+    Test that get_components_paths returns paths relative to the
+    PI_SELFHOSTING_COMPONENTS_DIR environment variable when set.
+    """
+    fake_dir = "/fake/components/dir"
+    monkeypatch.setenv("PI_SELFHOSTING_COMPONENTS_DIR", fake_dir)
+
+    from src.utils.resource_utils import get_components_paths
+
+    meta_path, temp_path = get_components_paths()
+    assert meta_path == Path(fake_dir).resolve() / "components_metadata.json"
+    assert temp_path == Path(fake_dir).resolve() / "component_templates"
+
+
+def test_get_components_paths_user_data_dir(monkeypatch, tmp_path):
+    """
+    Test that get_components_paths returns paths relative to the user data
+    directory if components exist there and env var is not set.
+    """
+    # 1. Clear environment variable
+    monkeypatch.delenv("PI_SELFHOSTING_COMPONENTS_DIR", raising=False)
+
+    # 2. Mock appdirs.user_data_dir to return our tmp_path
+    monkeypatch.setattr(
+        "appdirs.user_data_dir",
+        lambda appname, appauthor: str(tmp_path),
+    )
+
+    # Create the components files in the mocked user data directory
+    components_dir = tmp_path / "components"
+    components_dir.mkdir(parents=True, exist_ok=True)
+    (components_dir / "components_metadata.json").touch()
+    (components_dir / "component_templates").mkdir(parents=True, exist_ok=True)
+
+    from src.utils.resource_utils import get_components_paths
+
+    meta_path, temp_path = get_components_paths()
+    assert meta_path == components_dir / "components_metadata.json"
+    assert temp_path == components_dir / "component_templates"
+
+
+def test_get_components_paths_fallback(monkeypatch, tmp_path):
+    """
+    Test that get_components_paths falls back to built-in resources
+    when neither env var is set nor the files exist in the user data dir.
+    """
+    monkeypatch.delenv("PI_SELFHOSTING_COMPONENTS_DIR", raising=False)
+
+    # Mock appdirs.user_data_dir to return a path that does not contain components
+    monkeypatch.setattr(
+        "appdirs.user_data_dir",
+        lambda appname, appauthor: str(tmp_path),
+    )
+
+    from src.utils.resource_utils import get_components_paths, resource_path
+
+    meta_path, temp_path = get_components_paths()
+    expected_meta = resource_path("config/components_metadata.json")
+    expected_temp = resource_path("component_templates")
+
+    assert meta_path == expected_meta
+    assert temp_path == expected_temp

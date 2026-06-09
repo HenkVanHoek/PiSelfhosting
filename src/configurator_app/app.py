@@ -16,7 +16,7 @@ from managers.component_manager import ComponentManager
 from managers.deployment_manager import DeploymentManager
 from managers.setup_manager import SetupManager
 from pi_scanner import PiScanner
-from utils.resource_utils import resource_path
+from utils.resource_utils import get_components_paths
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
@@ -227,8 +227,9 @@ def create_app(test_config=None):
         "FLASK_SECRET_KEY", "a-default-secret-key-for-development"
     )
 
-    metadata_path = str(resource_path("config/components_metadata.json"))
-    templates_path = str(resource_path("component_templates"))
+    metadata_path_obj, templates_path_obj = get_components_paths()
+    metadata_path = str(metadata_path_obj)
+    templates_path = str(templates_path_obj)
 
     component_manager = ComponentManager(
         metadata_file_path=metadata_path, templates_path=templates_path
@@ -459,7 +460,7 @@ def create_app(test_config=None):
             if not isinstance(selected_components, list):
                 return jsonify({"error": "Missing or invalid selected_components"}), 400
 
-            base_template_path = Path(resource_path("component_templates"))
+            base_template_path = templates_path_obj
             all_components_dict = {
                 comp["id"]: comp for comp in component_manager.get_all_components()
             }

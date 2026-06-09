@@ -1,3 +1,7 @@
+# status: "untested"
+# last_tested_version: "none"
+# platform_notes: "None"
+# breaking_changes: "None"
 # templates/piselfhosting-docs/docker-compose.template.yml
 services:
   piselfhosting-docs:
