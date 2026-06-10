@@ -73,13 +73,23 @@
                             </label>
                             <div class="form-text mt-0">Scans your current local subnet automatically.</div>
                         </div>
-                        <div class="form-check">
+                        <div class="form-check mb-3">
                             <input class="form-check-input" type="radio" name="scanMethod" id="manualScanRadio">
                             <label class="form-check-label fw-bold" for="manualScanRadio">
                                 Manual Subnet Scan
                             </label>
                             <div class="form-text mt-0 mb-2">Use this if you are on a different VLAN or VPN.</div>
                             <input type="text" class="form-control" id="manualSubnetInput" placeholder="e.g. 192.168.1.0/24" aria-label="Manual Subnet IP" disabled>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="scanMethod" id="method_direct_ip" value="direct_ip">
+                            <label class="form-check-label fw-bold" for="method_direct_ip">
+                                Direct IP / Hostname Deployment (VPN/Tailscale)
+                            </label>
+                            <div class="form-text mt-0 mb-2">Target a specific host directly, bypassing network discovery.</div>
+                            <div class="mt-2 d-none" id="direct_ip_input_container">
+                                <input type="text" class="form-control" name="direct_target_ip" id="direct_target_ip" placeholder="e.g., 100.121.216.150" aria-label="Direct Target IP">
+                            </div>
                         </div>
                     </div>
                 </div>

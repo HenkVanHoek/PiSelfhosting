@@ -252,6 +252,34 @@ def create_app(test_config=None):
     @flask_app.route("/scan-pis", methods=["POST"])
     def scan_pis():
         data = request.get_json(silent=True) or {}
+        discovery_method = data.get("discovery_method")
+        if discovery_method == "direct_ip":
+            target_ip = data.get("direct_target_ip", "").strip()
+            if not target_ip:
+                return (
+                    jsonify({"error": "Direct IP target address cannot be blank."}),
+                    400,
+                )
+
+            print(
+                "Antigravity bypass: Skipping subnet scan. "
+                f"Directly targeting host: {target_ip}"
+            )
+            return jsonify(
+                {
+                    "hosts": [
+                        {
+                            "ip": target_ip,
+                            "hostname": "remote-tailscale-target",
+                            "status": "selected",
+                        }
+                    ],
+                    "messages": [f"Directly targeting host: {target_ip}"],
+                    "error": None,
+                    "detection_info": {},
+                }
+            )
+
         subnet = data.get("subnet")
         if subnet is not None and not isinstance(subnet, str):
             subnet = None

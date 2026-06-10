@@ -291,15 +291,25 @@
                             <span class="d-block small text-muted">Scans your current local subnet automatically.</span>
                         </label>
                     </div>
-                    <div class="form-check">
+                    <div class="form-check mb-2">
                         <input class="form-check-input" type="radio" name="scanMethod" id="manualScanRadio">
                         <label class="form-check-label" for="manualScanRadio">
                             <strong>Manual Subnet Scan</strong>
                             <span class="d-block small text-muted">Use this if you are on a different VLAN or VPN.</span>
                         </label>
                     </div>
-                    <div class="mt-3">
+                    <div class="mt-2 mb-3">
                         <input type="text" id="manualSubnetInput" class="form-control" placeholder="e.g. 192.168.1.0/24" value="${escapeHTML(savedSubnet)}" disabled aria-label="Manual subnet input">
+                    </div>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="radio" name="scanMethod" id="method_direct_ip" value="direct_ip">
+                        <label class="form-check-label" for="method_direct_ip">
+                            <strong>Direct IP / Hostname Deployment (VPN/Tailscale)</strong>
+                            <span class="d-block small text-muted">Target a specific host directly, bypassing network discovery.</span>
+                        </label>
+                    </div>
+                    <div class="mt-2 d-none" id="direct_ip_input_container">
+                        <input type="text" class="form-control" name="direct_target_ip" id="direct_target_ip" placeholder="e.g., 100.121.216.150" aria-label="Direct Target IP">
                     </div>
                 </div>
 
@@ -1731,36 +1741,55 @@ eventSource.onerror = () => {
     const setupStep1 = () => {
         const scanBtn = document.getElementById('begin-scan-btn');
         const manualInput = /** @type {HTMLInputElement} */ (document.getElementById('manualSubnetInput'));
+        const directIpContainer = document.getElementById('direct_ip_input_container');
+        const directIpInput = /** @type {HTMLInputElement} */ (document.getElementById('direct_target_ip'));
 
         const autoRadio = document.getElementById('autoDetectRadio');
         const manualRadio = document.getElementById('manualScanRadio');
+        const directRadio = document.getElementById('method_direct_ip');
 
-        if (autoRadio) {
-            autoRadio.addEventListener('change', (e) => {
-                manualInput.disabled = (/** @type {HTMLInputElement} */ (e.target)).checked;
-            });
-        }
-
-        if (manualRadio) {
-            manualRadio.addEventListener('change', (e) => {
-                if ((/** @type {HTMLInputElement} */ (e.target)).checked) {
-                    manualInput.disabled = false;
-                    manualInput.focus();
+        const updateInputs = () => {
+            if (autoRadio && (/** @type {HTMLInputElement} */ (autoRadio)).checked) {
+                manualInput.disabled = true;
+                if (directIpContainer) directIpContainer.classList.add('d-none');
+            }
+            if (manualRadio && (/** @type {HTMLInputElement} */ (manualRadio)).checked) {
+                manualInput.disabled = false;
+                manualInput.focus();
+                if (directIpContainer) directIpContainer.classList.add('d-none');
+            }
+            if (directRadio && (/** @type {HTMLInputElement} */ (directRadio)).checked) {
+                manualInput.disabled = true;
+                if (directIpContainer) {
+                    directIpContainer.classList.remove('d-none');
+                    if (directIpInput) directIpInput.focus();
                 }
-            });
-        }
+            }
+        };
+
+        if (autoRadio) autoRadio.addEventListener('change', updateInputs);
+        if (manualRadio) manualRadio.addEventListener('change', updateInputs);
+        if (directRadio) directRadio.addEventListener('change', updateInputs);
 
         const performScan = async () => {
             setButtonState(scanBtn, true, {loadingText: 'Scanning...'});
             updateWizardFooter('Scanning network for Raspberry Pi devices...', 'primary');
-            const subnetToScan = (/** @type {HTMLInputElement} */ (document.getElementById('manualScanRadio'))).checked ? manualInput.value : null;
+
+            const isDirectIp = directRadio && (/** @type {HTMLInputElement} */ (directRadio)).checked;
+            const isManual = manualRadio && (/** @type {HTMLInputElement} */ (manualRadio)).checked;
+            const subnetToScan = isManual ? manualInput.value : null;
+            const directIpValue = isDirectIp ? (directIpInput ? directIpInput.value : "") : null;
 
             try {
                 /** @type {ScanData} */
                 const data = await fetchAPI('/scan-pis', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({subnet: subnetToScan})
+                    body: JSON.stringify({
+                        subnet: subnetToScan,
+                        discovery_method: isDirectIp ? 'direct_ip' : (isManual ? 'manual' : 'auto'),
+                        direct_target_ip: directIpValue
+                    })
                 });
                 if (data.permissions_error) {
                     const troubleshootingUrl = 'https://github.com/HenkVanHoek/PiSelfhosting/blob/main/docs/TROUBLESHOOTING.md#network-scan-issues';

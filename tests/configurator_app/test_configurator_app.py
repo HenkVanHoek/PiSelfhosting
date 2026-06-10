@@ -60,6 +60,23 @@ class ConfiguratorAppTestCase(unittest.TestCase):
         self.assertEqual(len(data["hosts"]), 1)
         self.assertEqual(data["hosts"][0]["ip"], "192.168.1.50")
 
+    def test_scan_pis_direct_ip(self):
+        """Test scanning endpoint with direct IP targeting."""
+        payload = {
+            "discovery_method": "direct_ip",
+            "direct_target_ip": "10.0.0.5",
+        }
+        response = self.client.post(
+            "/scan-pis",
+            data=json.dumps(payload),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.data)
+        self.assertEqual(len(data["hosts"]), 1)
+        self.assertEqual(data["hosts"][0]["ip"], "10.0.0.5")
+        self.assertEqual(data["hosts"][0]["hostname"], "remote-tailscale-target")
+
     def test_deploy_configuration_success(self):
         """Test POST /deploy-configuration without conflicts."""
         payload = {
