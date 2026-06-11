@@ -140,6 +140,12 @@ X:.
 │   └── editor_app/test_editor_app.py
 └── linux/install.sh
 ```
+## 📚 Background and Articles
+
+For a detailed case study on running a sovereign stack (including Nextcloud, Euro-Office, and Frigate) on a Raspberry Pi 5 with ZRAM and Google Coral TPU optimizations, please refer to:
+- The article on DEV Community: [Building a Sovereign Home Server: Lessons Learned Running Nextcloud, Euro-Office, and Frigate on a Raspberry Pi 5](https://dev.to/henk_van_hoek/building-a-sovereign-home-server-lessons-learned-running-nextcloud-euro-office-and-frigate-on-a-1kbc)
+- Our local summary of the lessons learned: [sovereign_home_server.md](file:///home/hvhoek/PycharmProjects/PiSelfhosting/docs/sovereign_home_server.md)
+
 ## 🤝 Contributing
 We welcome contributions! For guidelines on how to get started with development, please see our `CONTRIBUTING.md` file. To understand the core design principles and data contracts of the project, please review the `ARCHITECTURE.md` file.
 
