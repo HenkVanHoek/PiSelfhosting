@@ -148,3 +148,9 @@ Enforcement
 - **Principle**: A single commit must represent a single, complete, logical unit of work that leaves the application in a fully-tested, stable state.
 - **Principle**: The **git commit --amend** command is the standard procedure for adding corrections to a logical change that has not yet been pushed.
 - **Rationale**: This ensures the final commit is atomic and avoids cluttering the history with "fix-up" commits. This is only safe for local commits.
+
+## 6. AI-Assisted Component Generation
+
+- **Principle**: The system integrates an AI generation flow that translates repository structures directly into PiSelfhosting components.
+- **Backend Architecture**: The AIGenerator class makes direct HTTP POST requests to the Gemini Beta REST API model (gemini-2.5-flash) using structured JSON output.
+- **Security and API Keys**: The user provides a Gemini API key. If not provided, it falls back to the GEMINI_API_KEY environment variable loaded via python-dotenv.

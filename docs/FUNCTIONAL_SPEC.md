@@ -127,6 +127,23 @@ self-hosted services that are available to the end-user.
     components..." input field **must remain fixed** at the top of the
     sidebar and always be visible.
 
+---
+
+#### Story: AI-Assisted Component Generation
+
+> As a Developer (Charlie), I want to create a component by specifying a GitHub repository URL and custom instructions, so that the metadata, compose templates, variables, and config templates are automatically generated using AI.
+
+**Acceptance Criteria:**
+
+- **Given** I am on the component editor page,
+- **When** I click the "Create with AI" button,
+- **And** I enter a valid GitHub repository URL and optional instructions,
+- **And** I provide a Gemini API Key (or rely on the GEMINI_API_KEY environment variable),
+- **And** I click "Generate Component",
+- **Then** the system contacts the Gemini API and generates the component structure.
+- **And** I can preview the generated metadata, variables, compose template, and configuration templates in a preview modal.
+- **And** when I click "Accept and Create", the component is registered and saved to the filesystem.
+
 ### Epic 2: End-User - System Configuration
 
 As Alex, I need a simple, guided web interface to select and configure the
