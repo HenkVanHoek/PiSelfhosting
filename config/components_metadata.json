@@ -57,9 +57,14 @@
             "utilities",
             "reverse_proxy",
             "System Tools",
-            "Security & Utilities"
+            "Security & Utilities",
+            "Chat/Messaging"
         ],
         "group_rules": {
+            "Chat/Messaging": {
+                "is_exclusive": false,
+                "name": "Chat/Messaging"
+            },
             "Home Automation": {
                 "is_exclusive": false,
                 "name": "Home Automation"
@@ -662,6 +667,26 @@
             ],
             "traefik_internal_port": null,
             "ui_port_variable": "PISELFHOSTING_SERVICE_MAINTENANCE_WEB_PORT"
+        },
+        "pish-fluffychat-web": {
+            "conflicts_with": [],
+            "depends_on": [
+                "matrix-synapse"
+            ],
+            "description": "FluffyChat is a gorgeous, decentralized, open and easy-to-use Matrix client for web. Connect with friends and family using a secure, federated messaging platform.",
+            "group": "Chat/Messaging",
+            "has_configuration": true,
+            "has_ui": true,
+            "image_name": "piselfhosting/fluffychat-web",
+            "name": "FluffyChat Web",
+            "tags": [
+                "matrix",
+                "chat",
+                "web",
+                "messaging",
+                "fluffychat"
+            ],
+            "ui_port_variable": null
         },
         "portainer": {
             "component_version": "lts",

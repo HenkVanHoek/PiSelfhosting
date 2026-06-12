@@ -52,6 +52,42 @@ class ComponentWriter:
         comp_dir = self.templates_path / component_id
         comp_dir.mkdir(parents=True, exist_ok=True)
         template_file = comp_dir / "docker-compose.template.yml"
+
+        # Check if the content already has the required comment headers
+        required = [
+            "status:",
+            "last_tested_version:",
+            "platform_notes:",
+            "breaking_changes:",
+        ]
+        has_headers = False
+        try:
+            lines = content.splitlines()
+            found_fields = set()
+            for line in lines:
+                stripped = line.strip()
+                if not stripped:
+                    continue
+                if stripped.startswith("#"):
+                    comment = stripped[1:].strip()
+                    for field in required:
+                        if comment.startswith(field):
+                            found_fields.add(field)
+                else:
+                    break
+            has_headers = len(found_fields) == len(required)
+        except Exception:  # nosec B110
+            pass
+
+        if not has_headers:
+            header = (
+                '# status: "untested"\n'
+                '# last_tested_version: "none"\n'
+                '# platform_notes: "None"\n'
+                '# breaking_changes: "None"\n'
+            )
+            content = header + content
+
         try:
             template_file.write_text(content, encoding="utf-8")
             return True
