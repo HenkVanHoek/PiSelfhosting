@@ -851,6 +851,13 @@
                     </p>
                     ${tabNavHTML}
                     ${tabContentHTML}
+                    <div class="alert alert-info mt-3 p-3 text-start" role="alert">
+                        <i class="fa-solid fa-circle-info me-2 text-primary"></i>
+                        <strong>Recommended Utilities:</strong> For a complete management experience, we highly recommend selecting
+                        <strong>Portainer</strong> (for easy container management),
+                        <strong>FileBrowser</strong> (for visual file and configuration editing), and
+                        <strong>Homarr</strong> (as a central dashboard for all your services).
+                    </div>
                     <div id="step3-action-area"></div>
                 </div>
             `;

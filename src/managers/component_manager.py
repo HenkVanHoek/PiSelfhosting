@@ -415,6 +415,9 @@ class ComponentManager:
         if "CONFIG_BASE_PATH" not in context:
             context["CONFIG_BASE_PATH"] = "../piselfhosting_data"
 
+        if "DATA_ROOT" not in context:
+            context["DATA_ROOT"] = "/opt/piselfhosting/data"
+
         template_content = self.get_component_template_content(component_id)
 
         has_traefik_support = component_details.get("has_traefik_support", False)
@@ -510,6 +513,8 @@ class ComponentManager:
 
         deployment_context = global_vars.copy()
         deployment_context["CONFIG_BASE_PATH"] = "../piselfhosting_data"
+        if "DATA_ROOT" not in deployment_context:
+            deployment_context["DATA_ROOT"] = "/opt/piselfhosting/data"
 
         component_ids: List[str] = [
             str(comp_id)
@@ -526,6 +531,41 @@ class ComponentManager:
 
             render_context = deployment_context.copy()
             rendered_yaml = self.render_component_template(component_id, render_context)
+
+            config_templates = component_data.get("config_templates")
+            if isinstance(config_templates, dict):
+                for template_name, raw_location in config_templates.items():
+                    template_file = (
+                        self.templates_path
+                        / component_id
+                        / "template-config"
+                        / template_name
+                    )
+                    if template_file.exists():
+                        try:
+                            with open(template_file, "r", encoding="utf-8") as tf:
+                                template_content = tf.read()
+
+                            config_template = Template(template_content)
+                            rendered_config = config_template.render(**render_context)
+
+                            target_file_path = output_path / "data" / raw_location
+                            target_file_path.parent.mkdir(parents=True, exist_ok=True)
+
+                            with open(
+                                target_file_path, "w", encoding="utf-8"
+                            ) as tf_out:
+                                tf_out.write(rendered_config)
+                            logger.info(
+                                f"Generated config template {template_name} "
+                                f"at {target_file_path}"
+                            )
+                        except Exception as config_err:
+                            logger.error(
+                                f"Error rendering config template {template_name} "
+                                f"for {component_id}: {config_err}",
+                                exc_info=True,
+                            )
 
             try:
                 comp_compose = yaml.safe_load(rendered_yaml)

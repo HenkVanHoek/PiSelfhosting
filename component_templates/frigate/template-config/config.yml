@@ -1,68 +1,30 @@
-# /home/PiSelfhosting/scripts/templates/frigate/config/config.yml
-
-# Frigate configuration file
-# For full documentation, see: https://docs.frigate.video/configuration/index
-# This template provides a basic configuration.
-
-# MQTT settings (connect to Mosquitto container)
 mqtt:
-  host: mosquitto # Name of the Mosquitto service in Docker Compose
-  topic_prefix: frigate # Example prefix
-  user: ${MQTT_USER} # Variable from .env
-  password: "${MQTT_PASS}"  # Variable from .env
-
-# Detectors (for Google Coral TPU or CPU)
-# If you selected a Coral TPU in the config tool, this section will be populated.
+  host: mosquitto
+  topic_prefix: frigate
+  user: ${MQTT_USER}
+  password: ${MQTT_PASS}
 detectors:
   cpu:
-    type: cpu # Default detector if no Coral is configured
-
-# Object detection settings
+    type: cpu
 detect:
-  # cpu: True # Use CPU by default if no Coral is configured
-  max_disappeared: 50 # How long objects are tracked after disappearing
-  # max_frames: 50 # Max number of frames to analyze before detection stops
-  # threshold: 0.7 # Minimum confidence for detection
-
-# Cameras (this section will be populated by the Frigate config tool)
+  max_disappeared: 50
 cameras:
-  # Example camera, will be overwritten/supplemented by the tool:
-  # frontdoor:
-  #   ffmpeg:
-  #     inputs:
-  #       - path: rtsp://user:password@192.168.1.100:554/stream0
-  #         roles:
-  #           - detect
-  #           - rtmp
-  #   detect:
-  #     width: 1280
-  #     height: 720
-  #     fps: 5
-
-# Media storage (ensure /media/frigate is mounted)
+  placeholder_camera_127_0_0_1:
+    ffmpeg:
+      inputs:
+      - path: rtsp://admin:password@127.0.0.1:554/live
+        roles:
+        - detect
+    detect:
+      width: 1280
+      height: 720
+      fps: 5
+    enabled: false
 record:
-  enabled: True # Record video on detection
+  enabled: true
   events:
-    pre_capture: 5 # seconds to record before detection
-    post_capture: 5 # seconds to record after detection
-    required_zones: [] # Require detection in specific zones
-
-# Rtmp settings (for real-time streams)
+    pre_capture: 5
+    post_capture: 5
+    required_zones: []
 rtmp:
-  enabled: True
-
-# Other general settings
-# time_to_merge_boxes: 1 # How long overlapping detection boxes are merged
-# output_images: True # Save detection images
-
-# Zones (optional, for specific detection areas)
-# zones:
-#   parking_lot:
-#     coordinates:
-#       - 0,480
-#       - 640,480
-#       - 640,0
-#       - 0,0
-#     objects:
-#       - person
-#       - car
+  enabled: true

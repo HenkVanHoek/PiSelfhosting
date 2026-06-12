@@ -159,7 +159,7 @@
             "image_name": "caddy",
             "intent_questions": [],
             "name": "Caddy",
-            "package_id": null,
+            "package_id": "caddy-filebrowser-stack",
             "project_url": "https://github.com/caddyserver/caddy",
             "protocol": "http",
             "resource_profile": {
@@ -199,6 +199,29 @@
             ],
             "traefik_internal_port": null,
             "ui_port_variable": null
+        },
+        "filebrowser": {
+            "component_version": "latest",
+            "conflicts_with": [],
+            "depends_on": [],
+            "description": "Web-based file manager for managing your self-hosted data files and Caddyfile.",
+            "group": "System Tools",
+            "has_configuration": true,
+            "has_ui": true,
+            "image_name": "filebrowser/filebrowser",
+            "name": "Filebrowser",
+            "package_id": "caddy-filebrowser-stack",
+            "protocol": "http",
+            "resource_profile": {
+                "cpu": "low",
+                "ram": "low",
+                "storage_type": "persistent"
+            },
+            "tags": [
+                "utility",
+                "file-manager"
+            ],
+            "ui_port_variable": "FILEBROWSER_WEB_PORT"
         },
         "frigate": {
             "component_version": "stable",
@@ -1020,6 +1043,11 @@
         }
     },
     "packages": {
+        "caddy-filebrowser-stack": {
+            "description": "Deploy Caddy reverse proxy together with FileBrowser to easily edit configuration files from your browser.",
+            "name": "Caddy & Filebrowser Stack",
+            "network_type": "bridge"
+        },
         "media-stack": {
             "description": "",
             "name": "Media Stack",
