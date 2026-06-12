@@ -68,6 +68,9 @@ class AIGenerator:
             "7. The container_name property for any service must always start "
             'with the prefix "piselfhosting-" (e.g., '
             '"container_name: piselfhosting-service-name").\n'
+            "8. The docker_compose property must be a valid, multi-line "
+            "YAML string formatted with standard indentation and "
+            "newlines (LF).\n"
         )
 
         user_prompt = (
