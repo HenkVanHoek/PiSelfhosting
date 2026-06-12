@@ -294,15 +294,19 @@ class SyncManager:
         """Verifies if the local environment has write access to the components repo."""
         import subprocess  # nosec B404
 
-        # Find project git directory
-        git_cwd = None
-        start_path = self.local_metadata_path.parent
-        for parent in [start_path] + list(start_path.parents):
-            if (parent / ".git").exists():
-                git_cwd = str(parent)
-                break
-        if not git_cwd:
-            git_cwd = str(self.local_metadata_path.parent.parent)
+        try:
+            self._prepare_git_repo()
+            git_cwd = str(self.git_repo_dir)
+        except Exception:
+            # Find project git directory
+            git_cwd = None
+            start_path = self.local_metadata_path.parent
+            for parent in [start_path] + list(start_path.parents):
+                if (parent / ".git").exists():
+                    git_cwd = str(parent)
+                    break
+            if not git_cwd:
+                git_cwd = str(self.local_metadata_path.parent.parent)
 
         # Try SSH push dry run
         ssh_url = "git@github.com:HenkVanHoek/piselfhosting-components.git"
