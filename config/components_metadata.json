@@ -141,6 +141,40 @@
             "traefik_internal_port": null,
             "ui_port_variable": null
         },
+        "caddy": {
+            "component_version": "latest",
+            "config_templates": {
+                "Caddyfile": "caddy/Caddyfile"
+            },
+            "conflicts_with": [
+                "traefik",
+                "nginx-proxy-manager"
+            ],
+            "depends_on": [],
+            "description": "Caddy is a powerful, enterprise-ready, open source web server with automatic HTTPS written in Go.",
+            "group": "reverse_proxy",
+            "has_configuration": true,
+            "has_traefik_support": false,
+            "has_ui": false,
+            "image_name": "caddy",
+            "intent_questions": [],
+            "name": "Caddy",
+            "package_id": null,
+            "project_url": "https://github.com/caddyserver/caddy",
+            "protocol": "http",
+            "resource_profile": {
+                "cpu": "low",
+                "ram": "low",
+                "storage_type": "persistent"
+            },
+            "tags": [
+                "web-server",
+                "reverse-proxy",
+                "ssl"
+            ],
+            "traefik_internal_port": null,
+            "ui_port_variable": null
+        },
         "conduit": {
             "component_version": "latest",
             "conflicts_with": [],
