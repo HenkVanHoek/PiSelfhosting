@@ -128,6 +128,7 @@
             <hr>
             <div class="d-grid gap-2 mb-3">
                 <button class="btn btn-primary" id="create-new-btn">Create New Component</button>
+                <button class="btn btn-outline-primary" id="create-new-ai-btn"><i class="bi bi-cpu"></i> Create with AI</button>
                 <button class="btn btn-success" id="git-upload-sidebar-btn" title="Read-only: Checking permissions..." data-bs-toggle="tooltip"><i class="bi bi-cloud-arrow-up"></i> Upload to Repo</button>
             </div>
             <div id="sidebar-controls" class="mb-3">
@@ -318,6 +319,129 @@
                         <button type="submit" class="btn btn-primary">Create Component</button>
                     </div>
                 </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="ai-component-modal" tabindex="-1" aria-labelledby="aiModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="aiModalLabel"><i class="bi bi-cpu-fill text-primary"></i> Create Component with AI</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Step 1: Input Form -->
+                <div id="ai-input-step">
+                    <form id="ai-generator-form">
+                        <div class="mb-3">
+                            <label for="ai-repo-url" class="form-label">GitHub Repository URL</label>
+                            <input type="url" class="form-control" id="ai-repo-url" required placeholder="https://github.com/caddyserver/caddy">
+                            <div class="form-text">The official or community GitHub repository URL of the application.</div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="ai-instructions" class="form-label">Custom Instructions (Optional)</label>
+                            <textarea class="form-control" id="ai-instructions" rows="3" placeholder="e.g., expose HTTP port 8080 instead of 80, add custom configuration file..."></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label for="ai-api-key" class="form-label">Gemini API Key</label>
+                            <input type="password" class="form-control" id="ai-api-key" placeholder="Enter Gemini API key">
+                            <div class="form-text">Saved locally in your browser storage. If left blank, the server env key will be used.</div>
+                        </div>
+                        <div class="modal-footer px-0 pb-0">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                            <button type="submit" class="btn btn-primary" id="ai-generate-btn">Generate Component</button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Step 2: Loading State -->
+                <div id="ai-loading-step" class="d-none text-center py-5">
+                    <div class="spinner-border text-primary mb-3" role="status" style="width: 3rem; height: 3rem;">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <h5 class="text-dark">Generating Component...</h5>
+                    <p class="text-muted">Analyzing GitHub repository and generating configuration files. This may take up to a minute.</p>
+                </div>
+
+                <!-- Step 3: Preview and Review -->
+                <div id="ai-preview-step" class="d-none">
+                    <p class="text-secondary">Please review the AI-generated metadata and files before registering the component.</p>
+                    <ul class="nav nav-tabs mb-3" id="ai-preview-tabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="ai-meta-tab" data-bs-toggle="tab" data-bs-target="#ai-tab-meta" type="button" role="tab">Metadata</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="ai-compose-tab" data-bs-toggle="tab" data-bs-target="#ai-tab-compose" type="button" role="tab">Docker Compose</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="ai-vars-tab" data-bs-toggle="tab" data-bs-target="#ai-tab-vars" type="button" role="tab">Variables</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="ai-config-tab" data-bs-toggle="tab" data-bs-target="#ai-tab-config" type="button" role="tab">Configs</button>
+                        </li>
+                    </ul>
+                    <div class="tab-content" id="ai-preview-tab-content">
+                        <!-- Metadata Preview -->
+                        <div class="tab-pane fade show active" id="ai-tab-meta" role="tabpanel">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">Name</label>
+                                    <input type="text" class="form-control" id="ai-preview-name" readonly>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">Group</label>
+                                    <input type="text" class="form-control" id="ai-preview-group" readonly>
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label fw-bold">Description</label>
+                                    <textarea class="form-control" id="ai-preview-desc" rows="2" readonly></textarea>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">Docker Image</label>
+                                    <input type="text" class="form-control" id="ai-preview-image" readonly>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">Conflicts With</label>
+                                    <input type="text" class="form-control" id="ai-preview-conflicts" readonly>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Docker Compose Preview -->
+                        <div class="tab-pane fade" id="ai-tab-compose" role="tabpanel">
+                            <textarea class="form-control font-monospace" id="ai-preview-compose" rows="12" readonly style="font-size: 0.85rem; background-color: #f8f9fa;"></textarea>
+                        </div>
+                        <!-- Variables Preview -->
+                        <div class="tab-pane fade" id="ai-tab-vars" role="tabpanel">
+                            <div class="table-responsive">
+                                <table class="table table-sm table-striped">
+                                    <thead>
+                                        <tr>
+                                            <th>ID</th>
+                                            <th>Label</th>
+                                            <th>Type</th>
+                                            <th>Default</th>
+                                            <th>Description</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="ai-preview-vars-body"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <!-- Other Configs Preview -->
+                        <div class="tab-pane fade" id="ai-tab-config" role="tabpanel">
+                            <div class="mb-2">
+                                <select class="form-select form-select-sm" id="ai-preview-config-selector"></select>
+                            </div>
+                            <textarea class="form-control font-monospace" id="ai-preview-config-content" rows="10" readonly style="font-size: 0.85rem; background-color: #f8f9fa;"></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer px-0 pb-0 mt-3">
+                        <button type="button" class="btn btn-secondary" id="ai-back-btn">Back</button>
+                        <button type="button" class="btn btn-success" id="ai-save-btn">Accept and Create</button>
+                    </div>
+                </div>
             </div>
         </div>
     </div>

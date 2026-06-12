@@ -688,6 +688,163 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     };
 
+    const setupAIComponentModal = () => {
+        const createAiBtn = document.getElementById('create-new-ai-btn');
+        const modalElement = document.getElementById('ai-component-modal');
+        if (!createAiBtn || !modalElement) return;
+
+        const modal = new bootstrap.Modal(modalElement);
+        const form = document.getElementById('ai-generator-form');
+        const repoUrlInput = document.getElementById('ai-repo-url');
+        const instructionsInput = document.getElementById('ai-instructions');
+        const apiKeyInput = document.getElementById('ai-api-key');
+
+        const inputStep = document.getElementById('ai-input-step');
+        const loadingStep = document.getElementById('ai-loading-step');
+        const previewStep = document.getElementById('ai-preview-step');
+
+        const backBtn = document.getElementById('ai-back-btn');
+        const saveBtn = document.getElementById('ai-save-btn');
+
+        // Preview fields
+        const previewName = document.getElementById('ai-preview-name');
+        const previewGroup = document.getElementById('ai-preview-group');
+        const previewDesc = document.getElementById('ai-preview-desc');
+        const previewImage = document.getElementById('ai-preview-image');
+        const previewConflicts = document.getElementById('ai-preview-conflicts');
+        const previewCompose = document.getElementById('ai-preview-compose');
+        const previewVarsBody = document.getElementById('ai-preview-vars-body');
+        const previewConfigSelector = document.getElementById('ai-preview-config-selector');
+        const previewConfigContent = document.getElementById('ai-preview-config-content');
+
+        let generatedData = null;
+
+        // Load saved API key from localStorage if it exists
+        const savedApiKey = localStorage.getItem('gemini_api_key');
+        if (savedApiKey && apiKeyInput) {
+            apiKeyInput.value = savedApiKey;
+        }
+
+        createAiBtn.addEventListener('click', () => {
+            form.reset();
+            if (localStorage.getItem('gemini_api_key')) {
+                apiKeyInput.value = localStorage.getItem('gemini_api_key');
+            }
+            inputStep.classList.remove('d-none');
+            loadingStep.classList.add('d-none');
+            previewStep.classList.add('d-none');
+            generatedData = null;
+            modal.show();
+        });
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const repoUrl = repoUrlInput.value.trim();
+            const instructions = instructionsInput.value.trim();
+            const apiKey = apiKeyInput.value.trim();
+
+            if (apiKey) {
+                localStorage.setItem('gemini_api_key', apiKey);
+            }
+
+            inputStep.classList.add('d-none');
+            loadingStep.classList.remove('d-none');
+
+            try {
+                const result = await fetchJson('/api/ai/generate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        repo_url: repoUrl,
+                        custom_instructions: instructions,
+                        api_key: apiKey
+                    })
+                });
+
+                generatedData = result.data;
+
+                // Populate preview UI
+                previewName.value = generatedData.metadata.name || '';
+                previewGroup.value = generatedData.metadata.group || '';
+                previewDesc.value = generatedData.metadata.description || '';
+                previewImage.value = generatedData.metadata.image_name || '';
+                previewConflicts.value = (generatedData.metadata.conflicts_with || []).join(', ');
+                previewCompose.value = generatedData.docker_compose || '';
+
+                // Populate variables table
+                previewVarsBody.innerHTML = '';
+                (generatedData.variables || []).forEach(v => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td>${v.id || ''}</td>
+                        <td>${v.label || ''}</td>
+                        <td>${v.type || ''}</td>
+                        <td>${v.default || ''}</td>
+                        <td>${v.description || ''}</td>
+                    `;
+                    previewVarsBody.appendChild(tr);
+                });
+
+                // Populate other configs selector
+                previewConfigSelector.innerHTML = '';
+                const configs = generatedData.config_templates || {};
+                const configNames = Object.keys(configs);
+                if (configNames.length > 0) {
+                    configNames.forEach(name => {
+                        const opt = document.createElement('option');
+                        opt.value = name;
+                        opt.textContent = name;
+                        previewConfigSelector.appendChild(opt);
+                    });
+                    previewConfigContent.value = configs[configNames[0]];
+                } else {
+                    const opt = document.createElement('option');
+                    opt.textContent = 'No configuration templates generated';
+                    previewConfigSelector.appendChild(opt);
+                    previewConfigContent.value = '';
+                }
+
+                loadingStep.classList.add('d-none');
+                previewStep.classList.remove('d-none');
+
+            } catch (err) {
+                showAlert(`AI Generation failed: ${err.message}`, 'danger');
+                loadingStep.classList.add('d-none');
+                inputStep.classList.remove('d-none');
+            }
+        });
+
+        previewConfigSelector.addEventListener('change', () => {
+            const selectedName = previewConfigSelector.value;
+            const configs = (generatedData && generatedData.config_templates) || {};
+            previewConfigContent.value = configs[selectedName] || '';
+        });
+
+        backBtn.addEventListener('click', () => {
+            previewStep.classList.add('d-none');
+            inputStep.classList.remove('d-none');
+        });
+
+        saveBtn.addEventListener('click', async () => {
+            if (!generatedData) return;
+            try {
+                await fetchJson('/api/components/ai', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(generatedData)
+                });
+
+                showAlert(`Component '${generatedData.metadata.name}' created successfully!`, 'success');
+                modal.hide();
+                await loadComponents();
+                await loadComponentDetails(generatedData.id, false);
+                await refreshSyncStatusBadge();
+            } catch (err) {
+                showAlert(`Error saving component: ${err.message}`, 'danger');
+            }
+        });
+    };
+
     const setupManageGroupsModal = () => {
         const manageBtn = document.getElementById('manage-groups-btn');
         const modalElement = document.getElementById('manage-groups-modal');
@@ -1902,6 +2059,7 @@ document.addEventListener('DOMContentLoaded', () => {
         setupSidebarCollapseActions();
         setupSortableGroups();
         setupCreateComponentModal();
+        setupAIComponentModal();
         setupManageGroupsModal();
         setupManagePackagesModal();
         setupDirtyFormHandling();

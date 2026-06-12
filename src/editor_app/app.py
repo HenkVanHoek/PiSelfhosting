@@ -2,10 +2,12 @@
 
 import logging
 import os
+from pathlib import Path
 
 from flask import Flask, abort, jsonify, render_template, request
 
 from managers.component_manager import ComponentManager
+from utils.ai_generator import AIGenerator
 from utils.resource_utils import get_components_paths
 
 logging.basicConfig(level=logging.INFO)
@@ -599,6 +601,91 @@ def create_app(test_config=None):
             )
 
         return jsonify({"hashed_user_string": hashed_str}), 200
+
+    @app.route("/api/ai/generate", methods=["POST"])
+    def ai_generate_component():
+        data = request.get_json() or {}
+        repo_url = data.get("repo_url")
+        custom_instructions = data.get("custom_instructions")
+        api_key = data.get("api_key")
+
+        if not repo_url or not isinstance(repo_url, str):
+            abort(400, "A valid GitHub repository URL is required")
+
+        try:
+            generator = AIGenerator(api_key=api_key)
+            result = generator.generate_component_data(repo_url, custom_instructions)
+            return jsonify({"status": "success", "data": result}), 200
+        except ValueError as ve:
+            return jsonify({"error": str(ve)}), 400
+        except Exception as e:
+            logging.error(f"Failed to generate component via AI: {e}", exc_info=True)
+            return jsonify({"error": f"AI Generation failed: {str(e)}"}), 500
+
+    @app.route("/api/components/ai", methods=["POST"])
+    def save_ai_component():
+        data = request.get_json() or {}
+        component_id = data.get("id")
+        metadata = data.get("metadata") or {}
+        docker_compose = data.get("docker_compose")
+        variables = data.get("variables") or []
+        config_templates = data.get("config_templates") or {}
+
+        if not component_id or not isinstance(component_id, str):
+            abort(400, "A valid Component ID string is required")
+
+        name = metadata.get("name", component_id.capitalize())
+
+        try:
+            # 1. Create component folder and skeleton
+            component_manager.create_component(component_id, name)
+
+            # 2. Update master metadata JSON
+            component_manager.update_component_metadata(component_id, metadata)
+
+            # 3. Update compose template content
+            if docker_compose:
+                component_manager.update_component_template_content(
+                    component_id, docker_compose
+                )
+
+            # 4. Update variables JSON
+            component_manager.update_component_variables(
+                component_id, {"variables": variables}
+            )
+
+            # 5. Write other config files to template-config folder
+            if config_templates:
+                config_dir = (
+                    Path(component_manager.templates_path)
+                    / component_id
+                    / "template-config"
+                )
+                config_dir.mkdir(parents=True, exist_ok=True)
+                for template_name, content in config_templates.items():
+                    safe_name = os.path.basename(template_name)
+                    file_path = config_dir / safe_name
+                    with open(file_path, "w", encoding="utf-8") as f:
+                        f.write(content)
+
+            # 6. Update components_order in _piselfhosting
+            meta_data = component_manager._load_metadata()
+            piselfhosting = meta_data.setdefault("_piselfhosting", {})
+            order = piselfhosting.setdefault("components_order", [])
+            if component_id not in order:
+                order.append(component_id)
+            component_manager._save_metadata()
+
+            return jsonify({"status": "created"}), 201
+
+        except ValueError as ve:
+            return jsonify({"error": str(ve)}), 400
+        except Exception as e:
+            logging.error(
+                f"Failed to save AI component {component_id}: {e}",
+                exc_info=True,
+            )
+            return jsonify({"error": f"Failed to save component: {str(e)}"}), 500
 
     return app
 
