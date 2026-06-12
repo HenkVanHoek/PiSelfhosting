@@ -63,6 +63,11 @@ class AIGenerator:
             "5. If the service requires a default configuration file "
             "(such as a Caddyfile), define it in the config_templates "
             "property with its relative mount target.\n"
+            "6. For the service container image, always use "
+            '"{{ image_name }}:{{ component_version }}".\n'
+            "7. The container_name property for any service must always start "
+            'with the prefix "piselfhosting-" (e.g., '
+            '"container_name: piselfhosting-service-name").\n'
         )
 
         user_prompt = (
