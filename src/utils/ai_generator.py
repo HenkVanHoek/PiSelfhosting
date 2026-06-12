@@ -2,6 +2,7 @@
 
 import json
 import logging
+import os
 import urllib.parse
 from typing import Optional
 
@@ -23,7 +24,10 @@ class AIGenerator:
 
         Uses the Gemini REST API with structured JSON output configuration.
         """
-        api_key = self.api_key or requests.utils.default_headers().get("GEMINI_API_KEY")
+        # Retrieve the API key from parameter or fallback to
+        # the GEMINI_API_KEY environment variable.
+        # Ensure the GEMINI_API_KEY is configured in your .env file.
+        api_key = self.api_key or os.environ.get("GEMINI_API_KEY")
         if not api_key:
             raise ValueError("Gemini API key is not configured.")
 

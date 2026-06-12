@@ -15,6 +15,12 @@ logging.basicConfig(level=logging.INFO)
 
 def create_app(test_config=None):
     """Application factory for the Developer Editor."""
+    # Load environment variables from the .env file at the project root.
+    from dotenv import load_dotenv
+
+    project_root = Path(__file__).parent.parent.parent
+    load_dotenv(dotenv_path=project_root / ".env")
+
     app = Flask(__name__)
 
     # Crucial for testing: apply the test_config
