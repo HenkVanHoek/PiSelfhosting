@@ -124,8 +124,15 @@ class AIGenerator:
                     },
                 },
                 "config_templates": {
-                    "type": "OBJECT",
-                    "additionalProperties": {"type": "STRING"},
+                    "type": "ARRAY",
+                    "items": {
+                        "type": "OBJECT",
+                        "properties": {
+                            "name": {"type": "STRING"},
+                            "content": {"type": "STRING"},
+                        },
+                        "required": ["name", "content"],
+                    },
                 },
             },
             "required": ["metadata", "docker_compose", "variables"],
@@ -167,6 +174,18 @@ class AIGenerator:
 
             # Parse and validate the returned JSON
             data = json.loads(text)
+
+            # Convert config_templates array of {name, content} to a dictionary
+            raw_configs = data.get("config_templates", [])
+            configs_dict = {}
+            if isinstance(raw_configs, list):
+                for item in raw_configs:
+                    if isinstance(item, dict) and "name" in item and "content" in item:
+                        configs_dict[item["name"]] = item["content"]
+            else:
+                configs_dict = raw_configs
+            data["config_templates"] = configs_dict
+
             data["id"] = component_id
             return data
 
