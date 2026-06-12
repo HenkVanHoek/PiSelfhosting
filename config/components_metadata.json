@@ -212,6 +212,7 @@
             "description": "Web-based file manager for managing your self-hosted data files and Caddyfile.",
             "group": "System Tools",
             "has_configuration": true,
+            "has_traefik_support": false,
             "has_ui": true,
             "image_name": "filebrowser/filebrowser",
             "name": "Filebrowser",
@@ -226,6 +227,7 @@
                 "utility",
                 "file-manager"
             ],
+            "traefik_internal_port": null,
             "ui_port_variable": "FILEBROWSER_WEB_PORT"
         },
         "frigate": {

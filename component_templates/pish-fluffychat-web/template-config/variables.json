@@ -1,0 +1,11 @@
+{
+    "variables": [
+        {
+            "default": "8080",
+            "description": "The host port for accessing the FluffyChat web interface.",
+            "id": "FLUFFYCHAT_HTTP_PORT",
+            "label": "FluffyChat Web HTTP Port",
+            "type": "port"
+        }
+    ]
+}
