@@ -7,7 +7,7 @@ Welcome to PiSelfhosting! This project provides a user-friendly system to deploy
 ## 🌟 Key Features
 
 - **Fully Browser-Based Installer**: A simple, local web application guides you through every step, from device discovery to watching the live installation log.
-- **Modular & Flexible**: Choose only the services you want from a curated list of popular applications.
+- **Modular & Flexible**: Choose only the services you want from a curated list of popular applications (see the list of [Supported Services](docs/SUPPORTED_SERVICES.md)).
 - **Dockerized & Isolated**: Every service runs in its own Docker container, making the system clean, secure, and easy to manage.
 - **Component Editor**: A powerful web-based tool for developers to add, manage, and configure all components in the PiSelfhosting ecosystem.
 - **AI-Assisted Component Generator**: Leverage the Google Gemini API (using the GEMINI_API_KEY environment variable) to automatically bootstrap new components by providing just a GitHub repository URL and custom instructions.
