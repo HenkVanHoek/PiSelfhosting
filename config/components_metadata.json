@@ -58,9 +58,14 @@
             "reverse_proxy",
             "System Tools",
             "Security & Utilities",
-            "Chat/Messaging"
+            "Chat/Messaging",
+            "Chat"
         ],
         "group_rules": {
+            "Chat": {
+                "is_exclusive": false,
+                "name": "Chat"
+            },
             "Chat/Messaging": {
                 "is_exclusive": false,
                 "name": "Chat/Messaging"
@@ -675,18 +680,16 @@
             "depends_on": [
                 "matrix-synapse"
             ],
-            "description": "FluffyChat is a gorgeous, decentralized, open and easy-to-use Matrix client for web. Connect with friends and family using a secure, federated messaging platform.",
-            "group": "Chat/Messaging",
+            "description": "A beautiful, cross-platform matrix client for desktop and mobile, focused on design and usability. This component provides the web version, designed to connect to your Matrix homeserver (e.g., Matrix Synapse).",
+            "group": "Chat",
             "has_configuration": true,
             "has_ui": true,
-            "image_name": "piselfhosting/fluffychat-web",
+            "image_name": "ghcr.io/henkvanhoek/fluffychat-web",
             "name": "FluffyChat Web",
             "tags": [
-                "matrix",
                 "chat",
-                "web",
-                "messaging",
-                "fluffychat"
+                "matrix",
+                "web"
             ],
             "ui_port_variable": null
         },

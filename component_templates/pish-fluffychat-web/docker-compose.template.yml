@@ -7,13 +7,17 @@ services:
     image: {{ image_name }}:{{ component_version }}
     container_name: piselfhosting-fluffychat-web
     restart: unless-stopped
-    ports:
-      - "{{ FLUFFYCHAT_HTTP_PORT }}:80"
+    environment:
+      - SERVER_NAME=https://{{ FLUFFYCHAT_SERVER_HOSTNAME }}
+      - ELEMENT_OIDC_CLIENT_ID={{ FLUFFYCHAT_OIDC_CLIENT_ID | default('') }}
+      - ELEMENT_OIDC_REDIRECT_URL=https://{{ FLUFFYCHAT_HOSTNAME }}/_matrix/client/oidc/callback
+      - ELEMENT_DEFAULT_SERVER_NAME={{ FLUFFYCHAT_SERVER_HOSTNAME }}
+      - FLUFFYCHAT_SERVER_NAME={{ FLUFFYCHAT_SERVER_HOSTNAME }}
+      - PUSHGATEWAY_URL={{ PUSHGATEWAY_URL | default('') }}
+    volumes:
+      - {{ DATA_ROOT }}/fluffychat-web/config.json:/app/config.json
     networks:
       - piselfhosting_net
-    volumes:
-      - "/var/lib/piselfhosting/config/fluffychat-web/nginx.conf:/etc/nginx/nginx.conf:ro"
-      - "{{ DATA_ROOT }}/fluffychat-web/log:/var/log/nginx"
 
 networks:
   piselfhosting_net:

@@ -1,0 +1,1 @@
+{  "default_server_name": "{{ FLUFFYCHAT_SERVER_HOSTNAME }}",  "default_hs_url": "https://{{ FLUFFYCHAT_SERVER_HOSTNAME }}",  "element_oidc_client_id": "{{ FLUFFYCHAT_OIDC_CLIENT_ID | default('') }}",  "element_oidc_redirect_url": "https://{{ FLUFFYCHAT_HOSTNAME }}/_matrix/client/oidc/callback"}
