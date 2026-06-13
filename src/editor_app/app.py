@@ -590,21 +590,11 @@ def create_app(test_config=None):
         ):
             abort(400, "Username and password are required and must be strings")
 
-        try:
-            import bcrypt
+        import bcrypt
 
-            # Htpasswd BCrypt string formatting
-            hashed = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
-            hashed_str = f"{username}:{hashed.decode('utf-8')}"
-        except ImportError:
-            # Safe htpasswd fallback with standard hashlib SHA-1
-            import base64
-            import hashlib
-
-            sha1_hash = hashlib.sha1(password.encode("utf-8")).digest()  # nosec B324
-            hashed_str = (
-                f"{username}:{{SHA}}" f"{base64.b64encode(sha1_hash).decode('utf-8')}"
-            )
+        # Htpasswd BCrypt string formatting
+        hashed = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
+        hashed_str = f"{username}:{hashed.decode('utf-8')}"
 
         return jsonify({"hashed_user_string": hashed_str}), 200
 
@@ -643,6 +633,22 @@ def create_app(test_config=None):
         name = metadata.get("name", component_id.capitalize())
 
         try:
+            # Fallback: Extract docker_service_name from YAML if missing in metadata
+            if "docker_service_name" not in metadata and docker_compose:
+                try:
+                    import yaml
+
+                    compose_data = yaml.safe_load(docker_compose)
+                    if isinstance(compose_data, dict) and "services" in compose_data:
+                        services = compose_data["services"]
+                        if isinstance(services, dict) and services:
+                            first_svc, *_ = list(services.keys())
+                            metadata["docker_service_name"] = first_svc
+                except Exception as parse_err:
+                    logging.warning(
+                        f"Failed to parse compose for service name: {parse_err}"
+                    )
+
             # 1. Create component folder and skeleton
             component_manager.create_component(component_id, name)
 

@@ -37,7 +37,8 @@ dependencies = [
     "paramiko",
     "argon2-cffi",
     "passlib",
-    "cryptography"
+    "cryptography",
+    "bcrypt"
 ]
 
 [tool.setuptools]
