@@ -154,3 +154,4 @@ Enforcement
 - **Principle**: The system integrates an AI generation flow that translates repository structures directly into PiSelfhosting components.
 - **Backend Architecture**: The AIGenerator class makes direct HTTP POST requests to the Gemini Beta REST API model (gemini-2.5-flash) using structured JSON output.
 - **Security and API Keys**: The user provides a Gemini API key. If not provided, it falls back to the GEMINI_API_KEY environment variable loaded via python-dotenv.
+- **Developer Guide**: For detailed instructions on the Gemini AI generator, the components repository synchronization, and the local Ollama LLM setup, see the [Developer AI and Sync Guide](DEVELOPER_AI_AND_SYNC_GUIDE.md).

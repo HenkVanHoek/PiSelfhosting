@@ -148,7 +148,7 @@ For a detailed case study on running a sovereign stack (including Nextcloud, Eur
 - Our local summary of the lessons learned: [sovereign_home_server.md](file:///home/hvhoek/PycharmProjects/PiSelfhosting/docs/sovereign_home_server.md)
 
 ## 🤝 Contributing
-We welcome contributions! For guidelines on how to get started with development, please see our `CONTRIBUTING.md` file. To understand the core design principles and data contracts of the project, please review the `ARCHITECTURE.md` file.
+We welcome contributions! For guidelines on how to get started with development, please see our "CONTRIBUTING.md" file. To understand the core design principles and data contracts of the project, please review the "ARCHITECTURE.md" file. For detailed setup and usage instructions regarding separate components repository synchronization, Gemini AI integration, and the local Ollama LLM setup, see the [Developer AI and Sync Guide](docs/DEVELOPER_AI_AND_SYNC_GUIDE.md).
 
 ## 📄 License
 
