@@ -1,31 +1,24 @@
 {
     "variables": [
         {
-            "default": "chat.example.com",
-            "description": "The external hostname (domain) where FluffyChat Web will be accessible. For example, chat.example.com.",
-            "id": "FLUFFYCHAT_HOSTNAME",
-            "label": "FluffyChat Web Hostname",
+            "default": "8080",
+            "description": "The external port for the FluffyChat web interface.",
+            "id": "FLUFFYCHAT_WEB_PORT",
+            "label": "Web UI Port",
+            "type": "port"
+        },
+        {
+            "default": "/var/lib/piselfhosting",
+            "description": "The base directory for all persistent data. This component does not directly use it for volumes but it is a standard variable.",
+            "id": "DATA_ROOT",
+            "label": "Data Root Directory",
             "type": "string"
         },
         {
-            "default": "matrix.example.com",
-            "description": "The hostname (domain) of your Matrix homeserver (e.g., Matrix Synapse) that FluffyChat Web will connect to. For example, matrix.example.com.",
-            "id": "FLUFFYCHAT_SERVER_HOSTNAME",
-            "label": "Matrix Homeserver Hostname",
-            "type": "string"
-        },
-        {
-            "default": "",
-            "description": "The Client ID for OpenID Connect (OIDC) if configured with your Matrix homeserver. Leave blank if not using OIDC.",
-            "id": "FLUFFYCHAT_OIDC_CLIENT_ID",
-            "label": "OIDC Client ID (Optional)",
-            "type": "string"
-        },
-        {
-            "default": "",
-            "description": "URL for the Pushgateway service, if you want FluffyChat Web to send metrics. Leave blank if not using.",
-            "id": "PUSHGATEWAY_URL",
-            "label": "Pushgateway URL (Optional)",
+            "default": "latest",
+            "description": "The version tag for the FluffyChat Web Docker image.",
+            "id": "component_version",
+            "label": "Component Version",
             "type": "string"
         }
     ]

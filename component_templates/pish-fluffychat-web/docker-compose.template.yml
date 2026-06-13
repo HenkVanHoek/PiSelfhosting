@@ -4,18 +4,15 @@
 # breaking_changes: "None"
 services:
   fluffychat-web:
-    image: {{ image_name }}:{{ component_version }}
     container_name: piselfhosting-fluffychat-web
+    build:
+      context: https://github.com/HenkVanHoek/pish-fluffychat-web.git#main
+      dockerfile: Dockerfile
+    image: {{ image_name }}:{{ component_version }}
+    pull_policy: build
+    ports:
+      - "{{ FLUFFYCHAT_WEB_PORT }}:80"
     restart: unless-stopped
-    environment:
-      - SERVER_NAME=https://{{ FLUFFYCHAT_SERVER_HOSTNAME }}
-      - ELEMENT_OIDC_CLIENT_ID={{ FLUFFYCHAT_OIDC_CLIENT_ID | default('') }}
-      - ELEMENT_OIDC_REDIRECT_URL=https://{{ FLUFFYCHAT_HOSTNAME }}/_matrix/client/oidc/callback
-      - ELEMENT_DEFAULT_SERVER_NAME={{ FLUFFYCHAT_SERVER_HOSTNAME }}
-      - FLUFFYCHAT_SERVER_NAME={{ FLUFFYCHAT_SERVER_HOSTNAME }}
-      - PUSHGATEWAY_URL={{ PUSHGATEWAY_URL | default('') }}
-    volumes:
-      - {{ DATA_ROOT }}/fluffychat-web/config.json:/app/config.json
     networks:
       - piselfhosting_net
 

@@ -67,6 +67,103 @@ class TestDeploymentManager(unittest.TestCase):
         )
         self.assertIsNone(result)
 
+    def test_start_deployment_captures_errors(self):
+        """Verify that deployment manager correctly captures task errors."""
+        from unittest.mock import patch
+
+        # Create mock event stream
+        mock_events = [
+            {
+                "event": "runner_on_failed",
+                "event_data": {
+                    "task": "Pull latest service images",
+                    "res": {
+                        "msg": "pull access denied for fluffychat",
+                        "stderr": "Error response from daemon: pull access denied",
+                    },
+                },
+            }
+        ]
+
+        # Mock runner object
+        mock_runner = MagicMock()
+        mock_runner.events = mock_events
+        mock_runner.status = "failed"
+        mock_runner.stdout = None
+
+        output_path = "/tmp/deploy"
+        devices = [{"ip": "100.121.216.150"}]
+
+        with patch(
+            "src.managers.deployment_manager.ansible_runner.run",
+            return_value=mock_runner,
+        ):
+            self.deploy_mgr.start_deployment(
+                self.test_task_id, self.tasks_dict, output_path, devices
+            )
+
+        task_res = self.tasks_dict[self.test_task_id]
+        self.assertEqual(task_res["status"], "failed")
+        self.assertTrue(len(task_res["errors"]) > 0)
+
+        # Verify first error structure
+        err = task_res["errors"][0]
+        self.assertEqual(err["type"], "Ansible:FAILED")
+        self.assertEqual(
+            err["summary"],
+            "Ansible task failed: Pull latest service images",
+        )
+        self.assertIn("pull access denied", err["details"])
+
+    def test_start_deployment_captures_item_errors(self):
+        """Verify that deployment manager captures loop item errors."""
+        from unittest.mock import patch
+
+        # Create mock event stream
+        mock_events = [
+            {
+                "event": "runner_on_item_failed",
+                "event_data": {
+                    "task": "Perform Clean Install",
+                    "item": "pish-fluffychat-web",
+                    "res": {
+                        "msg": "non-zero return code",
+                        "stderr": "no such service: pish-fluffychat-web",
+                    },
+                },
+            }
+        ]
+
+        # Mock runner object
+        mock_runner = MagicMock()
+        mock_runner.events = mock_events
+        mock_runner.status = "failed"
+        mock_runner.stdout = None
+
+        output_path = "/tmp/deploy"
+        devices = [{"ip": "100.121.216.150"}]
+
+        with patch(
+            "src.managers.deployment_manager.ansible_runner.run",
+            return_value=mock_runner,
+        ):
+            self.deploy_mgr.start_deployment(
+                self.test_task_id, self.tasks_dict, output_path, devices
+            )
+
+        task_res = self.tasks_dict[self.test_task_id]
+        self.assertEqual(task_res["status"], "failed")
+        self.assertTrue(len(task_res["errors"]) > 0)
+
+        # Verify first error structure
+        err = task_res["errors"][0]
+        self.assertEqual(err["type"], "Ansible:ITEM_FAILED")
+        self.assertEqual(
+            err["summary"],
+            "Ansible task failed: Perform Clean Install",
+        )
+        self.assertIn("no such service", err["details"])
+
 
 if __name__ == "__main__":
     unittest.main()

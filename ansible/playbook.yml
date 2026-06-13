@@ -94,7 +94,7 @@
 
     - name: Pull latest service images
       ansible.builtin.command:
-        cmd: "docker compose pull"
+        cmd: "docker compose pull --ignore-buildable"
         chdir: "{{ project_config_dir }}"
       # Mitigation: String "true" aligns types to prevent suspicious type mismatch
       changed_when: "true"

@@ -2,6 +2,7 @@
 import logging
 import os
 import sys
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -78,12 +79,35 @@ class DeploymentManager:
                 )
 
             try:
+                # Map component IDs to actual docker service names for Ansible tasks
+                mapped_clean = []
+                for c_id in components_to_clean:
+                    if hasattr(self.reader, "get_docker_service_name"):
+                        svc_name = self.reader.get_docker_service_name(c_id)
+                        if isinstance(svc_name, str):
+                            mapped_clean.append(svc_name)
+                        else:
+                            mapped_clean.append(c_id)
+                    else:
+                        mapped_clean.append(c_id)
+
+                mapped_restart = []
+                for c_id in components_to_restart:
+                    if hasattr(self.reader, "get_docker_service_name"):
+                        svc_name = self.reader.get_docker_service_name(c_id)
+                        if isinstance(svc_name, str):
+                            mapped_restart.append(svc_name)
+                        else:
+                            mapped_restart.append(c_id)
+                    else:
+                        mapped_restart.append(c_id)
+
                 # Prepare extravars for Ansible
                 extravars = {
                     "ansible_user": ssh_user,
                     "local_output_path": output_path,
-                    "components_to_clean": components_to_clean,
-                    "components_to_restart": components_to_restart,
+                    "components_to_clean": mapped_clean,
+                    "components_to_restart": mapped_restart,
                     "selected_components_data": selected_components_data,
                     "global_vars": global_vars,
                 }
@@ -119,7 +143,11 @@ class DeploymentManager:
                                     f"WARN: [{task_name}] {warning_msg}"
                                 )
 
-                    elif event_name in ["runner_on_failed", "runner_on_unreachable"]:
+                    elif event_name in [
+                        "runner_on_failed",
+                        "runner_on_unreachable",
+                        "runner_on_item_failed",
+                    ]:
                         res = event_data.get("res", {})
                         err_msg = res.get("msg", "Unknown error")
                         self.tasks[task_id]["logs"].append(f"FAILED: {err_msg}")
@@ -150,6 +178,61 @@ class DeploymentManager:
                                         self.tasks[task_id]["logs"].append(
                                             f"SUB_FAILED: {sub_msg}"
                                         )
+
+                        if "errors" not in self.tasks[task_id]:
+                            self.tasks[task_id]["errors"] = []
+
+                        task_name = event_data.get("task", "Unknown Task")
+                        timestamp_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+                        # Gather detailed reasons for failure
+                        details_list = [err_msg]
+                        if isinstance(res, dict):
+                            stderr_val = res.get("stderr")
+                            if stderr_val:
+                                details_list.append(f"stderr: {stderr_val}")
+
+                            m_stderr = res.get("module_stderr")
+                            if m_stderr:
+                                details_list.append(f"module_stderr: {m_stderr}")
+
+                            results_val = res.get("results")
+                            if isinstance(results_val, list):
+                                for r in results_val:
+                                    if isinstance(r, dict) and r.get("failed", False):
+                                        sub_m = (
+                                            r.get("msg")
+                                            or r.get("stderr")
+                                            or "Sub-task failed"
+                                        )
+                                        details_list.append(f"sub_failed: {sub_m}")
+
+                        details_str = " | ".join(details_list)
+
+                        # Try to identify related component
+                        component_id = "N/A"
+                        if selected_components_data:
+                            for comp in selected_components_data:
+                                comp_id = comp.get("id", "")
+                                if comp_id and (
+                                    comp_id in task_name
+                                    or comp_id.lower() in task_name.lower()
+                                ):
+                                    component_id = comp_id
+                                    break
+
+                        err_type = (
+                            f"Ansible:{event_name.replace('runner_on_', '').upper()}"
+                        )
+                        self.tasks[task_id]["errors"].append(
+                            {
+                                "type": err_type,
+                                "summary": f"Ansible task failed: {task_name}",
+                                "details": details_str,
+                                "component_id": component_id,
+                                "timestamp": timestamp_str,
+                            }
+                        )
 
                     # Catch standalone global warnings (like Docker Compose
                     # parse errors)
@@ -205,6 +288,26 @@ class DeploymentManager:
             self.tasks[task_id]["logs"].append(
                 "--- Global deployment sequence finished successfully ---"
             )
+        else:
+            if "errors" not in self.tasks[task_id]:
+                self.tasks[task_id]["errors"] = []
+            if not any(
+                err.get("type", "").startswith("Ansible:")
+                for err in self.tasks[task_id]["errors"]
+            ):
+                timestamp_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                self.tasks[task_id]["errors"].append(
+                    {
+                        "type": "Ansible:Deployment:Failure",
+                        "summary": "Deployment failed",
+                        "details": (
+                            "The deployment sequence failed. See the console logs "
+                            "for detailed execution output."
+                        ),
+                        "component_id": "N/A",
+                        "timestamp": timestamp_str,
+                    }
+                )
 
         # Update the final status in the shared dictionary so the UI polling sees it
         tasks[task_id] = self.tasks[task_id]

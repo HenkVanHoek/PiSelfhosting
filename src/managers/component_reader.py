@@ -44,6 +44,13 @@ class ComponentReader:
         """Returns metadata for a specific component ID."""
         return self.get_all_components().get(component_id)
 
+    def get_docker_service_name(self, component_id: str) -> str:
+        """Gets the primary service name for a component's template."""
+        component_details = self.get_component_details(component_id)
+        if component_details:
+            return component_details.get("docker_service_name", component_id)
+        return component_id
+
     def get_component_variables_raw(self, component_id: str) -> Dict[str, Any]:
         """Reads the full variables.json dictionary under template-config."""
         var_path = (

@@ -565,8 +565,8 @@ def create_app(test_config=None):
                 {
                     "id": comp_id,
                     "name": raw_comp.get("name", comp_id),
-                    "ports": meta.get("ports", []),
-                    "volumes": meta.get("volumes", []),
+                    "ports": raw_comp.get("ports") or meta.get("ports", []),
+                    "volumes": raw_comp.get("volumes") or meta.get("volumes", []),
                 }
             )
 

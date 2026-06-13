@@ -64,3 +64,33 @@ class TestAIGenerator(unittest.TestCase):
 
         with self.assertRaises(RuntimeError):
             self.generator.generate_component_data("https://github.com/owner/repo")
+
+    @patch("requests.post")
+    def test_api_quota_exceeded_friendly_message(self, mock_post):
+        """Verify friendly error message for 429 Too Many Requests."""
+        mock_response = MagicMock()
+        mock_response.status_code = 429
+        mock_response.raise_for_status.side_effect = requests.exceptions.HTTPError(
+            "Quota Exceeded", response=mock_response
+        )
+        mock_post.return_value = mock_response
+
+        with self.assertRaises(RuntimeError) as context:
+            self.generator.generate_component_data("https://github.com/owner/repo")
+
+        self.assertIn("quota exceeded", str(context.exception))
+
+    @patch("requests.post")
+    def test_api_service_unavailable_friendly_message(self, mock_post):
+        """Verify friendly error message for 503 Service Unavailable."""
+        mock_response = MagicMock()
+        mock_response.status_code = 503
+        mock_response.raise_for_status.side_effect = requests.exceptions.HTTPError(
+            "Service Unavailable", response=mock_response
+        )
+        mock_post.return_value = mock_response
+
+        with self.assertRaises(RuntimeError) as context:
+            self.generator.generate_component_data("https://github.com/owner/repo")
+
+        self.assertIn("temporarily unavailable", str(context.exception))

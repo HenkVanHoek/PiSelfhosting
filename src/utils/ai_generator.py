@@ -71,6 +71,15 @@ class AIGenerator:
             "8. The docker_compose property must be a valid, multi-line "
             "YAML string formatted with standard indentation and "
             "newlines (LF).\n"
+            "9. If the repository represents a source project that requires a "
+            "local build (contains a Dockerfile or is not a pre-built public "
+            "registry image), include a build block with a context pointing "
+            'to the repository Git URL (appended with "#main", e.g., '
+            '"context: https://github.com/owner/repo.git#main") and '
+            '"dockerfile: Dockerfile", and set "pull_policy: build".\n'
+            "10. Include the primary docker service name (e.g., the key under "
+            '"services" in the Docker Compose template, such as '
+            '"fluffychat-web") as "docker_service_name" in the metadata.\n'
         )
 
         user_prompt = (
@@ -106,6 +115,7 @@ class AIGenerator:
                             "type": "ARRAY",
                             "items": {"type": "STRING"},
                         },
+                        "docker_service_name": {"type": "STRING"},
                     },
                     "required": [
                         "name",
@@ -114,6 +124,7 @@ class AIGenerator:
                         "group",
                         "has_ui",
                         "has_configuration",
+                        "docker_service_name",
                     ],
                 },
                 "docker_compose": {"type": "STRING"},
@@ -198,8 +209,31 @@ class AIGenerator:
             return data
 
         except requests.exceptions.RequestException as e:
-            logger.error(f"Gemini API request failed: {e}")
-            raise RuntimeError(f"Failed to communicate with Gemini API: {e}")
+            logger.error("Gemini API request failed")
+            if e.response is not None:
+                status_code = e.response.status_code
+                if status_code == 429:
+                    raise RuntimeError(
+                        "Gemini API quota exceeded or rate limit reached. "
+                        "Please wait a minute before trying again."
+                    )
+                elif status_code == 503:
+                    raise RuntimeError(
+                        "Gemini API service is temporarily unavailable or "
+                        "overloaded. Please try again in a few moments."
+                    )
+                elif status_code == 400:
+                    raise RuntimeError(
+                        "Gemini API rejected the request as invalid "
+                        "(400 Bad Request)."
+                    )
+                else:
+                    raise RuntimeError(
+                        f"Gemini API returned an HTTP error status: {status_code}"
+                    )
+            raise RuntimeError(
+                f"Failed to communicate with Gemini API: {type(e).__name__}"
+            )
         except (json.JSONDecodeError, KeyError, ValueError) as e:
             logger.error(f"Failed to parse Gemini API response: {e}")
             raise RuntimeError(f"Received malformed response from Gemini API: {e}")
