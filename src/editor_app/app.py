@@ -219,7 +219,33 @@ def create_app(test_config=None):
                     500,
                 )
         except ValueError as ve:
-            return jsonify({"error": str(ve)}), 400
+            err_msg = str(ve)
+            is_val_fail = "validation failed" in err_msg.lower()
+            is_inc = "incomplete" in err_msg.lower()
+            if is_val_fail or is_inc:
+                return (
+                    jsonify(
+                        {
+                            "error": (
+                                "Metadata validation failed for "
+                                "one or more components"
+                            )
+                        }
+                    ),
+                    400,
+                )
+            else:
+                return (
+                    jsonify(
+                        {
+                            "error": (
+                                "Failed to upload components "
+                                "due to a validation error"
+                            )
+                        }
+                    ),
+                    400,
+                )
         except Exception as e:
             logging.error(f"Failed to upload all components: {e}", exc_info=True)
             err_msg = "Failed to upload all components due to an internal error"
@@ -609,7 +635,16 @@ def create_app(test_config=None):
             result = generator.generate_component_data(repo_url, custom_instructions)
             return jsonify({"status": "success", "data": result}), 200
         except ValueError as ve:
-            return jsonify({"error": str(ve)}), 400
+            err_msg = str(ve)
+            if "key is not configured" in err_msg:
+                msg = "Gemini API key is not configured"
+            elif "repository URL is required" in err_msg:
+                msg = "A valid GitHub repository URL is required"
+            elif "repository URL format" in err_msg:
+                msg = "Invalid repository URL format"
+            else:
+                msg = "AI Generation request was invalid"
+            return jsonify({"error": msg}), 400
         except Exception as e:
             logging.error(f"Failed to generate component via AI: {e}", exc_info=True)
             err_msg = "AI Generation failed due to an internal error"
@@ -670,13 +705,15 @@ def create_app(test_config=None):
 
             # 5. Write other config files to template-config folder
             if config_templates:
+                templates_root_path = os.path.realpath(component_manager.templates_path)
                 config_dir = (
-                    Path(component_manager.templates_path)
-                    / component_id
-                    / "template-config"
+                    Path(templates_root_path) / component_id / "template-config"
                 )
-                config_dir.mkdir(parents=True, exist_ok=True)
                 safe_base = os.path.realpath(str(config_dir))
+                if not safe_base.startswith(templates_root_path):
+                    abort(400, "Path traversal attempt detected")
+
+                config_dir.mkdir(parents=True, exist_ok=True)
                 for template_name, content in config_templates.items():
                     safe_name = os.path.basename(template_name)
                     if not re.match(r"^[a-zA-Z0-9._-]+$", safe_name):
@@ -685,7 +722,7 @@ def create_app(test_config=None):
                     requested_path = os.path.realpath(
                         os.path.join(safe_base, safe_name)
                     )
-                    if not requested_path.startswith(safe_base + os.sep):
+                    if not requested_path.startswith(safe_base):
                         abort(400, "Path traversal attempt detected")
 
                     with open(requested_path, "w", encoding="utf-8") as f:
@@ -702,7 +739,14 @@ def create_app(test_config=None):
             return jsonify({"status": "created"}), 201
 
         except ValueError as ve:
-            return jsonify({"error": str(ve)}), 400
+            err_msg = str(ve)
+            if "already exists" in err_msg:
+                msg = "Component already exists"
+            elif "invalid" in err_msg.lower():
+                msg = "Invalid component ID format"
+            else:
+                msg = "Failed to save component due to validation error"
+            return jsonify({"error": msg}), 400
         except Exception as e:
             logging.error(
                 f"Failed to save AI component {component_id}: {e}",
