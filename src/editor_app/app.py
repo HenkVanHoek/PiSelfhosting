@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 
 from flask import Flask, abort, jsonify, render_template, request
+from werkzeug.utils import secure_filename
 
 from managers.component_manager import ComponentManager
 from utils.ai_generator import AIGenerator
@@ -666,6 +667,7 @@ def create_app(test_config=None):
 
         if not re.match(r"^[a-z0-9-]+$", component_id):
             abort(400, "Component ID must be alphanumeric and hyphens only")
+        safe_component_id = secure_filename(component_id)
 
         name = metadata.get("name", component_id.capitalize())
 
@@ -707,7 +709,7 @@ def create_app(test_config=None):
             if config_templates:
                 templates_root_path = os.path.realpath(component_manager.templates_path)
                 config_dir = (
-                    Path(templates_root_path) / component_id / "template-config"
+                    Path(templates_root_path) / safe_component_id / "template-config"
                 )
                 safe_base = os.path.realpath(str(config_dir))
                 if not safe_base.startswith(templates_root_path):
@@ -715,7 +717,7 @@ def create_app(test_config=None):
 
                 config_dir.mkdir(parents=True, exist_ok=True)
                 for template_name, content in config_templates.items():
-                    safe_name = os.path.basename(template_name)
+                    safe_name = secure_filename(os.path.basename(template_name))
                     if not re.match(r"^[a-zA-Z0-9._-]+$", safe_name):
                         abort(400, "Invalid configuration template filename")
 
