@@ -191,10 +191,8 @@ def create_app(test_config=None):
                 )
         except Exception as e:
             logging.error(f"Failed to upload component {comp_id}: {e}", exc_info=True)
-            return (
-                jsonify({"error": f"Failed to upload component: {str(e)}"}),
-                500,
-            )
+            err_msg = "Failed to upload component due to an internal error"
+            return jsonify({"error": err_msg}), 500
 
     @app.route("/api/git/upload_all", methods=["POST"])
     def git_upload_all_components():
@@ -224,10 +222,8 @@ def create_app(test_config=None):
             return jsonify({"error": str(ve)}), 400
         except Exception as e:
             logging.error(f"Failed to upload all components: {e}", exc_info=True)
-            return (
-                jsonify({"error": f"Failed to upload all components: {str(e)}"}),
-                500,
-            )
+            err_msg = "Failed to upload all components due to an internal error"
+            return jsonify({"error": err_msg}), 500
 
     @app.route("/api/sync/diff/<comp_id>", methods=["GET"])
     def sync_diff_route(comp_id):
@@ -616,7 +612,8 @@ def create_app(test_config=None):
             return jsonify({"error": str(ve)}), 400
         except Exception as e:
             logging.error(f"Failed to generate component via AI: {e}", exc_info=True)
-            return jsonify({"error": f"AI Generation failed: {str(e)}"}), 500
+            err_msg = "AI Generation failed due to an internal error"
+            return jsonify({"error": err_msg}), 500
 
     @app.route("/api/components/ai", methods=["POST"])
     def save_ai_component():
@@ -697,7 +694,8 @@ def create_app(test_config=None):
                 f"Failed to save AI component {component_id}: {e}",
                 exc_info=True,
             )
-            return jsonify({"error": f"Failed to save component: {str(e)}"}), 500
+            err_msg = "Failed to save component due to an internal error"
+            return jsonify({"error": err_msg}), 500
 
     return app
 
