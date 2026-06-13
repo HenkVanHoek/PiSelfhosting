@@ -627,6 +627,11 @@ def create_app(test_config=None):
         if not component_id or not isinstance(component_id, str):
             abort(400, "A valid Component ID string is required")
 
+        import re
+
+        if not re.match(r"^[a-z0-9-]+$", component_id):
+            abort(400, "Component ID must be alphanumeric and hyphens only")
+
         name = metadata.get("name", component_id.capitalize())
 
         try:
@@ -671,9 +676,16 @@ def create_app(test_config=None):
                     / "template-config"
                 )
                 config_dir.mkdir(parents=True, exist_ok=True)
+                resolved_config_dir = config_dir.resolve()
                 for template_name, content in config_templates.items():
                     safe_name = os.path.basename(template_name)
-                    file_path = config_dir / safe_name
+                    if not re.match(r"^[a-zA-Z0-9._-]+$", safe_name):
+                        abort(400, "Invalid configuration template filename")
+
+                    file_path = (resolved_config_dir / safe_name).resolve()
+                    if resolved_config_dir not in file_path.parents:
+                        abort(400, "Path traversal attempt detected")
+
                     with open(file_path, "w", encoding="utf-8") as f:
                         f.write(content)
 
