@@ -151,7 +151,7 @@
                 <p class="lead text-secondary mb-4">
                     Welcome to the PiSelfhosting Component Editor! This workspace is used to customize the software stacks running on your target server.
                 </p>
-                <div class="row row-cols-1 row-cols-md-2 g-3">
+                <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-3">
                     <div class="col">
                         <div class="card h-100 border-0 bg-light shadow-sm">
                             <div class="card-body">
@@ -188,6 +188,16 @@
                                 <h5 class="card-title text-danger"><i class="bi bi-shield-lock-fill me-2"></i> Traefik SSL Routing</h5>
                                 <p class="card-text small text-muted">
                                     Enable the "Has Traefik Support" switch to automatically inject secure HTTPS loadbalancer routing rules. No complex proxy labels are needed inside compose.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col">
+                        <div class="card h-100 border-0 bg-light shadow-sm">
+                            <div class="card-body">
+                                <h5 class="card-title text-info"><i class="bi bi-stars me-2"></i> AI Component Bootstrap</h5>
+                                <p class="card-text small text-muted">
+                                    Generate new components automatically via Google Gemini. Click "Create with AI" at the top of the sidebar, enter a GitHub repository URL with optional custom instructions, and Gemini will bootstrap the configuration templates, variables, and metadata.
                                 </p>
                             </div>
                         </div>
