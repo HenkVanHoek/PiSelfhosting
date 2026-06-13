@@ -1071,7 +1071,8 @@
                 const fullComponentData = allSoftwareCache.find(c => c.id === compId);
                 if (!fullComponentData || (!componentWithVars && !fullComponentData.post_install_restart_option)) return;
 
-                const tabId = `v-pills-${compId}`;
+                const escapedCompId = escapeHTML(compId);
+                const tabId = `v-pills-${escapedCompId}`;
                 const activeClass = isFirstItem ? 'active' : '';
                 navPillsHTML += `<button class="nav-link text-start ${activeClass}" data-bs-toggle="pill" data-bs-target="#${tabId}" type="button">${escapeHTML(fullComponentData.name)}</button>`;
                 tabContentHTML += `<div class="tab-pane fade show ${activeClass}" id="${tabId}" role="tabpanel">`;
@@ -1091,8 +1092,8 @@
                 tabContentHTML += `
                     <hr>
                     <div class="form-check mt-3">
-                        <input class="form-check-input clean-install-checkbox" type="checkbox" id="clean-install-checkbox-${compId}" data-comp-id="${compId}" ${savedCleanChecked}>
-                        <label class="form-check-label" for="clean-install-checkbox-${compId}">
+                        <input class="form-check-input clean-install-checkbox" type="checkbox" id="clean-install-checkbox-${escapedCompId}" data-comp-id="${escapedCompId}" ${savedCleanChecked}>
+                        <label class="form-check-label" for="clean-install-checkbox-${escapedCompId}">
                             <strong>Perform a clean reinstallation</strong>
                         </label>
                         <div class="form-text small">
@@ -1103,8 +1104,8 @@
                 if (fullComponentData.post_install_restart_option) {
                     tabContentHTML += `
                         <div class="form-check mt-3">
-                            <input class="form-check-input restart-checkbox" type="checkbox" id="restart-checkbox-${compId}" data-comp-id="${compId}" ${savedRestartChecked}>
-                            <label class="form-check-label" for="restart-checkbox-${compId}">
+                            <input class="form-check-input restart-checkbox" type="checkbox" id="restart-checkbox-${escapedCompId}" data-comp-id="${escapedCompId}" ${savedRestartChecked}>
+                            <label class="form-check-label" for="restart-checkbox-${escapedCompId}">
                                 <strong>Restart container after installation</strong>
                             </label>
                             <div class="form-text small">
