@@ -719,17 +719,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         let generatedData = null;
 
-        // Load saved API key from localStorage if it exists
-        const savedApiKey = localStorage.getItem('gemini_api_key');
-        if (savedApiKey && apiKeyInput) {
-            apiKeyInput.value = savedApiKey;
-        }
+
 
         createAiBtn.addEventListener('click', () => {
             form.reset();
-            if (localStorage.getItem('gemini_api_key')) {
-                apiKeyInput.value = localStorage.getItem('gemini_api_key');
-            }
             inputStep.classList.remove('d-none');
             loadingStep.classList.add('d-none');
             previewStep.classList.add('d-none');
@@ -742,10 +735,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const repoUrl = repoUrlInput.value.trim();
             const instructions = instructionsInput.value.trim();
             const apiKey = apiKeyInput.value.trim();
-
-            if (apiKey) {
-                localStorage.setItem('gemini_api_key', apiKey);
-            }
 
             inputStep.classList.add('d-none');
             loadingStep.classList.remove('d-none');
