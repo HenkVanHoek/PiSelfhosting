@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 from managers.component_reader import ComponentReader
+from utils.resource_utils import resource_path
 
 logger = logging.getLogger(__name__)
 
@@ -103,6 +104,36 @@ class SetupManager:
                             shutil.rmtree(dst_dir)
                         shutil.copytree(src_dir, dst_dir)
                         logger.info(f"Copied template for {comp_id} to {dst_dir}")
+
+                        # Copy project docs if this is the docs component
+                        if comp_id == "piselfhosting-docs":
+                            src_docs_dir = dst_dir / "src-docs"
+                            src_docs_dir.mkdir(parents=True, exist_ok=True)
+
+                            readme_src = resource_path("README.md")
+                            if readme_src.exists():
+                                shutil.copy2(readme_src, src_docs_dir / "index.md")
+
+                            contrib_src = resource_path("CONTRIBUTING.md")
+                            if contrib_src.exists():
+                                shutil.copy2(
+                                    contrib_src, src_docs_dir / "contributing.md"
+                                )
+
+                            utils_src = resource_path("UTILITIES.md")
+                            if utils_src.exists():
+                                shutil.copy2(utils_src, src_docs_dir / "utilities.md")
+
+                            docs_src = resource_path("docs")
+                            if docs_src.exists():
+                                dst_docs_dir = src_docs_dir / "docs"
+                                if dst_docs_dir.exists():
+                                    shutil.rmtree(dst_docs_dir)
+                                shutil.copytree(docs_src, dst_docs_dir)
+                            logger.info(
+                                "Copied documentation files to "
+                                "piselfhosting-docs context"
+                            )
                     else:
                         logger.warning(
                             f"Template directory for {comp_id} not found at {src_dir}"

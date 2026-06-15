@@ -19,8 +19,36 @@ async function loadComponent(page, componentId, details, template) {
 
 test.describe('PiSelfhosting Editor E2E', () => {
     test.beforeEach(async ({ page }) => {
-        await page.route('**/api/components', r => r.fulfill({ status: 200, json: MOCK_COMPONENTS_RESPONSE }));
+        // Transform the mock components response into the raw dictionary format expected by the API
+        const rawComponents = {};
+        MOCK_COMPONENTS_RESPONSE.groups.forEach(g => {
+            g.components.forEach(c => {
+                rawComponents[c.id] = { id: c.id, name: c.name, group: g.id };
+            });
+        });
+
+        await page.route('**/api/components', r => r.fulfill({ status: 200, json: rawComponents }));
+        await page.route('**/api/groups', r => r.fulfill({
+            status: 200,
+            json: {
+                network: { name: 'Network Services', is_exclusive: false },
+                media: { name: 'Media Servers', is_exclusive: true }
+            }
+        }));
+        await page.route('**/api/packages', r => r.fulfill({ status: 200, json: {} }));
+
         await page.goto('/tests/editor_app/playwright/fixtures/editor.html');
+
+        // Wait for the group headers to load and render
+        const firstHeader = page.locator('.group-header').first();
+        await firstHeader.waitFor({ state: 'visible' });
+
+        // Expand all collapsed sidebar groups to make components visible
+        const collapsedCount = await page.locator('.group-header.collapsed').count();
+        for (let i = 0; i < collapsedCount; i++) {
+            await page.locator('.group-header.collapsed').first().click();
+        }
+
         await expect(page.locator('.component-list-item').first()).toBeVisible();
     });
 

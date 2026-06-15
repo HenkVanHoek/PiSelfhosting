@@ -14,27 +14,36 @@ from utils.resource_utils import resource_path
 logger = logging.getLogger(__name__)
 
 
-def _load_pi_mac_prefixes():
-    """Loads the known Raspberry Pi MAC address prefixes from a JSON file."""
+def _load_sbc_mac_prefixes():
+    """Loads the known SBC MAC address prefixes from a JSON file."""
     try:
-        config_path = resource_path(os.path.join("config", "raspberry_pi_oui.json"))
+        config_path = resource_path(os.path.join("config", "sbc_oui.json"))
         with open(config_path, "r", encoding="utf-8") as f:
             data = json.load(f)
-        return set(data.get("prefixes", []))
+        prefixes = set()
+        for vendor_prefixes in data.get("vendors", {}).values():
+            for prefix in vendor_prefixes:
+                prefixes.add(prefix.lower())
+        return prefixes
     except (FileNotFoundError, json.JSONDecodeError):
-        logger.error("Could not load Raspberry Pi MAC prefixes")
+        logger.error("Could not load SBC MAC prefixes")
         return set()
 
 
-PI_MAC_PREFIXES = _load_pi_mac_prefixes()
+SBC_MAC_PREFIXES = _load_sbc_mac_prefixes()
+
+
+def is_supported_sbc(mac_address):
+    """Checks if a given MAC address belongs to a supported SBC."""
+    if not mac_address:
+        return False
+    mac_prefix = mac_address[:8].lower().replace("-", ":")
+    return mac_prefix in SBC_MAC_PREFIXES
 
 
 def is_raspberry_pi(mac_address):
-    """Checks if a given MAC address belongs to a Raspberry Pi."""
-    if not mac_address:
-        return False
-    mac_prefix = mac_address[:8].lower()
-    return mac_prefix in PI_MAC_PREFIXES
+    """Alias for is_supported_sbc to maintain backward compatibility."""
+    return is_supported_sbc(mac_address)
 
 
 def is_port_open(host, port):

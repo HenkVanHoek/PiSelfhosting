@@ -77,6 +77,69 @@ class ConfiguratorAppTestCase(unittest.TestCase):
         self.assertEqual(data["hosts"][0]["ip"], "10.0.0.5")
         self.assertEqual(data["hosts"][0]["hostname"], "remote-tailscale-target")
 
+    def test_scan_pis_direct_mac_success(self):
+        """Test scanning endpoint with a direct MAC address that
+        resolves successfully.
+        """
+        payload = {
+            "discovery_method": "direct_ip",
+            "direct_target_ip": "b8:27:eb:01:02:03",
+        }
+        self.mock_scanner.scan.return_value = (
+            [
+                {
+                    "ip": "192.168.1.100",
+                    "mac": "B8:27:EB:01:02:03",
+                    "vendor": "Raspberry Pi Foundation",
+                    "hostname": "my-pi",
+                }
+            ],
+            [],
+            None,
+            None,
+        )
+        response = self.client.post(
+            "/scan-pis",
+            data=json.dumps(payload),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.data)
+        self.assertEqual(len(data["hosts"]), 1)
+        self.assertEqual(data["hosts"][0]["ip"], "192.168.1.100")
+        self.assertEqual(data["hosts"][0]["mac"], "B8:27:EB:01:02:03")
+        self.assertEqual(data["hosts"][0]["hostname"], "my-pi")
+
+    def test_scan_pis_direct_mac_not_found(self):
+        """Test scanning endpoint with a direct MAC address that
+        is not found on the network.
+        """
+        payload = {
+            "discovery_method": "direct_ip",
+            "direct_target_ip": "b8:27:eb:01:02:03",
+        }
+        self.mock_scanner.scan.return_value = (
+            [
+                {
+                    "ip": "192.168.1.100",
+                    "mac": "B8:27:EB:99:99:99",
+                    "vendor": "Raspberry Pi Foundation",
+                    "hostname": "other-pi",
+                }
+            ],
+            [],
+            None,
+            None,
+        )
+        response = self.client.post(
+            "/scan-pis",
+            data=json.dumps(payload),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 404)
+        data = json.loads(response.data)
+        self.assertIn("Could not find any device with MAC address", data["error"])
+
     def test_deploy_configuration_success(self):
         """Test POST /deploy-configuration without conflicts."""
         payload = {

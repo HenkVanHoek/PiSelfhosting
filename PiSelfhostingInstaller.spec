@@ -4,6 +4,31 @@ import platform
 # This file is a "blueprint" for PyInstaller, configured for a one-file,
 # windowed application, consistent across all operating systems.
 
+# Placeholders to prevent PyCharm unresolved reference warnings at design time
+try:
+    from PyInstaller.building.api import EXE, PYZ, Analysis
+except ImportError:
+    # noinspection PyUnusedLocal
+    class Analysis:
+        def __init__(self, *args, **kwargs):
+            self.pure = None
+            self.zipped_data = None
+            self.scripts = None
+            self.binaries = None
+            self.zipfiles = None
+            self.datas = None
+
+    # noinspection PyUnusedLocal
+    class PYZ:
+        def __init__(self, *args, **kwargs):
+            pass
+
+    # noinspection PyUnusedLocal
+    class EXE:
+        def __init__(self, *args, **kwargs):
+            pass
+
+
 # --- Define the icon based on the OS ---
 icon_file = None
 if platform.system() == "Windows":
@@ -27,6 +52,13 @@ a = Analysis(
         ('config', 'config'),
         # Component templates - essential for generating configurations
         ('component_templates', 'component_templates'),
+        # Ansible playbooks and configuration files
+        ('ansible', 'ansible'),
+        # Documentation files
+        ('docs', 'docs'),
+        ('README.md', '.'),
+        ('CONTRIBUTING.md', '.'),
+        ('UTILITIES.md', '.'),
     ],
     hiddenimports=[
         'nacl',

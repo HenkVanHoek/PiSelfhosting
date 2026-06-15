@@ -5,13 +5,13 @@
 # templates/piselfhosting-docs/docker-compose.template.yml
 services:
   piselfhosting-docs:
-    image: nginx:alpine
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: piselfhosting-docs
     restart: unless-stopped
-    volumes:
-      - "{{DATA_ROOT}}/piselfhosting-docs/html:/usr/share/nginx/html:ro"
     ports:
-      - "8089:80" # You can choose a specific port here that does not conflict, e.g., 8089
+      - "8089:80" # Expose documentation on port 8089
     networks:
       - piselfhosting_net
 networks:

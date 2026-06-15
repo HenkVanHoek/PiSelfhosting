@@ -304,12 +304,12 @@
                     <div class="form-check mb-2">
                         <input class="form-check-input" type="radio" name="scanMethod" id="method_direct_ip" value="direct_ip">
                         <label class="form-check-label" for="method_direct_ip">
-                            <strong>Direct IP / Hostname Deployment (VPN/Tailscale)</strong>
-                            <span class="d-block small text-muted">Target a specific host directly, bypassing network discovery.</span>
+                            <strong>Direct IP / Hostname / MAC Deployment</strong>
+                            <span class="d-block small text-muted">Target a specific host or local MAC address directly, bypassing standard discovery.</span>
                         </label>
                     </div>
                     <div class="mt-2 d-none" id="direct_ip_input_container">
-                        <input type="text" class="form-control" name="direct_target_ip" id="direct_target_ip" placeholder="e.g., 100.121.216.150" aria-label="Direct Target IP">
+                        <input type="text" class="form-control" name="direct_target_ip" id="direct_target_ip" placeholder="e.g., 100.121.216.150 or b8:27:eb:01:02:03" aria-label="Direct Target IP">
                     </div>
                 </div>
 

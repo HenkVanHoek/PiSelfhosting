@@ -55,3 +55,42 @@ class TestSetupManager(unittest.TestCase):
         self.assertEqual(report["status"], "ready")
         self.assertEqual(report["components_available"], 2)
         self.assertIn("base_path", report)
+
+    def test_prepare_deployment_package_docs(self):
+        """Verify that prepare_deployment_package copies docs correctly."""
+        # Create a mock templates directory
+        mock_templates = Path("./tmp_templates_test")
+        mock_templates.mkdir(exist_ok=True)
+        docs_template = mock_templates / "piselfhosting-docs"
+        docs_template.mkdir(exist_ok=True)
+
+        self.mock_reader.templates_path = str(mock_templates)
+
+        try:
+            # We run the preparation
+            success, errors = self.setup_manager.prepare_deployment_package(
+                selected_components=["piselfhosting-docs"],
+                user_variables={"VAR": "val"},
+                managed_devices=[],
+            )
+
+            self.assertTrue(success)
+            self.assertEqual(len(errors), 0)
+
+            # Check if src-docs was created
+            target_docs_dir = self.test_dir / "piselfhosting-docs" / "src-docs"
+            self.assertTrue(target_docs_dir.exists())
+
+            # Documentation files exist in the project root and
+            # should have been copied to the target directory.
+            self.assertTrue((target_docs_dir / "index.md").exists())
+            self.assertTrue((target_docs_dir / "contributing.md").exists())
+            self.assertTrue((target_docs_dir / "utilities.md").exists())
+            self.assertTrue((target_docs_dir / "docs").exists())
+
+        finally:
+            # Clean up the mock templates directory
+            if mock_templates.exists():
+                import shutil
+
+                shutil.rmtree(mock_templates)

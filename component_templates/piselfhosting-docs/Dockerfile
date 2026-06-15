@@ -9,12 +9,9 @@ WORKDIR /app
 # Copy the MkDocs configuration file
 COPY mkdocs.yml .
 
-# Copy the source Markdown files from the project root into a source directory
-# 'index.md' will be the homepage, based on the project's README
-COPY ../../README.md ./src-docs/index.md
-COPY ../../CONTRIBUTING.md ./src-docs/contributing.md
-# Assume you will create a UTILITIES.md in the project root
-COPY ../../UTILITIES.md ./src-docs/utilities.md
+# Copy the source Markdown files prepared by SetupManager into the build context
+COPY ./src-docs ./src-docs
+
 
 # Run the build command. MkDocs will read mkdocs.yml, find the source files
 # in ./src-docs, and generate the static site in the '/app/site' directory.

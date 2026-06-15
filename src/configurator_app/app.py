@@ -261,6 +261,95 @@ def create_app(test_config=None):
                     400,
                 )
 
+            # If target_ip is a MAC address, resolve it by scanning the network
+            if re.match(r"^([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2})$", target_ip):
+                subnet = data.get("subnet")
+                if subnet is not None and not isinstance(subnet, str):
+                    subnet = None
+                try:
+                    scanner = PiScanner(
+                        username=os.environ.get("PI_SCANNER_USERNAME", "dummy"),
+                        password=os.environ.get("PI_SCANNER_PASSWORD", "dummy"),
+                    )
+                    hosts, messages, error, detection_info = scanner.scan(subnet=subnet)
+                    if error:
+                        logging.error(
+                            f"Scanner scan failed for MAC resolution: {error}"
+                        )
+                        return (
+                            jsonify(
+                                {
+                                    "error": (
+                                        "Failed to scan network to resolve "
+                                        f"MAC address: {error}"
+                                    ),
+                                    "messages": messages,
+                                }
+                            ),
+                            500,
+                        )
+
+                    search_mac = target_ip.replace("-", ":").lower()
+                    resolved_host: dict | None = None
+                    for h in hosts:
+                        if h.get("mac", "").replace("-", ":").lower() == search_mac:
+                            resolved_host = h
+                            break
+
+                    if resolved_host is None:
+                        return (
+                            jsonify(
+                                {
+                                    "error": (
+                                        "Could not find any device with MAC "
+                                        f"address {target_ip} on the network."
+                                    ),
+                                    "messages": messages
+                                    + [f"Scanned network to find MAC: {target_ip}"],
+                                }
+                            ),
+                            404,
+                        )
+
+                    resolved_ip = resolved_host["ip"]
+                    logging.info(f"Resolved MAC {target_ip} to IP {resolved_ip}")
+                    return jsonify(
+                        {
+                            "hosts": [
+                                {
+                                    "ip": resolved_ip,
+                                    "mac": resolved_host.get("mac"),
+                                    "vendor": resolved_host.get("vendor"),
+                                    "hostname": resolved_host.get(
+                                        "hostname", "remote-target"
+                                    ),
+                                    "status": "selected",
+                                }
+                            ],
+                            "messages": messages
+                            + [
+                                "Resolved MAC address "
+                                f"{target_ip} to IP address {resolved_ip}."
+                            ],
+                            "error": None,
+                            "detection_info": detection_info,
+                        }
+                    )
+                except Exception as e:
+                    logging.error(f"MAC resolution failed: {e}", exc_info=True)
+                    return (
+                        jsonify(
+                            {
+                                "error": (
+                                    "An unexpected error occurred "
+                                    "resolving MAC address."
+                                ),
+                                "messages": [],
+                            }
+                        ),
+                        500,
+                    )
+
             print(
                 "Antigravity bypass: Skipping subnet scan. "
                 f"Directly targeting host: {target_ip}"

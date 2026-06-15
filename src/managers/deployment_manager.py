@@ -3,8 +3,9 @@ import logging
 import os
 import sys
 from datetime import datetime
-from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+from utils.resource_utils import resource_path
 
 try:
     import ansible_runner
@@ -55,10 +56,9 @@ class DeploymentManager:
         self.tasks[task_id] = tasks[task_id]
         self.tasks[task_id]["status"] = "running"
 
-        # Base directory for Ansible execution (project root) We calculate this
-        # absolutely: deployment_manager.py -> managers -> src -> PiSelfhosting
-        project_root = str(Path(__file__).resolve().parent.parent.parent)
-        playbook_path = os.path.join(project_root, "ansible", "playbook.yml")
+        # Base directory for Ansible execution (project root) resolved via resource path
+        project_root = str(resource_path(""))
+        playbook_path = str(resource_path("ansible/playbook.yml"))
 
         for device in devices:
             ip = device.get("ip", "unknown")

@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 # Assuming your file is named pi_scanner.py
-from pi_scanner import PiScanner, is_port_open, is_raspberry_pi
+from pi_scanner import PiScanner, is_port_open, is_raspberry_pi, is_supported_sbc
 
 
 # Fixture for a reusable PiScanner instance
@@ -39,6 +39,10 @@ class TestPiScannerStaticMethods:
     def test_is_raspberry_pi(self):
         """Test the MAC address checker."""
         assert is_raspberry_pi("B8:27:EB:XX:XX:XX") is True
+        assert is_supported_sbc("b8:27:eb:00:00:00") is True
+        assert is_supported_sbc("cc:7b:35:11:22:33") is True
+        assert is_supported_sbc("00:1e:06:aa:bb:cc") is True
+        assert is_supported_sbc("00:00:00:00:00:00") is False
 
     @patch("socket.socket")
     def test_get_primary_ip_success(self, mock_socket):
