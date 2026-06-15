@@ -80,52 +80,19 @@ If you are running the installer on a `Linux desktop`, you must perform a one-ti
     echo "your_username ALL=(ALL) NOPASSWD: /usr/bin/nmap" | sudo tee /etc/sudoers.d/99-piselfhosting
     sudo chmod 0440 /etc/sudoers.d/99-piselfhosting
 
-## Project Directory Structure (Samba Share in Windows the X: drive)
+## Project Directory Structure
 
-The following tree represents the current physical layout of the project as seen from the development environment.
+The following tree represents the current physical layout of the project:
 ```
-X:.
-├── AGENTS.md
-├── BEST_PRACTICES.md
-├── CHANGELOG.md
-├── context_generator.py
-├── docker-compose.template.yml
-├── Dockerfile
-├── Makefile
-├── pyproject.toml
-├── README.md
-├── ROADMAP.md
-├── run_editor.py
-├── src
-│   ├── pi_scanner.py
-│   ├── setup.py
-│   ├── configurator_app
-│   │   ├── app.py
-│   │   ├── static
-│   │   │   └── css (base.css, configurator.css)
-│   │   └── templates (base.html, index.html, live_log.html, etc.)
-│   ├── editor_app
-│   │   ├── app.py
-│   │   ├── static (editor.v2.js, ui_render_utils.js)
-│   │   └── templates (editor.html)
-│   ├── managers
-│   │   ├── component_manager.py
-│   │   ├── deployment_manager.py
-│   │   ├── setup_manager.py
-│   │   └── ssh_manager.py
-│   ├── config_tools
-│   │   └── config_manager.py
-│   └── utils
-│       ├── auth_utils.py
-│       ├── dashy_updater.py
-│       ├── generation_logger.py
-│       └── ssh_utils.py
+.
+├── ansible
+│   └── playbook.yml
 ├── component_templates
 │   ├── adguard-home
 │   ├── homeassistant
 │   ├── pi-hole
-│   ├── traefik (tls.template.yml, variables.json)
-│   └── [overige service mappen...]
+│   ├── traefik
+│   └── [other service templates...]
 ├── config
 │   ├── components_metadata.json
 │   └── raspberry_pi_oui.json
@@ -133,13 +100,49 @@ X:.
 │   ├── ARCHITECTURE.md
 │   ├── DATA_CONTRACTS.md
 │   ├── FUNCTIONAL_SPEC.md
-│   └── TESTING_STRATEGY.md
+│   └── sovereign_home_server.md
+├── linux
+│   ├── install.sh
+│   └── piselfhosting-Configurator.desktop
+├── pyproject.toml
+├── README.md
+├── run_editor.py
+├── src
+│   ├── configurator_app
+│   │   ├── app.py
+│   │   ├── static (base.css, configurator.css, images, js)
+│   │   └── templates (base.html, index.html, help.html, etc.)
+│   ├── editor_app
+│   │   ├── app.py
+│   │   ├── static (editor.v2.js, ui_render_utils.js)
+│   │   └── templates (editor.html)
+│   ├── management_tools
+│   │   ├── logic.py
+│   │   ├── routes.py
+│   │   └── templates (backup_ui.html)
+│   ├── managers
+│   │   ├── component_manager.py
+│   │   ├── deployment_manager.py
+│   │   ├── setup_manager.py
+│   │   └── ssh_manager.py
+│   ├── config_tools
+│   │   └── config_manager.py
+│   ├── pi_scanner.py
+│   └── utils
+│       ├── auth_utils.py
+│       ├── dashy_updater.py
+│       ├── frigate_camera_config_tool.py
+│       ├── generation_logger.py
+│       └── resource_utils.py
 ├── tests
+│   ├── configurator_app
+│   ├── editor_app
 │   ├── test_component_manager.py
-│   ├── test_setup_manager.py
-│   ├── configurator_app/test_configurator_app.py
-│   └── editor_app/test_editor_app.py
-└── linux/install.sh
+│   ├── test_deployment_manager.py
+│   ├── test_pi_scanner.py
+│   └── test_setup_manager.py
+└── windows
+    └── start.bat
 ```
 ## 📚 Background and Articles
 
