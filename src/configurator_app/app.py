@@ -249,6 +249,28 @@ def create_app(test_config=None):
     def index():
         return render_template("index.html")
 
+    @flask_app.route("/help", methods=["GET"])
+    def help_page():
+        from utils.resource_utils import resource_path
+
+        docs = {}
+        for doc_name, filename in [
+            ("Introduction", "README.md"),
+            ("Contributing Guide", "CONTRIBUTING.md"),
+            ("Helper Utilities", "UTILITIES.md"),
+        ]:
+            path = resource_path(filename)
+            content = "Documentation file not found."
+            if path.exists():
+                try:
+                    with open(path, "r", encoding="utf-8") as f:
+                        content = f.read()
+                except Exception as e:
+                    content = f"Error reading file: {e}"
+            docs[doc_name] = content
+
+        return render_template("help.html", docs=docs)
+
     @flask_app.route("/scan-pis", methods=["POST"])
     def scan_pis():
         data = request.get_json(silent=True) or {}
