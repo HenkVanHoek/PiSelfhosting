@@ -87,7 +87,12 @@
         // Render each markdown tab
         {% for doc_name in docs.keys() %}
         (function() {
-            const raw = document.getElementById("markdown-raw-{{ loop.index }}").textContent;
+            let raw = document.getElementById("markdown-raw-{{ loop.index }}").textContent;
+            // Replace remote asset logo URL with local static icon
+            raw = raw.replace(
+                "https://github.com/HenkVanHoek/assets/63ed723a-578f-47f9-b40b-e241c4c5935b",
+                "{{ url_for('static', filename='images/piselfhosting-icon512x512.png') }}"
+            );
             document.getElementById("rendered-content-{{ loop.index }}").innerHTML = marked.parse(raw);
         })();
         {% endfor %}
