@@ -1540,6 +1540,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const detailedGuide = document.getElementById('welcome-detailed-guide');
         const minimalGuide = document.getElementById('welcome-minimal');
 
+        const startTourBtn = document.getElementById('start-tour-btn');
+        const startTourMinimalBtn = document.getElementById('start-tour-minimal-btn');
+        const navStartTourBtn = document.getElementById('nav-start-tour-btn');
+
         if (!guideCheckbox || !showGuideLink || !detailedGuide || !minimalGuide) return;
 
         const updateGuideVisibility = () => {
@@ -1569,6 +1573,57 @@ document.addEventListener('DOMContentLoaded', () => {
             localStorage.removeItem('editor_hide_welcome_guide');
             updateGuideVisibility();
         });
+
+        const startInteractiveTour = (e) => {
+            if (e) e.preventDefault();
+            if (window.introJs) {
+                window.introJs().setOptions({
+                    steps: [
+                        {
+                            title: "Welcome",
+                            intro: "Welcome to the PiSelfhosting Component Editor! Let us take a quick tour of the workspace."
+                        },
+                        {
+                            element: document.getElementById("sidebar"),
+                            title: "Sidebar Panel",
+                            intro: "This panel contains all your configured components and software packages. Use the tabs above to toggle between Views.",
+                            position: "right"
+                        },
+                        {
+                            element: document.getElementById("create-new-btn"),
+                            title: "Create Component",
+                            intro: "Click here to create a new component manually by entering its ID and Display Name.",
+                            position: "bottom"
+                        },
+                        {
+                            element: document.getElementById("create-new-ai-btn"),
+                            title: "Bootstrap with AI",
+                            intro: "Click here to generate a component automatically using Google Gemini AI! Just provide a GitHub repository URL.",
+                            position: "bottom"
+                        },
+                        {
+                            element: document.getElementById("git-sync-btn"),
+                            title: "Git Sync Manager",
+                            intro: "Check the synchronization status, pull updates from the repository, or upload your local changes.",
+                            position: "bottom"
+                        },
+                        {
+                            element: document.getElementById("help-link"),
+                            title: "Online Help",
+                            intro: "Access the official online Wiki for in-depth documentation and design guidelines.",
+                            position: "bottom"
+                        }
+                    ],
+                    showProgress: true,
+                    showBullets: false,
+                    disableInteraction: true
+                }).start();
+            }
+        };
+
+        if (startTourBtn) startTourBtn.addEventListener('click', startInteractiveTour);
+        if (startTourMinimalBtn) startTourMinimalBtn.addEventListener('click', startInteractiveTour);
+        if (navStartTourBtn) navStartTourBtn.addEventListener('click', startInteractiveTour);
 
         updateGuideVisibility();
     };

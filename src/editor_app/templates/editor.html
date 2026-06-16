@@ -10,6 +10,7 @@
     <link rel="apple-touch-icon" href="{{ url_for('static', filename='images/piselfhosting-icon192x192.png') }}">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/intro.js@7.2.0/introjs.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/material-darker.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/monokai.min.css">
@@ -101,6 +102,7 @@
             <ul class="navbar-nav ms-auto">
                 <li class="nav-item"><a class="nav-link d-flex align-items-center" href="#" id="git-sync-btn"><i class="bi bi-git me-1"></i> Git Sync<span id="git-sync-badge" class="badge bg-danger ms-1 d-none" title="Globale metadata niet gepusht">!</span></a></li>
                 <li class="nav-item"><a class="nav-link" href="#" id="git-upload-btn" title="Read-only: Checking permissions..." data-bs-toggle="tooltip"><i class="bi bi-cloud-arrow-up"></i> Upload to Repo</a></li>
+                <li class="nav-item"><a class="nav-link" href="#" id="nav-start-tour-btn"><i class="bi bi-compass"></i> Quick Tour</a></li>
                 <li class="nav-item"><a class="nav-link" href="https://github.com/HenkVanHoek/piselfhosting/wiki" target="_blank" id="help-link"><i class="bi bi-question-circle"></i> Help</a></li>
                 <li class="nav-item"><a class="nav-link" href="https://github.com/HenkVanHoek/PiSelfhosting" target="_blank"><i class="bi bi-github"></i> GitHub</a></li>
                 <li class="nav-item"><a class="nav-link" href="https://github.com/HenkVanHoek/PiSelfhosting/releases" target="_blank"><i class="bi bi-tag"></i> Releases</a></li>
@@ -210,7 +212,12 @@
                             Don't show this onboarding guide on startup
                         </label>
                     </div>
-                    <span class="small text-secondary italic">Select a component to begin editing.</span>
+                    <div>
+                        <button class="btn btn-outline-primary btn-sm me-3" id="start-tour-btn">
+                            <i class="bi bi-compass"></i> Start Interactive Tour
+                        </button>
+                        <span class="small text-secondary italic">Select a component to begin editing.</span>
+                    </div>
                 </div>
             </div>
 
@@ -220,6 +227,9 @@
                 <p class="lead">Select a component from the list to begin editing its metadata, variables, and template.</p>
                 <button class="btn btn-link btn-sm text-decoration-none" id="show-onboarding-link">
                     <i class="bi bi-info-circle"></i> Show Quick Start Guide
+                </button>
+                <button class="btn btn-link btn-sm text-decoration-none ms-3" id="start-tour-minimal-btn">
+                    <i class="bi bi-compass"></i> Start Interactive Tour
                 </button>
             </div>
         </div>
@@ -619,6 +629,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/merge/merge.min.js" integrity="sha384-W8to3L7MykmlLyF9jWzrILmJdsl7pTjK9iVB9poPiy+tRKbSB6RChDmvV418vmK3" crossorigin="anonymous"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/yaml/yaml.min.js" integrity="sha384-9q49Jm3hZMwxEMLImsxPxLiaptHpFz1PVa26Dg6SVIO+rj5kx0cgOM2+4ikKJFH9" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/intro.js@7.2.0/intro.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js" integrity="sha384-BSxuMLxX+FCbTdYec3TbXlnMGEEM2QXTFdtDaveen71o+jswm2J36+xFqp8k4VHM" crossorigin="anonymous"></script>
 <script type="module" src="{{ url_for('static', filename='ui_render_utils.js') }}" defer></script>
 <script type="module" src="{{ url_for('static', filename='editor.v2.js') }}" defer></script>
