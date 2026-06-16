@@ -59,7 +59,8 @@
         }
            /* Styling for the View Switcher (Groups/Packages) */
         #view-tabs {
-            background-color: #e9ecef;
+            background-color: rgba(15, 23, 42, 0.6) !important;
+            border: 1px solid var(--glass-border) !important;
             padding: 3px;
             border-radius: 0.5rem;
             margin-bottom: 1rem;
@@ -68,15 +69,24 @@
         #view-tabs .nav-link {
             font-size: 0.85rem;
             font-weight: 500;
-            color: #6c757d;
-            border: none;
+            color: #cbd5e1 !important;
+            background: transparent !important;
+            border: none !important;
+            text-align: center !important;
+            margin-bottom: 0 !important;
+            border-radius: 0.375rem !important;
             transition: all 0.2s ease-in-out;
         }
 
+        #view-tabs .nav-link:hover {
+            color: #ffffff !important;
+            background-color: rgba(255, 255, 255, 0.05) !important;
+        }
+
         #view-tabs .nav-link.active {
-            background-color: #ffffff;
-            color: #0d6efd;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            background: linear-gradient(135deg, #00b0ff, #0091ea) !important;
+            color: #ffffff !important;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
         }
 
         /* Specific styling for Package headers in the sidebar */
