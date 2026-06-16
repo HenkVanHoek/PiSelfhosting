@@ -1546,36 +1546,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (!guideCheckbox || !showGuideLink || !detailedGuide || !minimalGuide) return;
 
-        const updateGuideVisibility = () => {
-            const isHidden = localStorage.getItem('editor_hide_welcome_guide') === 'true';
-            if (isHidden) {
-                detailedGuide.classList.add('d-none');
-                minimalGuide.classList.remove('d-none');
-                guideCheckbox.checked = true;
-            } else {
-                detailedGuide.classList.remove('d-none');
-                minimalGuide.classList.add('d-none');
-                guideCheckbox.checked = false;
-            }
-        };
-
-        guideCheckbox.addEventListener('change', (e) => {
-            if (e.target.checked) {
-                localStorage.setItem('editor_hide_welcome_guide', 'true');
-            } else {
-                localStorage.removeItem('editor_hide_welcome_guide');
-            }
-            updateGuideVisibility();
-        });
-
-        showGuideLink.addEventListener('click', (e) => {
-            e.preventDefault();
-            localStorage.removeItem('editor_hide_welcome_guide');
-            updateGuideVisibility();
-        });
-
         const startInteractiveTour = (e) => {
             if (e) e.preventDefault();
+            localStorage.setItem('editor_tour_shown', 'true');
             if (window.introJs) {
                 window.introJs().setOptions({
                     steps: [
@@ -1620,6 +1593,42 @@ document.addEventListener('DOMContentLoaded', () => {
                 }).start();
             }
         };
+
+        const updateGuideVisibility = () => {
+            const isHidden = localStorage.getItem('editor_hide_welcome_guide') === 'true';
+            if (isHidden) {
+                detailedGuide.classList.add('d-none');
+                minimalGuide.classList.remove('d-none');
+                guideCheckbox.checked = true;
+            } else {
+                detailedGuide.classList.remove('d-none');
+                minimalGuide.classList.add('d-none');
+                guideCheckbox.checked = false;
+
+                // Auto-start tour on first load if never shown before
+                const tourShown = localStorage.getItem('editor_tour_shown') === 'true';
+                if (!tourShown) {
+                    setTimeout(() => {
+                        startInteractiveTour();
+                    }, 500);
+                }
+            }
+        };
+
+        guideCheckbox.addEventListener('change', (e) => {
+            if (e.target.checked) {
+                localStorage.setItem('editor_hide_welcome_guide', 'true');
+            } else {
+                localStorage.removeItem('editor_hide_welcome_guide');
+            }
+            updateGuideVisibility();
+        });
+
+        showGuideLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            localStorage.removeItem('editor_hide_welcome_guide');
+            updateGuideVisibility();
+        });
 
         if (startTourBtn) startTourBtn.addEventListener('click', startInteractiveTour);
         if (startTourMinimalBtn) startTourMinimalBtn.addEventListener('click', startInteractiveTour);
