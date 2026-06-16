@@ -351,6 +351,17 @@ def create_app(test_config=None):
             )
             abort(500, f"Internal error getting diff for {comp_id}")
 
+    @app.route("/static/css/piselfhosting-style.css")
+    def serve_shared_css():
+        from flask import send_from_directory
+
+        shared_css_dir = project_root / "src" / "configurator_app" / "static" / "css"
+        if not shared_css_dir.exists():
+            shared_css_dir = (
+                Path(__file__).parent.parent / "configurator_app" / "static" / "css"
+            )
+        return send_from_directory(shared_css_dir, "piselfhosting-style.css")
+
     @app.route("/")
     def index():
         return render_template("editor.html")

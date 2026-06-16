@@ -11,6 +11,7 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/intro.js@7.2.0/introjs.min.css" rel="stylesheet">
+    <link href="/static/css/piselfhosting-style.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/material-darker.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/monokai.min.css">
@@ -20,15 +21,33 @@
     <style>
         body, html { height: 100%; overflow: hidden; }
         .main-container { display: flex; height: 100vh; padding-top: 56px; }
-        .sidebar { background-color: #f8f9fa; border-right: 1px solid #dee2e6; padding: 1rem; width: 280px; min-width: 200px; max-width: 600px; display: flex; flex-direction: column; overflow-y: hidden; }
+        .sidebar {
+            background: var(--glass-bg) !important;
+            backdrop-filter: blur(16px) saturate(180%);
+            -webkit-backdrop-filter: blur(16px) saturate(180%);
+            border-right: 1px solid var(--glass-border) !important;
+            padding: 1rem;
+            width: 280px;
+            min-width: 200px;
+            max-width: 600px;
+            display: flex;
+            flex-direction: column;
+            overflow-y: hidden;
+        }
         .sidebar-header { flex-shrink: 0; }
         #component-list { overflow-y: auto; flex-grow: 1; }
         .content { flex-grow: 1; padding: 2rem; overflow-y: auto; display: flex; flex-direction: column; }
         #feedback-alert { position: fixed; top: 70px; right: 20px; z-index: 1050; }
-        #editor-wrapper { border: 1px solid #dee2e6; border-radius: 0.25rem; flex-grow: 1; position: relative; }
+        #editor-wrapper { border: 1px solid var(--glass-border); border-radius: 0.25rem; flex-grow: 1; position: relative; }
         /*noinspection CssUnusedSymbol*/
-        #editor-wrapper.drag-over { border: 2px dashed #0d6efd; background-color: rgba(13, 110, 253, 0.05); }
-        .resizer { flex-shrink: 0; width: 5px; background-color: #f1f1f1; cursor: col-resize; border-right: 1px solid #dee2e6; }
+        #editor-wrapper.drag-over { border: 2px dashed var(--brand-blue); background-color: rgba(0, 176, 255, 0.05); }
+        .resizer {
+            flex-shrink: 0;
+            width: 5px;
+            background-color: rgba(255, 255, 255, 0.05);
+            cursor: col-resize;
+            border-right: 1px solid var(--glass-border);
+        }
         .resizer:hover { background-color: #0d6efd; }
         /*noinspection CssUnusedSymbol*/
         .group-header-exclusive { background-color: #fdf8e3; border-left: 4px solid #f0ad4e; }
@@ -85,6 +104,46 @@
         }
         .group-header.collapsed .bi-chevron-down {
             transform: rotate(-90deg);
+        }
+        .list-group-item {
+            background-color: transparent !important;
+            color: #cbd5e1 !important;
+            border: 1px solid rgba(255, 255, 255, 0.05) !important;
+        }
+        .list-group-item:hover {
+            background-color: rgba(255, 255, 255, 0.05) !important;
+            color: #ffffff !important;
+        }
+        .list-group-item.active {
+            background: linear-gradient(135deg, #00b0ff, #0091ea) !important;
+            color: #ffffff !important;
+            border-color: transparent !important;
+        }
+        .modal-content {
+            background: var(--glass-bg) !important;
+            backdrop-filter: blur(16px) saturate(180%);
+            -webkit-backdrop-filter: blur(16px) saturate(180%);
+            border: 1px solid var(--glass-border) !important;
+            box-shadow: var(--glass-shadow) !important;
+            color: #cbd5e1 !important;
+        }
+        .modal-header, .modal-footer {
+            border-color: var(--glass-border) !important;
+        }
+        .btn-close {
+            filter: invert(1) grayscale(1) brightness(2);
+        }
+        .table {
+            color: #cbd5e1 !important;
+        }
+        .table th, .table td {
+            border-color: var(--glass-border) !important;
+        }
+        code {
+            background-color: rgba(255, 255, 255, 0.1) !important;
+            color: var(--brand-blue) !important;
+            padding: 0.2rem 0.4rem;
+            border-radius: 4px;
         }
     </style>
 </head>
