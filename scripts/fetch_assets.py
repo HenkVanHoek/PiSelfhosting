@@ -21,6 +21,7 @@ def fetch_assets():
 
     # Ensure target directories exist
     STATIC_DIR.mkdir(exist_ok=True)
+    (STATIC_DIR / "css").mkdir(exist_ok=True)
     IMAGES_DIR.mkdir(exist_ok=True)
 
     # 1. Fetch the master CSS file
@@ -31,7 +32,7 @@ def fetch_assets():
     print(f"Downloading CSS from {css_url}")
     response = requests.get(css_url, timeout=10)  # nosec
     response.raise_for_status()
-    (STATIC_DIR / "piselfhosting-style.css").write_text(response.text)
+    (STATIC_DIR / "css" / "piselfhosting-style.css").write_text(response.text)
     print("✅ CSS updated successfully.")
 
     # 2. Fetch the logo

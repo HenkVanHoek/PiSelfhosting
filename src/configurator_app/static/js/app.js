@@ -244,6 +244,35 @@
     let lastScanData = null;
     let lastSubnetInput = '';
 
+    const clearAllWizardState = () => {
+        managedDeviceCache = {};
+        selectedComponentsCache = [];
+        allSoftwareCache = [];
+        finalVariablesCache = {};
+        componentsToCleanCache = [];
+        componentsToRestartCache = [];
+        analysisResultsCache = {};
+        lastScanData = null;
+        lastSubnetInput = '';
+    };
+
+    const updateLogoVisibility = () => {
+        const logoLight = document.querySelector('.logo-light');
+        const logoDark = document.querySelector('.logo-dark');
+        if (!logoLight || !logoDark) return;
+
+        const savedTheme = localStorage.getItem("user-theme-preference");
+        const isDarkTheme = ["dark", "futuristic-dark", "high-contrast-dark"].includes(savedTheme);
+
+        if (isDarkTheme) {
+            logoLight.style.setProperty('display', 'none', 'important');
+            logoDark.style.setProperty('display', 'inline-block', 'important');
+        } else {
+            logoLight.style.setProperty('display', 'inline-block', 'important');
+            logoDark.style.setProperty('display', 'none', 'important');
+        }
+    };
+
     // Bulletproof: Hide progress bar row and wizard-header directly via CSS selectors
     // const toggleProgressBarVisibility = (show, percentage = 0) => {
     //     // Toggle the slim 4px progress bar container in the card
@@ -265,6 +294,7 @@
     // };
 
     const renderStep1_Welcome = () => {
+        clearAllWizardState();
         // Option B: Hide progress bar and gray header bar on the Welcome screen (Step 0)
         toggleProgressBarVisibility(false, 0);
 
@@ -274,14 +304,19 @@
 
         wizardBody.innerHTML = `
             <div class="text-center">
-                <div class="mb-4">
+                <div class="mb-4 logo-container">
                     <!-- Custom 300x300 high-res brand logo centered on Step 0 Onboarding -->
                     <img src="/static/images/piselfhosting-icon512x512.png"
                          alt="PiSelfhosting Logo"
+                         class="logo-light"
+                         style="width: 300px; height: 300px;">
+                    <img src="/static/images/piselfhosting-icon512x512-dark.png"
+                         alt="PiSelfhosting Logo"
+                         class="logo-dark"
                          style="width: 300px; height: 300px;">
                 </div>
                 <h2 class="h4">Network Discovery</h2>
-                <p class="text-muted small">We need to find the Raspberry Pi(s) on your network to begin.</p>
+                <p class="text-muted small">We need to find supported single-board computers (Raspberry Pi, Orange Pi, ODROID, Radxa, or Pine64) on your network to begin.</p>
 
                 <div class="card card-body bg-light text-start mx-auto mb-4" style="max-width: 500px;">
                     <div class="form-check mb-2">
@@ -321,6 +356,7 @@
             </div>
         `;
         setupStep1();
+        updateLogoVisibility();
     };
 
     /** @param {ScanData} scanData */
@@ -333,7 +369,7 @@
         updateWizardFooter('Enter the SSH credentials for the devices you want to manage.');
         const popoverContent = `
             The scanner looks for two types of devices:
-            1. Physical Raspberry Pis by checking for a hardware model file.
+            1. Physical single-board computers by checking for a hardware model file.
             2. PiSelfhosting Virtual Pis by checking for the
                '/etc/piselfhosting-virtual-pi-server' file inside the guest OS.
         `.trim();
@@ -568,7 +604,7 @@
 
         // Set up the Back/Proceed action buttons dynamically
         const actionWrapper = document.createElement('div');
-        actionWrapper.className = 'd-flex justify-content-center gap-2 my-4';
+        actionWrapper.className = 'sticky-action-bar';
 
         const backBtn = document.createElement('button');
         backBtn.id = 'back-to-step1-btn';
@@ -682,7 +718,7 @@
         await Promise.allSettled(promises);
 
         const actionWrapper = document.createElement('div');
-        actionWrapper.className = 'd-flex justify-content-center gap-2 my-4';
+        actionWrapper.className = 'sticky-action-bar';
 
         const backBtn = document.createElement('button');
         backBtn.id = 'back-to-step1-btn';
@@ -715,24 +751,61 @@
 
     /** @param {Component} component
      * @param {string} groupName
-     * @param {string} type
+     * @param {boolean} isExclusive
      */
-    const createComponentInput = (component, groupName, type) => {
+    const createComponentCard = (component, groupName, isExclusive) => {
         const escapedId = escapeHTML(component.id);
         const escapedName = escapeHTML(component.name);
         const escapedDesc = escapeHTML(component.description);
-        const escapedGroupName = escapeHTML(groupName);
+        const isChecked = selectedComponentsCache.includes(component.id) || component.default;
 
-        const inputName = type === 'radio' ? `group-${escapedGroupName}` : `component-${escapedId}`;
-        const checkedAttr = (component.default || selectedComponentsCache.includes(component.id)) ? 'checked' : '';
+        let iconClass = "fa-solid fa-cubes text-secondary";
+        const lowerId = component.id.toLowerCase();
+        if (lowerId.includes("nextcloud")) {
+            iconClass = "fa-solid fa-cloud text-primary";
+        } else if (lowerId.includes("vaultwarden") || lowerId.includes("bitwarden")) {
+            iconClass = "fa-solid fa-key text-warning";
+        } else if (lowerId.includes("caddy")) {
+            iconClass = "fa-solid fa-network-wired text-info";
+        } else if (lowerId.includes("nginx")) {
+            iconClass = "fa-solid fa-server text-info";
+        } else if (lowerId.includes("pi-hole") || lowerId.includes("adguard")) {
+            iconClass = "fa-solid fa-shield-halved text-danger";
+        } else if (lowerId.includes("gitea") || lowerId.includes("git")) {
+            iconClass = "fa-brands fa-git-alt text-warning";
+        } else if (lowerId.includes("home-assistant") || lowerId.includes("homeassistant")) {
+            iconClass = "fa-solid fa-house-laptop text-success";
+        } else if (lowerId.includes("portainer")) {
+            iconClass = "fa-brands fa-docker text-primary";
+        } else if (lowerId.includes("filebrowser")) {
+            iconClass = "fa-solid fa-folder-open text-warning";
+        } else if (lowerId.includes("homarr")) {
+            iconClass = "fa-solid fa-table-columns text-info";
+        } else if (lowerId.includes("redis")) {
+            iconClass = "fa-solid fa-database text-danger";
+        } else if (lowerId.includes("mariadb") || lowerId.includes("mysql") || lowerId.includes("postgres")) {
+            iconClass = "fa-solid fa-database text-primary";
+        }
+
+        const cardClass = isChecked ? "card h-100 component-card border-success" : "card h-100 component-card";
+        const btnClass = isChecked ? "btn btn-success btn-select-software w-100" : "btn btn-outline-primary btn-select-software w-100";
+        const btnText = isChecked ? '<i class="fa-solid fa-check me-2"></i>Selected' : 'Select';
+        const checkedAttr = isChecked ? 'checked' : '';
 
         return `
-            <div class="form-check mb-2">
-                <input class="form-check-input" type="${type}" name="${inputName}"
-                       value="${escapedId}" id="comp-${escapedId}" ${checkedAttr}>
-                <label class="form-check-label" for="comp-${escapedId}"><strong>${escapedName}</strong></label>
+            <div class="col">
+                <div class="${cardClass}" style="cursor: pointer; transition: all 0.2s;" data-component-id="${escapedId}" data-group-name="${escapeHTML(groupName)}" data-exclusive="${isExclusive}">
+                    <div class="card-body d-flex flex-column align-items-center text-center p-3">
+                        <div class="mb-3 p-3 bg-light rounded-circle d-flex align-items-center justify-content-center" style="width: 70px; height: 70px; background-color: rgba(255,255,255,0.05) !important;">
+                            <i class="${iconClass} fa-2x"></i>
+                        </div>
+                        <h5 class="card-title fw-bold mb-2">${escapedName}</h5>
+                        <p class="card-text small text-muted flex-grow-1">${escapedDesc}</p>
+                        <input type="checkbox" class="form-check-input d-none" id="comp-${escapedId}" value="${escapedId}" ${checkedAttr}>
+                        <button class="${btnClass} mt-3" type="button" style="pointer-events: none;">${btnText}</button>
+                    </div>
+                </div>
             </div>
-            <p class="card-text small text-muted ms-4 mb-3">${escapedDesc}</p>
         `;
     };
 
@@ -760,98 +833,137 @@
             const groups = groupsData.groups;
             const allGroupedComponents = new Set(Object.values(groups).flatMap(g => Array.isArray(g) ? g : g.components));
 
-            let tabNavHTML = '<ul class="nav nav-tabs" id="softwareTabs" role="tablist">';
-            let tabContentHTML = '<div class="tab-content" id="softwareTabsContent">';
+            let tabNavHTML = '<div class="nav flex-column nav-pills" id="v-pills-tab" role="tablist" aria-orientation="vertical">';
+            let tabContentHTML = '<div class="tab-content" id="v-pills-tabContent">';
             let active = 'active';
 
-            // Add Packages tab first if packages exist
+            // Add Packages section first if packages exist
             if (Object.keys(packages).length > 0) {
                 const activeClass = active ? 'show active' : '';
                 tabNavHTML += `
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link ${active}" data-bs-toggle="tab" data-bs-target="#tab-packages" type="button">
-                            <i class="fa-solid fa-layer-group me-1"></i> Packages
-                        </button>
-                    </li>`;
-                tabContentHTML += `<div class="tab-pane fade ${activeClass} p-3" id="tab-packages" role="tabpanel">`;
-                tabContentHTML += `<p class="text-muted small mb-3">Select a package to instantly deploy a fully integrated stack of services.</p>`;
+                    <button class="nav-link ${active}" id="v-pills-packages-tab" data-bs-toggle="pill" data-bs-target="#v-pills-packages" type="button" role="tab">
+                        <i class="fa-solid fa-layer-group me-2"></i>Stacks (Packages)
+                    </button>`;
+
+                tabContentHTML += `
+                    <div class="tab-pane fade ${activeClass}" id="v-pills-packages" role="tabpanel">
+                        <h3 class="h5 border-bottom pb-2 mb-3"><i class="fa-solid fa-layer-group me-2 text-primary"></i>All-in-One Stacks (Packages)</h3>
+                        <p class="text-muted small mb-3">Select a package to instantly deploy a fully integrated stack of services.</p>
+                        <div class="row row-cols-1 row-cols-lg-2 row-cols-xl-3 g-3">`;
 
                 Object.keys(packages).forEach(pkgId => {
                     const pkg = packages[pkgId];
                     const pkgComponents = allSoftwareCache.filter(c => c.package_id === pkgId);
                     const compNames = pkgComponents.map(c => c.name).join(', ');
+                    const escapedPkgId = escapeHTML(pkgId);
+                    const escapedPkgName = escapeHTML(pkg.name);
+                    const escapedPkgDesc = escapeHTML(pkg.description || 'A pre-configured stack of services.');
 
                     tabContentHTML += `
-                        <div class="form-check mb-2">
-                            <input class="form-check-input package-checkbox" type="checkbox" name="package-${escapeHTML(pkgId)}"
-                                   value="${escapeHTML(pkgId)}" id="pkg-${escapeHTML(pkgId)}" data-components="${escapeHTML(JSON.stringify(pkgComponents.map(c=>c.id)))}">
-                            <label class="form-check-label" for="pkg-${escapeHTML(pkgId)}"><strong>${escapeHTML(pkg.name)}</strong></label>
+                        <div class="col">
+                            <div class="card h-100 package-card border-primary" style="cursor: pointer; transition: all 0.2s;" data-package-id="${escapedPkgId}" data-components="${escapeHTML(JSON.stringify(pkgComponents.map(c=>c.id)))}">
+                                <div class="card-body d-flex flex-column align-items-center text-center p-3">
+                                    <div class="mb-3 p-3 bg-light rounded-circle d-flex align-items-center justify-content-center" style="width: 70px; height: 70px; background-color: rgba(255,255,255,0.05) !important;">
+                                        <i class="fa-solid fa-layer-group text-primary fa-2x"></i>
+                                    </div>
+                                    <h5 class="card-title fw-bold mb-2">${escapedPkgName}</h5>
+                                    <p class="card-text small text-muted flex-grow-1">${escapedPkgDesc}</p>
+                                    <p class="card-text small text-info mt-1"><em>Includes: ${escapeHTML(compNames)}</em></p>
+                                    <input type="checkbox" class="form-check-input package-checkbox d-none" id="pkg-${escapedPkgId}" value="${escapedPkgId}">
+                                    <button class="btn btn-outline-primary btn-select-package mt-3 w-100" type="button" style="pointer-events: none;">Select Stack</button>
+                                </div>
+                            </div>
                         </div>
-                        <p class="card-text small text-muted ms-4 mb-1">${escapeHTML(pkg.description || 'A pre-configured stack of services.')}</p>
-                        <p class="card-text small text-primary ms-4 mb-3"><em>Includes: ${escapeHTML(compNames)}</em></p>
                     `;
                 });
-                tabContentHTML += `</div>`;
-                active = ''; // Remove active status for the rest of the tabs
+                tabContentHTML += `</div></div>`;
+                active = ''; // Clear active state
             }
 
+            // Add Groups
             Object.keys(groups).forEach((groupName) => {
-                const tabId = `tab-${groupName.replace(/\s+/g, '-')}`;
-                tabNavHTML += `
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link ${active}" data-bs-toggle="tab" data-bs-target="#${tabId}" type="button">
-                            ${escapeHTML(groupName)}
-                        </button>
-                    </li>`;
-
-                // Mitigation: activeClass helper applies 'show active' strictly to the active tab to prevent transparent transition bug
-                const activeClass = active ? 'show active' : '';
-                tabContentHTML += `<div class="tab-pane fade ${activeClass} p-3" id="${tabId}" role="tabpanel">`;
-
                 const groupInfo = groups[groupName];
                 const isExclusive = Array.isArray(groupInfo) ? false : groupInfo.is_exclusive;
                 const compList = Array.isArray(groupInfo) ? groupInfo : groupInfo.components;
-                const inputType = isExclusive ? 'radio' : 'checkbox';
+                const tabId = `v-pills-${groupName.replace(/\s+/g, '-')}`;
+                const activeClass = active ? 'show active' : '';
+
+                let iconClass = "fa-solid fa-shapes";
+                const lowerGroup = groupName.toLowerCase();
+                if (lowerGroup.includes("database")) {
+                    iconClass = "fa-solid fa-database";
+                } else if (lowerGroup.includes("productivity")) {
+                    iconClass = "fa-solid fa-cubes";
+                } else if (lowerGroup.includes("network")) {
+                    iconClass = "fa-solid fa-circle-nodes";
+                } else if (lowerGroup.includes("security")) {
+                    iconClass = "fa-solid fa-shield-halved";
+                }
+
+                tabNavHTML += `
+                    <button class="nav-link ${active}" id="${tabId}-tab" data-bs-toggle="pill" data-bs-target="#${tabId}" type="button" role="tab">
+                        <i class="${iconClass} me-2"></i>${escapeHTML(groupName)}
+                    </button>`;
+
+                tabContentHTML += `
+                    <div class="tab-pane fade ${activeClass}" id="${tabId}" role="tabpanel">
+                        <h3 class="h5 border-bottom pb-2 mb-3"><i class="${iconClass} me-2 text-primary"></i>${escapeHTML(groupName)}</h3>
+                        <div class="row row-cols-1 row-cols-lg-2 row-cols-xl-3 g-3">`;
 
                 compList.forEach(compId => {
                     const targetId = typeof compId === 'object' && compId ? compId.id : compId;
                     const component = allSoftwareCache.find(c => c.id === targetId);
                     if (component) {
-                        tabContentHTML += createComponentInput(component, groupName, inputType);
+                        tabContentHTML += createComponentCard(component, groupName, isExclusive);
                     }
                 });
-                tabContentHTML += `</div>`;
+                tabContentHTML += `</div></div>`;
                 active = '';
             });
 
-            // Standalone Tab
-            const activeClass = active ? 'show active' : '';
-            tabNavHTML += `
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link ${active}" data-bs-toggle="tab" data-bs-target="#tab-standalone" type="button">
-                        Standalone
-                    </button>
-                </li>
-            `;
-            tabContentHTML += `<div class="tab-pane fade ${activeClass} p-3" id="tab-standalone" role="tabpanel">`;
+            // Standalone Section
+            let standaloneCardsHTML = '';
             allSoftwareCache.forEach(component => {
                 if (!allGroupedComponents.has(component.id)) {
-                    tabContentHTML += createComponentInput(component, 'standalone', 'checkbox');
+                    standaloneCardsHTML += createComponentCard(component, 'standalone', false);
                 }
             });
 
-            tabNavHTML += '</ul>';
+            if (standaloneCardsHTML) {
+                const activeClass = active ? 'show active' : '';
+                tabNavHTML += `
+                    <button class="nav-link ${active}" id="v-pills-standalone-tab" data-bs-toggle="pill" data-bs-target="#v-pills-standalone" type="button" role="tab">
+                        <i class="fa-solid fa-box-open me-2"></i>Standalone
+                    </button>`;
+
+                tabContentHTML += `
+                    <div class="tab-pane fade ${activeClass}" id="v-pills-standalone" role="tabpanel">
+                        <h3 class="h5 border-bottom pb-2 mb-3"><i class="fa-solid fa-box-open me-2 text-primary"></i>Standalone Applications</h3>
+                        <div class="row row-cols-1 row-cols-lg-2 row-cols-xl-3 g-3">
+                            ${standaloneCardsHTML}
+                        </div>
+                    </div>`;
+            }
+
+            tabNavHTML += '</div>';
             tabContentHTML += '</div>';
 
             wizardBody.innerHTML = `
                 <div class="text-start">
-                    <h2 class="h4 text-center">Select Software</h2>
-                    <p class="text-muted text-center small mb-4">
-                        Select the software you wish to install on your ${Object.keys(managedDeviceCache).length} selected device(s).
-                    </p>
-                    ${tabNavHTML}
-                    ${tabContentHTML}
-                    <div class="alert alert-info mt-3 p-3 text-start" role="alert">
+                    <h2 class="h4 text-center mb-4">Applications Marketplace</h2>
+                    <div class="row">
+                        <div class="col-md-3 mb-4">
+                            <div class="card p-2 border-0 bg-transparent">
+                                ${tabNavHTML}
+                            </div>
+                        </div>
+                        <div class="col-md-9">
+                            <div id="marketplace-container" class="mb-4">
+                                ${tabContentHTML}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="alert alert-info mt-4 p-3 text-start" role="alert">
                         <i class="fa-solid fa-circle-info me-2 text-primary"></i>
                         <strong>Recommended Utilities:</strong> For a complete management experience, we highly recommend selecting
                         <strong>Portainer</strong> (for easy container management),
@@ -862,37 +974,141 @@
                 </div>
             `;
 
-            // Setup package sync logic
+            // Interactive Selection Logic for Cards
+            document.querySelectorAll('.component-card').forEach(card => {
+                card.addEventListener('click', () => {
+                    const compId = card.dataset.componentId;
+                    const checkbox = /** @type {HTMLInputElement} */ (document.getElementById(`comp-${compId}`));
+                    const button = card.querySelector('.btn-select-software');
+                    if (!checkbox) return;
+
+                    const groupName = card.dataset.groupName;
+                    const isExclusive = card.dataset.exclusive === 'true';
+
+                    // Toggle logic
+                    const nextState = !checkbox.checked;
+
+                    if (isExclusive && nextState) {
+                        // Deselect other cards in this group
+                        document.querySelectorAll(`.component-card[data-group-name="${groupName}"]`).forEach(otherCard => {
+                            if (otherCard !== card) {
+                                const otherId = otherCard.dataset.componentId;
+                                const otherCheckbox = /** @type {HTMLInputElement} */ (document.getElementById(`comp-${otherId}`));
+                                const otherBtn = otherCard.querySelector('.btn-select-software');
+                                if (otherCheckbox) {
+                                    otherCheckbox.checked = false;
+                                    otherCard.classList.remove('border-success');
+                                    if (otherBtn) {
+                                        otherBtn.className = 'btn btn-outline-primary btn-select-software mt-3 w-100';
+                                        otherBtn.innerHTML = 'Select';
+                                    }
+                                }
+                            }
+                        });
+                    }
+
+                    checkbox.checked = nextState;
+
+                    if (checkbox.checked) {
+                        card.classList.add('border-success');
+                        button.className = 'btn btn-success btn-select-software mt-3 w-100';
+                        button.innerHTML = '<i class="fa-solid fa-check me-2"></i>Selected';
+                    } else {
+                        card.classList.remove('border-success');
+                        button.className = 'btn btn-outline-primary btn-select-software mt-3 w-100';
+                        button.innerHTML = 'Select';
+                    }
+
+                    updatePackageCheckboxes();
+                });
+            });
+
+            // Package Card clicks
+            document.querySelectorAll('.package-card').forEach(card => {
+                card.addEventListener('click', () => {
+                    const pkgId = card.dataset.packageId;
+                    const checkbox = /** @type {HTMLInputElement} */ (document.getElementById(`pkg-${pkgId}`));
+                    const button = card.querySelector('.btn-select-package');
+                    if (!checkbox) return;
+
+                    checkbox.checked = !checkbox.checked;
+                    const compIds = JSON.parse(card.dataset.components || '[]');
+
+                    // Update all associated component cards
+                    compIds.forEach(id => {
+                        const compCheckbox = /** @type {HTMLInputElement} */ (document.getElementById(`comp-${id}`));
+                        const compCard = document.querySelector(`.component-card[data-component-id="${id}"]`);
+                        if (compCheckbox) {
+                            compCheckbox.checked = checkbox.checked;
+                            if (compCard) {
+                                const compBtn = compCard.querySelector('.btn-select-software');
+                                if (checkbox.checked) {
+                                    compCard.classList.add('border-success');
+                                    if (compBtn) {
+                                        compBtn.className = 'btn btn-success btn-select-software mt-3 w-100';
+                                        compBtn.innerHTML = '<i class="fa-solid fa-check me-2"></i>Selected';
+                                    }
+                                } else {
+                                    compCard.classList.remove('border-success');
+                                    if (compBtn) {
+                                        compBtn.className = 'btn btn-outline-primary btn-select-software mt-3 w-100';
+                                        compBtn.innerHTML = 'Select';
+                                    }
+                                }
+                            }
+                        }
+                    });
+
+                    // Update package card visual state
+                    if (checkbox.checked) {
+                        card.classList.remove('border-primary');
+                        card.classList.add('border-success');
+                        button.className = 'btn btn-success btn-select-package mt-3 w-100';
+                        button.innerHTML = '<i class="fa-solid fa-check me-2"></i>Stack Selected';
+                    } else {
+                        card.classList.remove('border-success');
+                        card.classList.add('border-primary');
+                        button.className = 'btn btn-outline-primary btn-select-package mt-3 w-100';
+                        button.innerHTML = 'Select Stack';
+                    }
+                });
+            });
+
+            // Package checkbox synchronization helper
             const updatePackageCheckboxes = () => {
-                document.querySelectorAll('.package-checkbox').forEach(pkgCheckbox => {
-                    const compIds = JSON.parse((/** @type {HTMLElement} */ (pkgCheckbox)).dataset.components || '[]');
+                document.querySelectorAll('.package-card').forEach(card => {
+                    const pkgId = card.dataset.packageId;
+                    const checkbox = /** @type {HTMLInputElement} */ (document.getElementById(`pkg-${pkgId}`));
+                    const button = card.querySelector('.btn-select-package');
+                    const compIds = JSON.parse(card.dataset.components || '[]');
                     if (compIds.length === 0) return;
-                    (/** @type {HTMLInputElement} */ (pkgCheckbox)).checked = compIds.every(id => {
+
+                    const allChecked = compIds.every(id => {
                         const compInput = /** @type {HTMLInputElement} */ (document.getElementById(`comp-${id}`));
                         return compInput && compInput.checked;
                     });
+
+                    checkbox.checked = allChecked;
+
+                    if (allChecked) {
+                        card.classList.remove('border-primary');
+                        card.classList.add('border-success');
+                        button.className = 'btn btn-success btn-select-package mt-3 w-100';
+                        button.innerHTML = '<i class="fa-solid fa-check me-2"></i>Stack Selected';
+                    } else {
+                        card.classList.remove('border-success');
+                        card.classList.add('border-primary');
+                        button.className = 'btn btn-outline-primary btn-select-package mt-3 w-100';
+                        button.innerHTML = 'Select Stack';
+                    }
                 });
             };
 
-            document.querySelectorAll('.package-checkbox').forEach(pkgCheckbox => {
-                pkgCheckbox.addEventListener('change', (e) => {
-                    const isChecked = (/** @type {HTMLInputElement} */ (e.target)).checked;
-                    const compIds = JSON.parse((/** @type {HTMLElement} */ (e.target)).dataset.components || '[]');
-                    compIds.forEach(id => {
-                        const compInput = /** @type {HTMLInputElement} */ (document.getElementById(`comp-${id}`));
-                        if (compInput) compInput.checked = isChecked;
-                    });
-                });
-            });
-
-            document.querySelectorAll('#softwareTabsContent .form-check-input:not(.package-checkbox)').forEach(compCheckbox => {
-                compCheckbox.addEventListener('change', updatePackageCheckboxes);
-            });
             updatePackageCheckboxes(); // Run once to set initial state
 
             // Set up action area buttons dynamically with Back navigation
             const actionWrapper = document.createElement('div');
-            actionWrapper.className = 'd-flex justify-content-center gap-2 my-4';
+            actionWrapper.className = 'sticky-action-bar';
 
             const backBtn = document.createElement('button');
             backBtn.id = 'back-to-step2-btn';
@@ -1001,7 +1217,7 @@
     };
 
     const renderStep4_ConfigureServices = async () => {
-        selectedComponentsCache = Array.from(document.querySelectorAll('#softwareTabsContent .form-check-input:not(.package-checkbox):checked')).map(input => (/** @type {HTMLInputElement} */ (input)).value);
+        selectedComponentsCache = Array.from(document.querySelectorAll('#v-pills-tabContent .form-check-input:not(.package-checkbox):checked')).map(input => (/** @type {HTMLInputElement} */ (input)).value);
         // Option B: Visual progress bar at 75%
         toggleProgressBarVisibility(true, 75);
         if (wizardHeader) {
@@ -1039,7 +1255,7 @@
                 `;
 
                 const actionWrapper = document.createElement('div');
-                actionWrapper.className = 'd-flex justify-content-center gap-2 my-4';
+                actionWrapper.className = 'sticky-action-bar';
 
                 const backBtn = document.createElement('button');
                 backBtn.id = 'back-to-step3-btn';
@@ -1136,7 +1352,7 @@
 
             // Set up action area buttons dynamically with Back navigation
             const actionWrapper = document.createElement('div');
-            actionWrapper.className = 'd-flex justify-content-center gap-2 my-4';
+            actionWrapper.className = 'sticky-action-bar';
 
             const backBtn = document.createElement('button');
             backBtn.id = 'back-to-step3-btn';
@@ -1376,7 +1592,7 @@
 
         // Set up action area buttons dynamically with Back navigation
         const actionWrapper = document.createElement('div');
-        actionWrapper.className = 'd-flex justify-content-center gap-2 my-4';
+        actionWrapper.className = 'sticky-action-bar';
 
         const backBtn = document.createElement('button');
         backBtn.id = 'back-to-step4-btn';
@@ -1421,16 +1637,20 @@
             updateWizardFooter('Ready for deployment.');
             wizardBody.innerHTML = `
                 <div class="text-center">
-                    <i class="fa-solid fa-circle-check fa-3x text-success mb-3"></i>
-                    <h2 class="h4">Files Generated Successfully!</h2>
-                    <p class="text-muted">Your configuration files are ready.</p>
+                    <div id="deployment-status-icon">
+                        <i class="fa-solid fa-circle-check fa-3x text-success mb-3"></i>
+                    </div>
+                    <h2 id="deployment-status-title" class="h4">Files Generated Successfully!</h2>
+                    <div id="deployment-status-subtitle-container">
+                        <p class="text-muted">Your configuration files are ready.</p>
+                    </div>
                     <div class="card card-body bg-light text-start my-3">
                         <pre><code id="output-path-display">${escapeHTML(result.output_path)}</code></pre>
                     </div>
                     <div id="final-actions-container">
-                         <div class="d-grid gap-2 d-md-flex justify-content-md-center mt-4" id="deployment-actions">
+                         <div class="sticky-action-bar" id="deployment-actions">
                             <button id="deploy-button" class="btn btn-primary">
-                                <i class="fa-solid fa-rocket me-2"></i>Deploy to Pi(s)
+                                <i class="fa-solid fa-rocket me-2"></i>Deploy to Target(s)
                             </button>
                             <button id="start-over-btn" class="btn btn-secondary">Start Over</button>
                         </div>
@@ -1515,8 +1735,29 @@
         setButtonState(deployButton, true, {loadingText: 'Deploying...'});
         logContainer.style.display = 'block';
         logOutput.innerHTML = '';
-        wizardHeader.innerHTML = '<strong>Deploying The Services</strong>';
-        updateWizardFooter('Deploying services to your Raspberry Pi(s)...', 'primary');
+        wizardHeader.innerHTML = '<strong>Deploying Services</strong>';
+        updateWizardFooter('Deploying services...', 'primary');
+
+        const statusIcon = document.getElementById('deployment-status-icon');
+        const statusTitle = document.getElementById('deployment-status-title');
+        const subtitleContainer = document.getElementById('deployment-status-subtitle-container');
+
+        if (statusIcon) {
+            statusIcon.innerHTML = '<i class="fa-solid fa-spinner fa-spin fa-3x text-primary mb-3"></i>';
+        }
+        if (statusTitle) {
+            statusTitle.textContent = 'Deploying Services...';
+        }
+        if (subtitleContainer) {
+            subtitleContainer.innerHTML = `
+                <div class="mx-auto mb-3" style="max-width: 500px;">
+                    <div class="progress" style="height: 20px;">
+                        <div id="deployment-progress-bar" class="progress-bar progress-bar-striped progress-bar-animated bg-success" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%</div>
+                    </div>
+                    <div id="deployment-playbook-step" class="text-muted small mt-2">Initializing deployment...</div>
+                </div>
+            `;
+        }
 
         // Mitigation: Hide progress bar entirely during active deployment
         toggleProgressBarVisibility(false, 0);
@@ -1551,6 +1792,22 @@
                 wizardHeader.innerHTML = '<strong>Deployment Failed</strong>';
                 updateWizardFooter('Connection timed out. Please check the backend console.', 'danger');
                 setButtonState(deployButton, false, {text: '<i class="fa-solid fa-triangle-exclamation me-2"></i>Deployment Failed - Retry?'});
+                if (statusIcon) {
+                    statusIcon.innerHTML = '<i class="fa-solid fa-circle-xmark fa-3x text-danger mb-3"></i>';
+                }
+                if (statusTitle) {
+                    statusTitle.textContent = 'Deployment Failed';
+                }
+                const progressBar = document.getElementById('deployment-progress-bar');
+                const playbookStep = document.getElementById('deployment-playbook-step');
+                if (progressBar) {
+                    progressBar.classList.remove('bg-success');
+                    progressBar.classList.add('bg-danger');
+                }
+                if (playbookStep) {
+                    playbookStep.className = 'text-danger fw-bold mt-2';
+                    playbookStep.textContent = 'Connection timed out.';
+                }
             }, 30000);
 
             eventSource.onmessage = event => {
@@ -1569,38 +1826,149 @@
                 span.textContent = line + '\n';
                 logOutput.appendChild(span);
                 logOutput.parentElement.scrollTop = logOutput.parentElement.scrollHeight;
+
+                // Dynamically update the progress bar and step status
+                const progressBar = document.getElementById('deployment-progress-bar');
+                const playbookStep = document.getElementById('deployment-playbook-step');
+
+                let progress = 0;
+                let stepText = '';
+
+                if (line.includes('Pre flight check')) {
+                    progress = 10;
+                    stepText = 'Checking disk space...';
+                } else if (line.includes('Ensure prerequisites for Docker')) {
+                    progress = 20;
+                    stepText = 'Installing system dependencies...';
+                } else if (line.includes('keyring exists')) {
+                    progress = 30;
+                    stepText = 'Preparing Docker keyring...';
+                } else if (line.includes('Download Docker official GPG')) {
+                    progress = 40;
+                    stepText = 'Fetching Docker security keys...';
+                } else if (line.includes('Add Docker repository')) {
+                    progress = 50;
+                    stepText = 'Adding Docker package repositories...';
+                } else if (line.includes('Docker CE and Compose plugin')) {
+                    progress = 65;
+                    stepText = 'Installing Docker Engine (this may take a minute)...';
+                } else if (line.includes('project directory exists')) {
+                    progress = 70;
+                    stepText = 'Creating configuration directories...';
+                } else if (line.includes('Copy all deployment files')) {
+                    progress = 80;
+                    stepText = 'Transferring configuration files to target...';
+                } else if (line.includes('Perform Clean Install')) {
+                    progress = 85;
+                    stepText = 'Performing clean install of services...';
+                } else if (line.includes('Docker network exists')) {
+                    progress = 90;
+                    stepText = 'Setting up container network...';
+                } else if (line.includes('Pull latest service images')) {
+                    progress = 93;
+                    stepText = 'Downloading Docker images...';
+                } else if (line.includes('Deploy services with Docker')) {
+                    progress = 96;
+                    stepText = 'Starting services...';
+                } else if (line.includes('Restart specifically requested')) {
+                    progress = 98;
+                    stepText = 'Restarting services...';
+                } else if (line.includes('SUCCESS:') || line.includes('finished successfully')) {
+                    progress = 100;
+                    stepText = 'Deployment completed successfully!';
+                }
+
+                if (progress > 0 && progressBar) {
+                    progressBar.style.width = `${progress}%`;
+                    progressBar.setAttribute('aria-valuenow', progress);
+                    progressBar.textContent = `${progress}%`;
+                }
+                if (stepText && playbookStep) {
+                    playbookStep.textContent = stepText;
+                }
+
+                if (line.includes('FAILED:') || line.includes('FATAL:')) {
+                    if (progressBar) {
+                        progressBar.classList.remove('bg-success');
+                        progressBar.classList.add('bg-danger');
+                    }
+                    if (playbookStep) {
+                        playbookStep.className = 'text-danger fw-bold mt-2';
+                        playbookStep.textContent = 'Deployment failed. Check logs below.';
+                    }
+                    if (statusIcon) {
+                        statusIcon.innerHTML = '<i class="fa-solid fa-circle-xmark fa-3x text-danger mb-3"></i>';
+                    }
+                    if (statusTitle) {
+                        statusTitle.textContent = 'Deployment Failed';
+                    }
+                }
+
+                if (line.includes('SUCCESS:')) {
+                    if (statusIcon) {
+                        statusIcon.innerHTML = '<i class="fa-solid fa-circle-check fa-3x text-success mb-3"></i>';
+                    }
+                    if (statusTitle) {
+                        statusTitle.textContent = 'Deployment Successful';
+                    }
+                }
             };
 
-eventSource.onerror = () => {
+            eventSource.onerror = () => {
                 clearTimeout(watchdogTimer);
                 eventSource.close();
+
+                const progressBar = document.getElementById('deployment-progress-bar');
+                const playbookStep = document.getElementById('deployment-playbook-step');
+
                 if (hasErrors) {
                     setButtonState(deployButton, false, {text: '<i class="fa-solid fa-triangle-exclamation me-2"></i>Show Error Report'});
                     wizardHeader.innerHTML = '<strong>Deployment Finished with Errors</strong>';
                     updateWizardFooter('Deployment completed, but some steps failed.', 'warning');
                     deployButton.onclick = () => showErrorSummary(taskId);
+
+                    if (statusIcon) {
+                        statusIcon.innerHTML = '<i class="fa-solid fa-circle-xmark fa-3x text-danger mb-3"></i>';
+                    }
+                    if (statusTitle) {
+                        statusTitle.textContent = 'Deployment Failed';
+                    }
+                    if (progressBar) {
+                        progressBar.classList.remove('bg-success');
+                        progressBar.classList.add('bg-danger');
+                    }
+                    if (playbookStep) {
+                        playbookStep.className = 'text-danger fw-bold mt-2';
+                        playbookStep.textContent = 'Deployment failed with errors.';
+                    }
                 } else {
                     setButtonState(deployButton, false, {text: '<i class="fa-solid fa-circle-check me-2"></i>Deployment Finished'});
                     wizardHeader.innerHTML = '<strong>Deployment Finished</strong>';
                     updateWizardFooter('Deployment process completed successfully.', 'success');
 
-                    // Mitigation: Dynamically update the card title to show precise target success
-                    const h2 = document.querySelector('#wizard-body h2');
-                    if (h2) {
-                        const targetHosts = Object.values(managedDeviceCache)
-                            .map(d => `${escapeHTML(d.hostname || 'Unknown Host')} (${escapeHTML(d.ip)})`)
-                            .join(', ');
-                        h2.textContent = `Deployment Successful on ${targetHosts}!`;
+                    const targetHosts = Object.values(managedDeviceCache)
+                        .map(d => `${escapeHTML(d.hostname || 'Unknown Host')} (${escapeHTML(d.ip)})`)
+                        .join(', ');
+
+                    if (statusIcon) {
+                        statusIcon.innerHTML = '<i class="fa-solid fa-circle-check fa-3x text-success mb-3"></i>';
                     }
-                    const pMuted = document.querySelector('#wizard-body p.text-muted');
-                    if (pMuted) {
-                        pMuted.textContent = 'All services are up and running on your Raspberry Pi.';
+                    if (statusTitle) {
+                        statusTitle.textContent = `Deployment Successful on ${targetHosts}!`;
+                    }
+                    if (progressBar) {
+                        progressBar.style.width = '100%';
+                        progressBar.setAttribute('aria-valuenow', 100);
+                        progressBar.textContent = '100%';
+                    }
+                    if (playbookStep) {
+                        playbookStep.textContent = 'All services are up and running.';
                     }
 
                     const finalActions = document.getElementById('final-actions-container');
                     if (finalActions) {
                         finalActions.innerHTML = `
-                            <div class="d-grid gap-2 col-8 mx-auto my-4">
+                            <div class="sticky-action-bar">
                                  <button id="show-summary-btn" class="btn btn-info btn-lg">
                                     <i class="fa-solid fa-list-check me-2"></i>Access Your Services
                                  </button>
@@ -1612,7 +1980,7 @@ eventSource.onerror = () => {
         } catch (error) {
             console.error('Failed to start deployment:', error);
             logOutput.innerHTML += `<span class="text-danger fw-bold">ERROR: Failed to initiate deployment. ${escapeHTML(error.message)}\n</span>`;
-        wizardHeader.innerHTML = '<strong>Deployment Failed</strong>';
+            wizardHeader.innerHTML = '<strong>Deployment Failed</strong>';
             setButtonState(deployButton, false, {text: '<i class="fa-solid fa-triangle-exclamation me-2"></i>Deployment Failed - Retry?'});
             updateWizardFooter('Could not start deployment process.', 'danger');
         }
@@ -1781,7 +2149,7 @@ eventSource.onerror = () => {
 
         const performScan = async () => {
             setButtonState(scanBtn, true, {loadingText: 'Scanning...'});
-            updateWizardFooter('Scanning network for Raspberry Pi devices...', 'primary');
+            updateWizardFooter('Scanning network for supported single-board computers...', 'primary');
 
             const isDirectIp = directRadio && (/** @type {HTMLInputElement} */ (directRadio)).checked;
             const isManual = manualRadio && (/** @type {HTMLInputElement} */ (manualRadio)).checked;
@@ -1840,6 +2208,13 @@ eventSource.onerror = () => {
             progressBar.style.width = `${percentage}%`;
         }
     };
+
+    // Listen for theme change events or dropdown button clicks
+    document.querySelectorAll('[data-theme-value]').forEach(button => {
+        button.addEventListener('click', () => {
+            setTimeout(updateLogoVisibility, 50);
+        });
+    });
 
     // Initialize Onboarding/Welcome Step 0 on page load
     renderStep1_Welcome();

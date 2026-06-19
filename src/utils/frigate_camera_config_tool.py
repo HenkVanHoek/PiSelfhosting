@@ -13,7 +13,8 @@ from zeep.exceptions import Fault
 
 from pi_scanner import PiScanner
 
-# Dynamic path handling: Use container storage if available, fallback to local script dir for PyCharm
+# Dynamic path handling: Use container storage if available,
+# fallback to local script dir for PyCharm
 if os.path.exists("/app/config"):
     FRIGATE_CONFIG_PATH = "/app/config/config.yml"
 else:
@@ -80,7 +81,8 @@ async def discover_onvif_cameras():
         return []
 
     print(
-        f"Found {len(potential_ips)} potential network hosts. Verifying ONVIF bindings..."
+        f"Found {len(potential_ips)} potential network hosts. "
+        "Verifying ONVIF bindings..."
     )
 
     # Process found IP addresses to extract stream profile data
@@ -170,7 +172,8 @@ async def main():
             print(f"Loaded baseline configuration from: {FRIGATE_CONFIG_PATH}")
         except yaml.YAMLError:
             print(
-                "Warning: Existing config.yml was invalid. Initializing clean dictionary."
+                "Warning: Existing config.yml was invalid. "
+                "Initializing clean dictionary."
             )
             frigate_data = {}
 
@@ -213,7 +216,8 @@ async def main():
             with open(FRIGATE_CONFIG_PATH, "w") as f:
                 yaml.dump(frigate_data, f, indent=2, sort_keys=False)
             print(
-                f"✅ Frigate configuration successfully verified/saved at: {FRIGATE_CONFIG_PATH}"
+                "✅ Frigate configuration successfully verified/saved at: "
+                f"{FRIGATE_CONFIG_PATH}"
             )
         except Exception as e:
             print(f"❌ Error writing to config.yml: {e}")
@@ -225,6 +229,6 @@ async def main():
 
 if __name__ == "__main__":
     if platform.system() == "Windows":
-        policy = asyncio.WindowsSelectorEventLoopPolicy()
+        policy = asyncio.WindowsSelectorEventLoopPolicy()  # type: ignore[attr-defined]
         asyncio.set_event_loop_policy(policy)
     asyncio.run(main())

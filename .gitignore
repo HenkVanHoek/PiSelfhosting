@@ -45,3 +45,4 @@ docker/
 
 node_modules/
 *.egg-info
+/.agy/

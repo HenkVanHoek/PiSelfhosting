@@ -114,3 +114,66 @@
     border-radius: 5px;
     border-left: 4px solid var(--brand-blue);
 }
+
+/* Theme-specific logo visibility and blending */
+.logo-light {
+    display: inline-block !important;
+}
+
+.logo-dark {
+    display: none !important;
+}
+
+html[data-theme="dark"] .logo-light,
+html[data-theme="futuristic-dark"] .logo-light,
+html[data-theme="high-contrast-dark"] .logo-light {
+    display: none !important;
+}
+
+html[data-theme="dark"] .logo-dark,
+html[data-theme="futuristic-dark"] .logo-dark,
+html[data-theme="high-contrast-dark"] .logo-dark {
+    display: inline-block !important;
+    filter: drop-shadow(0 0 15px rgba(0, 255, 242, 0.3));
+}
+
+/* Ensure the navbar and its dropdown menus sit on top of other content */
+.navbar {
+    position: relative;
+    z-index: 1030;
+}
+
+/* Sticky Action Bar for wizard navigation */
+.sticky-action-bar {
+    position: sticky;
+    bottom: 0;
+    background: var(--glass-bg, rgba(255, 255, 255, 0.95));
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border-top: 1px solid rgba(0, 0, 0, 0.1);
+    padding: 20px;
+    margin-top: 30px;
+    margin-left: -16px;
+    margin-right: -16px;
+    margin-bottom: -16px;
+    border-bottom-left-radius: 8px;
+    border-bottom-right-radius: 8px;
+    z-index: 1030;
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+}
+
+@media (min-width: 768px) {
+    .sticky-action-bar {
+        margin-left: -24px;
+        margin-right: -24px;
+        margin-bottom: -24px;
+    }
+}
+
+html[data-theme="dark"] .sticky-action-bar,
+html[data-theme="futuristic-dark"] .sticky-action-bar,
+html[data-theme="high-contrast-dark"] .sticky-action-bar {
+    border-top: 1px solid rgba(255, 255, 255, 0.15);
+}

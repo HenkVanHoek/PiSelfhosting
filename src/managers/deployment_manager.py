@@ -118,16 +118,16 @@ class DeploymentManager:
                     extravars["ansible_password"] = ssh_password
                     extravars["ansible_become_password"] = ssh_password
 
-                # Execute Ansible and pass the local path and new flags as variables
-                runner = ansible_runner.run(
-                    private_data_dir=project_root,
-                    playbook=playbook_path,
-                    inventory={"all": {"hosts": {ip: {}}}},
-                    extravars=extravars,
-                    quiet=False,
-                )
+                processed_events: set[str] = set()
 
-                for event in runner.events:
+                def handle_single_event(event: Dict[str, Any]) -> bool:
+                    event_uuid = event.get("uuid")
+                    if not event_uuid:
+                        event_uuid = str(len(processed_events))
+                    if event_uuid in processed_events:
+                        return True
+                    processed_events.add(event_uuid)
+
                     event_name = event.get("event")
                     event_data = event.get("event_data", {})
 
@@ -152,7 +152,7 @@ class DeploymentManager:
                         err_msg = res.get("msg", "Unknown error")
                         self.tasks[task_id]["logs"].append(f"FAILED: {err_msg}")
 
-                        # Catch detailed shell outputs, module failures or tracebacks
+                        # Catch detailed shell outputs or tracebacks
                         if isinstance(res, dict):
                             stderr = res.get("stderr")
                             if stderr:
@@ -234,12 +234,26 @@ class DeploymentManager:
                             }
                         )
 
-                    # Catch standalone global warnings (like Docker Compose
-                    # parse errors)
+                    # Catch standalone global warnings
                     elif event_name == "warning":
                         warn_msg = event_data.get("warning", "")
                         if warn_msg:
                             self.tasks[task_id]["logs"].append(f"WARN: {warn_msg}")
+                    return True
+
+                # Execute Ansible and pass the local path and new flags as variables
+                runner = ansible_runner.run(
+                    private_data_dir=project_root,
+                    playbook=playbook_path,
+                    inventory={"all": {"hosts": {ip: {}}}},
+                    extravars=extravars,
+                    quiet=False,
+                    event_handler=handle_single_event,
+                )
+
+                if hasattr(runner, "events") and runner.events:
+                    for event in runner.events:
+                        handle_single_event(event)
 
                 if runner.status == "successful":
                     self.tasks[task_id]["logs"].append(

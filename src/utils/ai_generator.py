@@ -206,6 +206,7 @@ class AIGenerator:
             data["config_templates"] = configs_dict
 
             data["id"] = component_id
+            data["security_warnings"] = self._run_security_checks(data)
             return data
 
         except requests.exceptions.RequestException as e:
@@ -237,3 +238,99 @@ class AIGenerator:
         except (json.JSONDecodeError, KeyError, ValueError) as e:
             logger.error(f"Failed to parse Gemini API response: {e}")
             raise RuntimeError(f"Received malformed response from Gemini API: {e}")
+
+    def _run_security_checks(self, data: dict) -> list[str]:
+        """Runs security validations on the generated component data."""
+        warnings = []
+
+        # 1. Parse Docker Compose YAML and check configurations
+        docker_compose_str = data.get("docker_compose", "")
+        if docker_compose_str:
+            try:
+                import yaml
+
+                compose_dict = yaml.safe_load(docker_compose_str) or {}
+                services = compose_dict.get("services", {})
+                if isinstance(services, dict):
+                    for service_name, service_conf in services.items():
+                        if not isinstance(service_conf, dict):
+                            continue
+
+                        # Check privileged
+                        if service_conf.get("privileged") is True:
+                            warnings.append(
+                                f"Service '{service_name}' runs in " "privileged mode."
+                            )
+
+                        # Check network mode
+                        if service_conf.get("network_mode") == "host":
+                            warnings.append(
+                                f"Service '{service_name}' uses host " "network mode."
+                            )
+
+                        # Check volume mounts
+                        volumes = service_conf.get("volumes", [])
+                        if isinstance(volumes, list):
+                            for vol in volumes:
+                                host_path = ""
+                                if isinstance(vol, str):
+                                    parts = vol.split(":")
+                                    host_path = parts[0] if parts else ""
+                                elif isinstance(vol, dict):
+                                    host_path = vol.get("source", "")
+
+                                if host_path == "/var/run/docker.sock":
+                                    warnings.append(
+                                        f"Service '{service_name}' mounts the "
+                                        "Docker socket "
+                                        "(/var/run/docker.sock)."
+                                    )
+                                elif host_path in [
+                                    "/",
+                                    "/etc",
+                                    "/boot",
+                                    "/sys",
+                                    "/proc",
+                                    "/dev",
+                                ]:
+                                    warnings.append(
+                                        f"Service '{service_name}' mounts a "
+                                        f"sensitive host system path: "
+                                        f"{host_path}"
+                                    )
+
+                        # Check cap_add
+                        cap_adds = service_conf.get("cap_add", [])
+                        if isinstance(cap_adds, list):
+                            for cap in cap_adds:
+                                if cap in ["SYS_ADMIN", "ALL"]:
+                                    warnings.append(
+                                        f"Service '{service_name}' requests "
+                                        f"broad capability: {cap}"
+                                    )
+            except Exception as e:
+                warnings.append(
+                    f"Failed to parse Docker Compose for security checks: {e}"
+                )
+
+        # 2. Check variables for weak default secrets
+        variables = data.get("variables", [])
+        if isinstance(variables, list):
+            secret_keywords = ["password", "secret", "key", "token", "pwd"]
+            weak_defaults = ["admin", "root", "password", "123456", "secret"]
+            for var in variables:
+                if not isinstance(var, dict):
+                    continue
+                var_id = str(var.get("id", "")).lower()
+                var_default = str(var.get("default", ""))
+
+                is_secret = any(kw in var_id for kw in secret_keywords)
+                if is_secret and var_default:
+                    if var_default.lower() in weak_defaults or len(var_default) < 6:
+                        warnings.append(
+                            f"Variable '{var.get('id')}' appears to be a "
+                            "secret but has a weak default value: "
+                            f"'{var_default}'"
+                        )
+
+        return warnings

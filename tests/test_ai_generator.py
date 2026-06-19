@@ -94,3 +94,46 @@ class TestAIGenerator(unittest.TestCase):
             self.generator.generate_component_data("https://github.com/owner/repo")
 
         self.assertIn("temporarily unavailable", str(context.exception))
+
+    def test_run_security_checks_detects_issues(self):
+        """Verify that _run_security_checks correctly flags vulnerabilities."""
+        # Setup data with various security issues
+        test_data = {
+            "docker_compose": (
+                "services:\n"
+                "  my-web:\n"
+                "    privileged: true\n"
+                "    network_mode: host\n"
+                "    cap_add:\n"
+                "      - SYS_ADMIN\n"
+                "    volumes:\n"
+                "      - /var/run/docker.sock:/var/run/docker.sock\n"
+                "      - /etc:/etc\n"
+            ),
+            "variables": [
+                {
+                    "id": "MYSQL_PASSWORD",
+                    "default": "12345",
+                },
+                {
+                    "id": "ADMIN_TOKEN",
+                    "default": "admin",
+                },
+                {
+                    "id": "NORMAL_VAR",
+                    "default": "safe_value",
+                },
+            ],
+        }
+
+        warnings = self.generator._run_security_checks(test_data)
+
+        # Verify warnings
+        self.assertTrue(any("privileged mode" in w for w in warnings))
+        self.assertTrue(any("host network mode" in w for w in warnings))
+        self.assertTrue(any("Docker socket" in w for w in warnings))
+        self.assertTrue(any("sensitive host system path" in w for w in warnings))
+        self.assertTrue(any("broad capability" in w for w in warnings))
+        self.assertTrue(any("MYSQL_PASSWORD" in w for w in warnings))
+        self.assertTrue(any("ADMIN_TOKEN" in w for w in warnings))
+        self.assertFalse(any("NORMAL_VAR" in w for w in warnings))

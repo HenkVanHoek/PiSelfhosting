@@ -735,6 +735,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const repoUrl = repoUrlInput.value.trim();
             const instructions = instructionsInput.value.trim();
             const apiKey = apiKeyInput.value.trim();
+            const saveKeyCheckbox = document.getElementById('ai-save-key');
+            const saveKey = saveKeyCheckbox ? saveKeyCheckbox.checked : false;
 
             inputStep.classList.add('d-none');
             loadingStep.classList.remove('d-none');
@@ -746,11 +748,22 @@ document.addEventListener('DOMContentLoaded', () => {
                     body: JSON.stringify({
                         repo_url: repoUrl,
                         custom_instructions: instructions,
-                        api_key: apiKey
+                        api_key: apiKey,
+                        save_key: saveKey
                     })
                 });
 
                 generatedData = result.data;
+
+                // Update input placeholder dynamically if a key was entered and saved
+                if (apiKey) {
+                    apiKeyInput.value = '';
+                    apiKeyInput.placeholder = 'Gemini API key is configured (leave blank to keep)';
+                    const formText = apiKeyInput.nextElementSibling;
+                    if (formText) {
+                        formText.textContent = 'The configured GEMINI_API_KEY from the .env file will be used if this is left blank.';
+                    }
+                }
 
                 // Populate preview UI
                 previewName.value = generatedData.metadata.name || '';

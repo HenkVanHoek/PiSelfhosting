@@ -63,6 +63,45 @@ class TestEditorAppAPI(unittest.TestCase):
 
         self.assertEqual(response.status_code, 400)
 
+    @patch("builtins.open")
+    @patch("editor_app.app.AIGenerator.generate_component_data")
+    def test_ai_generate_endpoint_save_key(self, mock_generate, mock_open):
+        """Tests that api_key is saved to .env file when save_key is True."""
+        mock_generate.return_value = {
+            "metadata": {
+                "name": "Caddy",
+                "image_name": "caddy",
+                "description": "web server",
+                "group": "reverse_proxy",
+                "has_ui": False,
+                "has_configuration": True,
+            },
+            "docker_compose": "services:",
+            "variables": [],
+        }
+
+        payload = {
+            "repo_url": "https://github.com/caddyserver/caddy",
+            "custom_instructions": "none",
+            "api_key": "new_test_gemini_key",
+            "save_key": True,
+        }
+
+        import pathlib
+        import unittest.mock
+        from unittest.mock import patch
+
+        with patch.dict("os.environ", {}):
+            with patch.object(pathlib.Path, "exists", return_value=False):
+                response = self.client.post(
+                    "/api/ai/generate",
+                    data=json.dumps(payload),
+                    content_type="application/json",
+                )
+
+        self.assertEqual(response.status_code, 200)
+        mock_open.assert_called_with(unittest.mock.ANY, "w")
+
     @patch("editor_app.app.ComponentManager.create_component")
     @patch("editor_app.app.ComponentManager.update_component_metadata")
     @patch("editor_app.app.ComponentManager.update_component_template_content")

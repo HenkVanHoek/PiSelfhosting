@@ -28,6 +28,32 @@ def create_app(test_config=None):
     if test_config:
         app.config.update(test_config)
 
+    def save_api_key_to_env(key: str):
+        """Saves the Gemini API key to the local .env file."""
+        env_path = project_root / ".env"
+        lines = []
+        key_written = False
+        if env_path.exists():
+            with open(env_path, "r") as f:
+                lines = f.readlines()
+
+            for i, line in enumerate(lines):
+                if line.strip().startswith("GEMINI_API_KEY="):
+                    lines[i] = f"GEMINI_API_KEY={key}\n"
+                    key_written = True
+                    break
+
+        if not key_written:
+            if lines and not lines[-1].endswith("\n"):
+                lines.append("\n")
+            lines.append(f"GEMINI_API_KEY={key}\n")
+
+        with open(env_path, "w") as f:
+            f.writelines(lines)
+
+        # Update current process environment
+        os.environ["GEMINI_API_KEY"] = key
+
     meta_file_path, temp_path_obj = get_components_paths()
     meta_file = str(meta_file_path)
     temp_path = str(temp_path_obj)
@@ -364,7 +390,8 @@ def create_app(test_config=None):
 
     @app.route("/")
     def index():
-        return render_template("editor.html")
+        has_gemini_key = bool(os.environ.get("GEMINI_API_KEY"))
+        return render_template("editor.html", has_gemini_key=has_gemini_key)
 
     @app.route("/api/components", methods=["GET"])
     def list_components():
@@ -638,9 +665,19 @@ def create_app(test_config=None):
         repo_url = data.get("repo_url")
         custom_instructions = data.get("custom_instructions")
         api_key = data.get("api_key")
+        save_key = data.get("save_key", False)
 
         if not repo_url or not isinstance(repo_url, str):
             abort(400, "A valid GitHub repository URL is required")
+
+        if api_key:
+            api_key = api_key.strip()
+
+        if api_key and save_key:
+            try:
+                save_api_key_to_env(api_key)
+            except Exception as e:
+                logging.error(f"Failed to save API key to .env: {e}")
 
         try:
             generator = AIGenerator(api_key=api_key)
