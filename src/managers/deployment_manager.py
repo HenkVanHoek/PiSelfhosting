@@ -242,55 +242,85 @@ class DeploymentManager:
                     return True
 
                 # Execute Ansible and pass the local path and new flags as variables
-                runner = ansible_runner.run(
-                    private_data_dir=project_root,
-                    playbook=playbook_path,
-                    inventory={"all": {"hosts": {ip: {}}}},
-                    extravars=extravars,
-                    quiet=False,
-                    event_handler=handle_single_event,
-                )
-
-                if hasattr(runner, "events") and runner.events:
-                    for event in runner.events:
-                        handle_single_event(event)
-
-                if runner.status == "successful":
-                    self.tasks[task_id]["logs"].append(
-                        f"SUCCESS: Node {ip} deployed successfully."
-                    )
-                else:
-                    self.tasks[task_id]["status"] = "failed"
-                    self.tasks[task_id]["logs"].append(
-                        f"ERROR: Deployment to {ip} did not complete successfully."
+                try:
+                    runner = ansible_runner.run(
+                        private_data_dir=project_root,
+                        playbook=playbook_path,
+                        inventory={"all": {"hosts": {ip: {}}}},
+                        extravars=extravars,
+                        quiet=False,
+                        event_handler=handle_single_event,
                     )
 
-                    # Extract raw Ansible/runner stdout console to
-                    # capture global crashes
-                    # like Out of Memory (OOM) or syntax/process compilation issues.
-                    if hasattr(runner, "stdout") and runner.stdout:
+                    if hasattr(runner, "events") and runner.events:
+                        for event in runner.events:
+                            handle_single_event(event)
+
+                    if runner.status == "successful":
+                        self.tasks[task_id]["logs"].append(
+                            f"SUCCESS: Node {ip} deployed successfully."
+                        )
+                    else:
+                        self.tasks[task_id]["status"] = "failed"
+                        self.tasks[task_id]["logs"].append(
+                            f"ERROR: Deployment to {ip} did not complete successfully."
+                        )
+
+                        # Extract raw Ansible/runner stdout console to
+                        # capture global crashes
+                        # like Out of Memory (OOM) or syntax/process compilation issues.
+                        if hasattr(runner, "stdout") and runner.stdout:
+                            try:
+                                runner.stdout.seek(0)
+                                stdout_content = runner.stdout.read()
+                                if stdout_content:
+                                    self.tasks[task_id]["logs"].append(
+                                        "--- GLOBAL ANSIBLE CONSOLE OUTPUT ---"
+                                    )
+                                    # Grab the last few lines of the raw process stdout
+                                    raw_lines = stdout_content.splitlines()
+                                    last_lines = (
+                                        raw_lines[-20:]
+                                        if len(raw_lines) > 20
+                                        else raw_lines
+                                    )
+                                    for line in last_lines:
+                                        clean_line = line.strip()
+                                        if clean_line:
+                                            self.tasks[task_id]["logs"].append(
+                                                f"CONSOLE: {clean_line}"
+                                            )
+                            except Exception as read_err:
+                                logger.error(
+                                    f"Failed to read runner stdout: {read_err}"
+                                )
+                finally:
+                    # Cleanup sensitive/temporary Ansible files from disk
+                    import shutil
+                    from pathlib import Path
+
+                    p_root = Path(project_root)
+                    extravars_file = p_root / "env" / "extravars"
+                    hosts_file = p_root / "inventory" / "hosts.json"
+                    artifacts_dir = p_root / "artifacts"
+
+                    if extravars_file.exists():
                         try:
-                            runner.stdout.seek(0)
-                            stdout_content = runner.stdout.read()
-                            if stdout_content:
-                                self.tasks[task_id]["logs"].append(
-                                    "--- GLOBAL ANSIBLE CONSOLE OUTPUT ---"
-                                )
-                                # Grab the last few lines of the raw process stdout
-                                raw_lines = stdout_content.splitlines()
-                                last_lines = (
-                                    raw_lines[-20:]
-                                    if len(raw_lines) > 20
-                                    else raw_lines
-                                )
-                                for line in last_lines:
-                                    clean_line = line.strip()
-                                    if clean_line:
-                                        self.tasks[task_id]["logs"].append(
-                                            f"CONSOLE: {clean_line}"
-                                        )
-                        except Exception as read_err:
-                            logger.error(f"Failed to read runner stdout: {read_err}")
+                            extravars_file.unlink()
+                        except Exception as ex:
+                            logger.error(f"Failed to delete extravars: {ex}")
+
+                    if hosts_file.exists():
+                        try:
+                            hosts_file.unlink()
+                        except Exception as ex:
+                            logger.error(f"Failed to delete hosts: {ex}")
+
+                    if artifacts_dir.exists():
+                        try:
+                            shutil.rmtree(artifacts_dir)
+                        except Exception as ex:
+                            logger.error(f"Failed to delete artifacts: {ex}")
 
             except Exception as e:
                 logger.error(f"Ansible execution error: {e}")
