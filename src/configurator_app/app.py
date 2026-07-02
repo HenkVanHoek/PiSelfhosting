@@ -37,7 +37,7 @@ def safe_join(base_dir: Path, user_path: str) -> Path:
     return resolved_target
 
 
-def analyze_snapshot(components, snapshot, is_reinstallation):
+def analyze_snapshot(components, snapshot, _is_reinstallation):
     """Analyze system snapshot against components for conflicts/warnings."""
     conflicts = {"ports": [], "volumes": []}
     warnings = []
@@ -88,12 +88,15 @@ def analyze_snapshot(components, snapshot, is_reinstallation):
                         )
 
                         conflict_type = "UNEXPECTED_DOCKER_CONFLICT"
-                        if "docker" not in conflicting_service:
+                        if conflicting_service == "unknown":
+                            # Treat unknown as expected reinstallation/overwrite
+                            # to avoid blocking on unresolvable process names
+                            conflict_type = "EXPECTED_REINSTALLATION"
+                        elif "docker" not in conflicting_service:
                             conflict_type = "DANGEROUS_NATIVE_PROCESS_CONFLICT"
                         elif (
                             "docker container" in conflicting_service.lower()
                             and comp_id_clean in conflicting_service_clean
-                            and is_reinstallation
                         ):
                             conflict_type = "EXPECTED_REINSTALLATION"
 
@@ -908,6 +911,178 @@ def create_app(test_config=None):
         if not isinstance(task, dict):
             return jsonify({"error": "Task not found"}), 404
         return jsonify(task)
+
+    @flask_app.route("/get-container-logs", methods=["POST"])
+    def get_container_logs():
+        """Retrieve the latest docker logs for a specific container."""
+        try:
+            data = request.get_json(force=True) or {}
+            ip_address = data.get("ip")
+            username = data.get("username")
+            password = data.get("password")
+            container_name = data.get("container_name", "piselfhosting-portainer")
+
+            if (
+                not isinstance(ip_address, str)
+                or not isinstance(username, str)
+                or not isinstance(password, str)
+                or not isinstance(container_name, str)
+            ):
+                return (
+                    jsonify(
+                        {
+                            "error": (
+                                "Missing or invalid IP, username, "
+                                "password, or container name"
+                            )
+                        }
+                    ),
+                    400,
+                )
+
+            # Prevent shell injection by validating container name characters
+            if not re.match(r"^[a-zA-Z0-9_-]+$", container_name):
+                return jsonify({"error": "Invalid container name format."}), 400
+
+            import shlex
+            import time
+
+            from managers.ssh_manager import SSHManager
+
+            ssh = SSHManager(hostname=ip_address, username=username, password=password)
+            connected = False
+            msg = ""
+            # Retry connection up to 3 times to handle transient SSH banner timeouts
+            for attempt in range(3):
+                connected, msg = ssh.connect()
+                if connected:
+                    break
+                time.sleep(1)
+
+            if not connected:
+                return jsonify({"error": f"Failed to connect to host: {msg}"}), 400
+
+            # Check if user is in docker group (can run docker commands without sudo)
+            exit_code_group, _ = ssh.execute_command(
+                "docker ps", lambda x: None, check_exit_code=False
+            )
+            if exit_code_group == 0:
+                cmd = f"docker logs --tail 200 {container_name}"
+            else:
+                quoted_password = shlex.quote(password)
+                cmd = (
+                    f"echo {quoted_password} | "
+                    f"sudo -S docker logs --tail 200 {container_name}"
+                )
+
+            log_lines = []
+
+            def log_callback(chunk: str):
+                log_lines.append(chunk)
+
+            exit_code, stdout = ssh.execute_command(
+                cmd, log_callback, check_exit_code=False
+            )
+            ssh.close()
+
+            full_log = "".join(log_lines)
+
+            # Strip ANSI escape sequences (color codes)
+            ansi_escape = re.compile(r"(?:\x1B[@-_]|[\x80-\x9F])[0-?]*[ -/]*[@-~]")
+            full_log = ansi_escape.sub("", full_log)
+
+            # Filter out the sudo password prompt from logs if present
+            clean_lines = [
+                line
+                for line in full_log.split("\n")
+                if "[sudo] password for" not in line
+            ]
+            full_log = "\n".join(clean_lines).strip()
+
+            if not full_log and exit_code != 0:
+                return (
+                    jsonify(
+                        {
+                            "error": (
+                                "Failed to retrieve logs. Container "
+                                "may not be running or does not exist."
+                            )
+                        }
+                    ),
+                    404,
+                )
+
+            return (
+                jsonify({"container_name": container_name, "logs": full_log}),
+                200,
+            )
+        except Exception as e:
+            logging.error(f"Failed to get container logs: {e}", exc_info=True)
+            return (
+                jsonify({"error": "An unexpected error occurred retrieving logs."}),
+                500,
+            )
+
+    @flask_app.route("/get-generated-files", methods=["POST"])
+    def get_generated_files():
+        """Retrieve list of generated files and their contents for UI preview."""
+        try:
+            data = request.get_json(force=True) or {}
+            output_path_str = data.get("output_path")
+            if not isinstance(output_path_str, str):
+                return jsonify({"error": "Missing or invalid output_path"}), 400
+
+            target_path = Path(output_path_str).resolve()
+
+            # Security check: ensure target_path is relative to app_data_dir
+            base_dir = Path(user_data_dir("PiSelfhosting", "PiSelfhosting")).resolve()
+            if not target_path.is_relative_to(base_dir):
+                return jsonify({"error": "Unauthorized path access"}), 403
+
+            if not target_path.exists() or not target_path.is_dir():
+                return jsonify({"error": "Output directory does not exist"}), 404
+
+            selected_components = data.get("selected_components", [])
+            if not isinstance(selected_components, list):
+                selected_components = []
+            selected_components = [str(c).lower() for c in selected_components]
+
+            # Recursively find and filter files
+            files_dict = {}
+            for file_path in target_path.rglob("*"):
+                if file_path.is_file():
+                    relative_path = file_path.relative_to(target_path)
+                    parts = relative_path.parts
+
+                    should_show = False
+                    if len(parts) == 1:
+                        # Root files (except internal deployment state)
+                        if parts[0] != "deployment_state.json":
+                            should_show = True
+                    elif len(parts) > 1:
+                        # Subdirectory files: only show if top-level dir
+                        # is selected
+                        first_dir = parts[0].lower()
+                        if first_dir in selected_components:
+                            should_show = True
+
+                    if should_show:
+                        relative_name = str(relative_path)
+                        try:
+                            with open(file_path, "r", encoding="utf-8") as f:
+                                files_dict[relative_name] = f.read()
+                        except (UnicodeDecodeError, IOError):
+                            # Skip binary or unreadable files
+                            continue
+
+            return jsonify({"files": files_dict}), 200
+
+        except Exception as e:
+            logging.error(f"Failed to read generated files: {e}", exc_info=True)
+            return (
+                jsonify({"error": "An unexpected error occurred reading files."}),
+                500,
+            )
 
     return flask_app
 

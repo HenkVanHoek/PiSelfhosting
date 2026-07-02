@@ -3,8 +3,26 @@
   hosts: all
   become: true
   vars:
+    ansible_become_timeout: 60
     # Destination path on the Pi for all configuration
     project_config_dir: "/opt/piselfhosting"
+    # Map kernel architecture to Debian package architecture
+    debian_architecture_map:
+      x86_64: "amd64"
+      aarch64: "arm64"
+      armv7l: "armhf"
+      armv6l: "armhf"
+    # Map distribution names to Docker repository folder names
+    docker_distribution_map:
+      debian: "debian"
+      ubuntu: "ubuntu"
+      raspbian: "raspbian"
+      "raspberry pi os": "debian"
+      mx: "debian"
+      "mx linux": "debian"
+      "mx-linux": "debian"
+      "linux mint": "ubuntu"
+      "pop!_os": "ubuntu"
 
   tasks:
     - name: Pre flight check Ensure at least 2GB of free disk space is available
@@ -35,13 +53,13 @@
 
     - name: Download Docker official GPG key
       ansible.builtin.get_url:
-        url: https://download.docker.com/linux/debian/gpg
+        url: "https://download.docker.com/linux/{{ docker_distribution_map[ansible_distribution | lower] | default(ansible_distribution | lower) }}/gpg"
         dest: /etc/apt/keyrings/docker.asc
         mode: "0644"
 
     - name: Add Docker repository to Apt sources
       ansible.builtin.apt_repository:
-        repo: "deb [arch={{ ansible_architecture if ansible_architecture != 'aarch64' else 'arm64' }} signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian {{ ansible_distribution_release }} stable"
+        repo: "deb [arch={{ debian_architecture_map[ansible_architecture] | default(ansible_architecture) }} signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/{{ docker_distribution_map[ansible_distribution | lower] | default(ansible_distribution | lower) }} {{ ansible_distribution_release }} stable"
         state: present
         filename: docker
 
@@ -54,6 +72,12 @@
           - docker-compose-plugin   # Official Docker Compose V2 plugin
         state: present
         update_cache: yes
+
+    - name: Ensure SSH user is in docker group
+      ansible.builtin.user:
+        name: "{{ ansible_user }}"
+        groups: docker
+        append: yes
 
     # --- DIRECTORY & FILE DEPLOYMENT ---
     - name: Ensure project directory exists
@@ -114,3 +138,29 @@
       when: components_to_restart is defined and components_to_restart | length > 0
       # Mitigation: String "true" aligns types to prevent suspicious type mismatch
       changed_when: "true"
+
+    - name: Fetch Portainer container status
+      ansible.builtin.command:
+        cmd: "docker ps -a --filter name=piselfhosting-portainer --format '{{ '{{' }} .Names {{ '}}' }}'"
+      register: portainer_status
+      changed_when: false
+      failed_when: false
+
+    - name: Extract Portainer setup token from logs
+      ansible.builtin.command:
+        cmd: "docker logs piselfhosting-portainer"
+      register: portainer_logs
+      until: "'setup_token' in (portainer_logs.stdout + '\n' + portainer_logs.stderr)"
+      retries: 10
+      delay: 2
+      changed_when: false
+      failed_when: false
+      when: "'piselfhosting-portainer' in portainer_status.stdout"
+
+    - name: Display Portainer setup token if present
+      ansible.builtin.debug:
+        msg: "PORTAINER SETUP TOKEN: {{ item }}"
+      loop: "{{ ((portainer_logs.stdout | default('') + '\n' + portainer_logs.stderr | default('')) | split('\n')) if (portainer_logs is not skipped) else [] }}"
+      when:
+        - portainer_logs is not skipped
+        - "'setup_token' in item"

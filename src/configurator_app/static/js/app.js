@@ -1732,6 +1732,240 @@
         const logContainer = document.getElementById('log-viewer-container');
         const logOutput = document.getElementById('log-output');
 
+        const setupLogsTabs = async () => {
+            const logContainer = document.getElementById('log-viewer-container');
+            if (!logContainer) return;
+
+            const selectedComponents = selectedComponentsCache;
+            if (!selectedComponents || selectedComponents.length === 0) return;
+
+            const originalCard = logContainer.querySelector('.card');
+            if (!originalCard) return;
+
+            // Fetch generated files for the session
+            let generatedFiles = {};
+            try {
+                const response = await fetch('/get-generated-files', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        output_path: outputPath,
+                        selected_components: selectedComponents
+                    })
+                });
+                if (response.ok) {
+                    const resData = await response.json();
+                    generatedFiles = resData.files || {};
+                }
+            } catch (err) {
+                console.error('Failed to load generated files:', err);
+            }
+
+            // Create check box wrapper to show/hide generated files
+            const controlPanel = document.createElement('div');
+            controlPanel.className = 'd-flex align-items-center mb-3 text-start bg-light p-2 rounded border';
+            controlPanel.innerHTML = `
+                <div class="form-check form-switch mb-0">
+                    <input class="form-check-input" type="checkbox" id="show-configs-checkbox" style="cursor: pointer;">
+                    <label class="form-check-label fw-bold text-dark" for="show-configs-checkbox" style="cursor: pointer; user-select: none;">
+                        <i class="fa-solid fa-file-signature text-primary me-1"></i>Show Generated Configuration Files (for debugging)
+                    </label>
+                </div>
+            `;
+
+            // Function to render the tabs dynamically based on checkbox state
+            const renderTabs = (showConfigs) => {
+                logContainer.innerHTML = '';
+                logContainer.appendChild(controlPanel);
+
+                const tabList = document.createElement('ul');
+                tabList.className = 'nav nav-tabs mb-3';
+                tabList.id = 'log-tabs';
+                tabList.setAttribute('role', 'tablist');
+
+                // 1. Add Deployment Progress Tab
+                tabList.innerHTML = `
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="deploy-log-tab" data-bs-toggle="tab" data-bs-target="#deploy-log-pane" type="button" role="tab">
+                            <i class="fa-solid fa-server me-1"></i>Deployment Progress
+                        </button>
+                    </li>
+                `;
+
+                const tabContent = document.createElement('div');
+                tabContent.className = 'tab-content';
+                tabContent.id = 'log-tabs-content';
+
+                const deployPane = document.createElement('div');
+                deployPane.className = 'tab-pane fade show active';
+                deployPane.id = 'deploy-log-pane';
+                deployPane.setAttribute('role', 'tabpanel');
+                deployPane.appendChild(originalCard.cloneNode(true));
+                tabContent.appendChild(deployPane);
+
+                // 2. Add Generated Files Tabs if checked
+                if (showConfigs) {
+                    Object.entries(generatedFiles).forEach(([fileName, content]) => {
+                        const safeId = 'cfg-' + fileName.replace(/[^a-zA-Z0-9]/g, '-');
+
+                        const li = document.createElement('li');
+                        li.className = 'nav-item';
+                        li.setAttribute('role', 'presentation');
+                        li.innerHTML = `
+                            <button class="nav-link" id="tab-${safeId}" data-bs-toggle="tab" data-bs-target="#pane-${safeId}" type="button" role="tab">
+                                <i class="fa-solid fa-file-code text-warning me-1"></i>${escapeHTML(fileName)}
+                            </button>
+                        `;
+                        tabList.appendChild(li);
+
+                        const pane = document.createElement('div');
+                        pane.className = 'tab-pane fade';
+                        pane.id = `pane-${safeId}`;
+                        pane.setAttribute('role', 'tabpanel');
+                        pane.innerHTML = `
+                            <div class="card">
+                                <div class="card-body bg-dark text-white rounded" style="font-family: monospace; font-size: 0.9em; max-height: 400px; overflow-y: auto;">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <span class="text-muted small">Path: ${escapeHTML(outputPath)}/${escapeHTML(fileName)}</span>
+                                        <button class="btn btn-sm btn-outline-light btn-copy-config" data-target-id="code-${safeId}">
+                                            <i class="fa-solid fa-copy me-1"></i>Copy
+                                        </button>
+                                    </div>
+                                    <pre id="code-${safeId}" class="mb-0 text-light" style="white-space: pre-wrap;">${escapeHTML(content)}</pre>
+                                </div>
+                            </div>
+                        `;
+                        tabContent.appendChild(pane);
+                    });
+                }
+
+                // 3. Add Container Logs Tabs
+                selectedComponents.forEach(compId => {
+                    const compData = allSoftwareCache.find(c => c.id === compId);
+                    const compName = compData ? compData.name : compId;
+                    const containerName = `piselfhosting-${compId}`;
+                    const paneId = `log-pane-${compId}`;
+
+                    const li = document.createElement('li');
+                    li.className = 'nav-item';
+                    li.setAttribute('role', 'presentation');
+                    li.innerHTML = `
+                        <button class="nav-link" id="tab-${compId}" data-bs-toggle="tab" data-bs-target="#${paneId}" type="button" role="tab">
+                            <i class="fa-solid fa-cubes text-info me-1"></i>${escapeHTML(compName)} Logs
+                        </button>
+                    `;
+                    tabList.appendChild(li);
+
+                    const pane = document.createElement('div');
+                    pane.className = 'tab-pane fade';
+                    pane.id = paneId;
+                    pane.setAttribute('role', 'tabpanel');
+                    pane.innerHTML = `
+                        <div class="card">
+                            <div class="card-body bg-dark text-white rounded" style="font-family: monospace; font-size: 0.9em; max-height: 400px; overflow-y: auto;">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <span class="text-muted small">Container: ${escapeHTML(containerName)}</span>
+                                    <button class="btn btn-sm btn-outline-info btn-refresh-logs" data-comp-id="${compId}">
+                                        <i class="fa-solid fa-arrows-rotate me-1"></i>Refresh
+                                    </button>
+                                </div>
+                                <pre id="log-output-${compId}" class="mb-0 text-light" style="white-space: pre-wrap;">Loading logs...</pre>
+                            </div>
+                        </div>
+                    `;
+                    tabContent.appendChild(pane);
+                });
+
+                logContainer.appendChild(tabList);
+                logContainer.appendChild(tabContent);
+
+                // Re-bind click event listeners for copy buttons
+                if (showConfigs) {
+                    logContainer.querySelectorAll('.btn-copy-config').forEach(btn => {
+                        btn.addEventListener('click', (e) => {
+                            const targetId = e.currentTarget.getAttribute('data-target-id');
+                            const pre = document.getElementById(targetId);
+                            if (pre) {
+                                navigator.clipboard.writeText(pre.textContent).then(() => {
+                                    const originalText = e.currentTarget.innerHTML;
+                                    e.currentTarget.innerHTML = '<i class="fa-solid fa-check me-1"></i>Copied!';
+                                    setTimeout(() => {
+                                        e.currentTarget.innerHTML = originalText;
+                                    }, 2000);
+                                }).catch(err => {
+                                    console.error('Failed to copy text:', err);
+                                });
+                            }
+                        });
+                    });
+                }
+
+                // Re-bind container logs fetching logic
+                const devices = Object.values(managedDeviceCache);
+                const targetDevice = devices[0];
+
+                if (targetDevice) {
+                    const fetchLogs = async (compId) => {
+                        const logPre = document.getElementById(`log-output-${compId}`);
+                        if (!logPre) return;
+                        logPre.textContent = 'Fetching logs from host...';
+
+                        try {
+                            const response = await fetch('/get-container-logs', {
+                                method: 'POST',
+                                headers: {'Content-Type': 'application/json'},
+                                body: JSON.stringify({
+                                    ip: targetDevice.ip,
+                                    username: targetDevice.username,
+                                    password: targetDevice.password,
+                                    container_name: `piselfhosting-${compId}`
+                                })
+                            });
+                            const resData = await response.json();
+                            if (response.ok) {
+                                logPre.textContent = resData.logs || 'No logs found in container.';
+                            } else {
+                                logPre.textContent = `Error: ${resData.error || 'Failed to fetch logs.'}`;
+                            }
+                        } catch (err) {
+                            logPre.textContent = `Connection error: ${err.message}`;
+                        }
+                    };
+
+                    selectedComponents.forEach(compId => {
+                        const tabButton = document.getElementById(`tab-${compId}`);
+                        if (tabButton) {
+                            tabButton.addEventListener('shown.bs.tab', () => {
+                                fetchLogs(compId);
+                            });
+                        }
+                        const refreshBtn = tabContent.querySelector(`.btn-refresh-logs[data-comp-id="${compId}"]`);
+                        if (refreshBtn) {
+                            refreshBtn.addEventListener('click', (e) => {
+                                e.stopPropagation();
+                                fetchLogs(compId);
+                            });
+                        }
+                    });
+                }
+            };
+
+            // Initial render: showConfigs = false
+            renderTabs(false);
+
+            // Bind checkbox toggle event
+            const checkbox = controlPanel.querySelector('#show-configs-checkbox');
+            if (checkbox) {
+                checkbox.addEventListener('change', (e) => {
+                    renderTabs(e.target.checked);
+                    const newCheckbox = logContainer.querySelector('#show-configs-checkbox');
+                    if (newCheckbox) {
+                        newCheckbox.checked = e.target.checked;
+                    }
+                });
+            }
+        };
+
         setButtonState(deployButton, true, {loadingText: 'Deploying...'});
         logContainer.style.display = 'block';
         logOutput.innerHTML = '';
@@ -1964,6 +2198,8 @@
                     if (playbookStep) {
                         playbookStep.textContent = 'All services are up and running.';
                     }
+
+                    setupLogsTabs();
 
                     const finalActions = document.getElementById('final-actions-container');
                     if (finalActions) {

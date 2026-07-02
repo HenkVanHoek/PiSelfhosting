@@ -138,9 +138,33 @@ class DeploymentManager:
                         # Catch warnings embedded in the task result
                         res = event_data.get("res", {})
                         if isinstance(res, dict):
+                            if (
+                                "msg" in res
+                                and str(res["msg"]).strip()
+                                # Filter out generic/expected non-error indicators
+                                and str(res["msg"]) != "All items completed"
+                                and "HTTP Error 304" not in str(res["msg"])
+                                and "non-zero return code" not in str(res["msg"])
+                            ):
+                                self.tasks[task_id]["logs"].append(
+                                    f"DEBUG: {res['msg']}"
+                                )
                             for warning_msg in res.get("warnings", []):
                                 self.tasks[task_id]["logs"].append(
                                     f"WARN: [{task_name}] {warning_msg}"
+                                )
+
+                    elif event_name == "runner_on_item_ok":
+                        res = event_data.get("res", {})
+                        if isinstance(res, dict):
+                            if (
+                                "msg" in res
+                                and str(res["msg"]).strip()
+                                and "HTTP Error 304" not in str(res["msg"])
+                                and "non-zero return code" not in str(res["msg"])
+                            ):
+                                self.tasks[task_id]["logs"].append(
+                                    f"DEBUG: {res['msg']}"
                                 )
 
                     elif event_name in [
