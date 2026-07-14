@@ -61,7 +61,8 @@
             "Chat/Messaging",
             "Chat",
             "Communication",
-            "Messaging"
+            "Messaging",
+            "Communications"
         ],
         "group_rules": {
             "Chat": {
@@ -75,6 +76,10 @@
             "Communication": {
                 "is_exclusive": false,
                 "name": "Communication"
+            },
+            "Communications": {
+                "is_exclusive": false,
+                "name": "Communications"
             },
             "Home Automation": {
                 "is_exclusive": false,
@@ -218,6 +223,32 @@
                 "self-hosted"
             ],
             "traefik_internal_port": null,
+            "ui_port_variable": null
+        },
+        "docker-jitsi-meet": {
+            "conflicts_with": [],
+            "depends_on": [],
+            "description": "Jitsi Meet is a collection of open-source projects that provides a secure, simple, and scalable video conferencing solution. This component sets up a complete Jitsi Meet instance with optional Etherpad collaboration and recording capabilities.",
+            "docker_service_name": "web",
+            "group": "Communications",
+            "has_configuration": true,
+            "has_ui": true,
+            "image_name": "jitsi/web",
+            "name": "jitsi-meet",
+            "resource_profile": {
+                "cpu": "high",
+                "ram": "high",
+                "recommended_cores": 4,
+                "recommended_ram_mb": 8192,
+                "recommended_storage_gb": 40,
+                "storage_type": "persistent"
+            },
+            "tags": [
+                "video",
+                "chat",
+                "communications",
+                "self-hosted"
+            ],
             "ui_port_variable": null
         },
         "filebrowser": {

@@ -111,7 +111,14 @@ class DeploymentManager:
                     "selected_components_data": selected_components_data,
                     "global_vars": global_vars,
                 }
+                from pathlib import Path
 
+                from appdirs import user_data_dir
+
+                app_data_dir = Path(user_data_dir("PiSelfhosting", "PiSelfhosting"))
+                key_file = app_data_dir / "id_ed25519_piselfhosting"
+                if key_file.exists():
+                    extravars["ansible_ssh_private_key_file"] = str(key_file)
                 # Add password if we have it from the UI,
                 # otherwise Ansible assumes SSH keys
                 if ssh_password:

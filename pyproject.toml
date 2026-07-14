@@ -93,6 +93,7 @@ module = [
     "managers.deployment_manager",
     "managers.setup_manager",
     "pi_scanner",
+    "utils.proxmox_client",
 ]
 ignore_missing_imports = true
 

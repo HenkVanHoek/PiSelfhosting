@@ -343,8 +343,35 @@
                             <span class="d-block small text-muted">Target a specific host or local MAC address directly, bypassing standard discovery.</span>
                         </label>
                     </div>
-                    <div class="mt-2 d-none" id="direct_ip_input_container">
+                    <div class="mt-2 mb-3 d-none" id="direct_ip_input_container">
                         <input type="text" class="form-control" name="direct_target_ip" id="direct_target_ip" placeholder="e.g., 100.121.216.150 or b8:27:eb:01:02:03" aria-label="Direct Target IP">
+                    </div>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="radio" name="scanMethod" id="method_proxmox_lxc" value="proxmox_lxc">
+                        <label class="form-check-label fw-bold" for="method_proxmox_lxc">
+                            <strong>Create New Proxmox LXC Target</strong>
+                            <span class="d-block small text-muted">Provision a brand new LXC container on your Proxmox VE server automatically.</span>
+                        </label>
+                    </div>
+                    <div class="mt-2 d-none" id="proxmox_lxc_input_container">
+                        <div class="row g-2">
+                            <div class="col-sm-6">
+                                <label for="lxc_cores" class="form-label small mb-1">CPU Cores</label>
+                                <input type="number" class="form-control form-control-sm" id="lxc_cores" value="2" min="1">
+                            </div>
+                            <div class="col-sm-6">
+                                <label for="lxc_memory" class="form-label small mb-1">RAM (MB)</label>
+                                <input type="number" class="form-control form-control-sm" id="lxc_memory" value="4096" min="512">
+                            </div>
+                            <div class="col-sm-6">
+                                <label for="lxc_storage_size" class="form-label small mb-1">Storage (GB)</label>
+                                <input type="number" class="form-control form-control-sm" id="lxc_storage_size" value="20" min="5">
+                            </div>
+                            <div class="col-sm-6">
+                                <label for="lxc_storage_name" class="form-label small mb-1">Storage Pool</label>
+                                <input type="text" class="form-control form-control-sm" id="lxc_storage_name" value="local-lvm">
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -2359,31 +2386,96 @@
         const autoRadio = document.getElementById('autoDetectRadio');
         const manualRadio = document.getElementById('manualScanRadio');
         const directRadio = document.getElementById('method_direct_ip');
+        const lxcRadio = document.getElementById('method_proxmox_lxc');
+        const lxcContainer = document.getElementById('proxmox_lxc_input_container');
 
         const updateInputs = () => {
             if (autoRadio && (/** @type {HTMLInputElement} */ (autoRadio)).checked) {
                 manualInput.disabled = true;
                 if (directIpContainer) directIpContainer.classList.add('d-none');
+                if (lxcContainer) lxcContainer.classList.add('d-none');
+                if (scanBtn) scanBtn.innerHTML = '<i class="fa-solid fa-search me-2"></i> Begin Scan';
             }
             if (manualRadio && (/** @type {HTMLInputElement} */ (manualRadio)).checked) {
                 manualInput.disabled = false;
                 manualInput.focus();
                 if (directIpContainer) directIpContainer.classList.add('d-none');
+                if (lxcContainer) lxcContainer.classList.add('d-none');
+                if (scanBtn) scanBtn.innerHTML = '<i class="fa-solid fa-search me-2"></i> Begin Scan';
             }
             if (directRadio && (/** @type {HTMLInputElement} */ (directRadio)).checked) {
                 manualInput.disabled = true;
+                if (lxcContainer) lxcContainer.classList.add('d-none');
                 if (directIpContainer) {
                     directIpContainer.classList.remove('d-none');
                     if (directIpInput) directIpInput.focus();
                 }
+                if (scanBtn) scanBtn.innerHTML = '<i class="fa-solid fa-search me-2"></i> Begin Scan';
+            }
+            if (lxcRadio && (/** @type {HTMLInputElement} */ (lxcRadio)).checked) {
+                manualInput.disabled = true;
+                if (directIpContainer) directIpContainer.classList.add('d-none');
+                if (lxcContainer) lxcContainer.classList.remove('d-none');
+                if (scanBtn) scanBtn.innerHTML = '<i class="fa-solid fa-cloud-plus me-2"></i> Create & Provision LXC';
             }
         };
 
         if (autoRadio) autoRadio.addEventListener('change', updateInputs);
         if (manualRadio) manualRadio.addEventListener('change', updateInputs);
         if (directRadio) directRadio.addEventListener('change', updateInputs);
+        if (lxcRadio) lxcRadio.addEventListener('change', updateInputs);
 
         const performScan = async () => {
+            const isLxc = lxcRadio && (/** @type {HTMLInputElement} */ (lxcRadio)).checked;
+
+            if (isLxc) {
+                setButtonState(scanBtn, true, {loadingText: 'Provisioning LXC...'});
+                updateWizardFooter('Creating Proxmox LXC container and installing Docker (this takes a few minutes)...', 'primary');
+
+                const coresVal = parseInt(document.getElementById('lxc_cores').value) || 2;
+                const memVal = parseInt(document.getElementById('lxc_memory').value) || 4096;
+                const sizeVal = document.getElementById('lxc_storage_size').value || '20';
+                const storageNameVal = document.getElementById('lxc_storage_name').value || 'local-lvm';
+
+                try {
+                    const lxcResult = await fetchAPI('/api/proxmox/create-lxc', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({
+                            cores: coresVal,
+                            memory: memVal,
+                            storage_size: sizeVal,
+                            storage_name: storageNameVal
+                        })
+                    });
+
+                    // Cache root user credentials so Step 2 automatically configures them
+                    managedDeviceCache[lxcResult.ip] = {
+                        ip: lxcResult.ip,
+                        hostname: `LXC-${lxcResult.vmid}`,
+                        username: 'root',
+                        password: lxcResult.password
+                    };
+
+                    const virtualScanData = {
+                        hosts: [{
+                            ip: lxcResult.ip,
+                            hostname: `LXC-${lxcResult.vmid}`
+                        }]
+                    };
+
+                    lastScanData = virtualScanData;
+                    renderStep2_ConfigureDevices(virtualScanData);
+                } catch (error) {
+                    console.error('An error occurred during Proxmox LXC creation:', error);
+                    updateWizardFooter(`<i class="fa-solid fa-xmark me-2"></i>An error occurred: ${escapeHTML(error.message)}`, 'danger');
+                } finally {
+                    setButtonState(scanBtn, false);
+                    scanBtn.innerHTML = '<i class="fa-solid fa-cloud-plus me-2"></i> Create & Provision LXC';
+                }
+                return;
+            }
+
             setButtonState(scanBtn, true, {loadingText: 'Scanning...'});
             updateWizardFooter('Scanning network for supported single-board computers...', 'primary');
 

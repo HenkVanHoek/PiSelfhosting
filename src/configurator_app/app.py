@@ -220,6 +220,12 @@ def map_analysis_to_report_errors(analysis_results: dict, target_ip: str) -> lis
 
 def create_app(test_config=None):
     """Factory function to create and configure the Flask application."""
+    # Load environment variables from the .env file at the project root.
+    from dotenv import load_dotenv
+
+    project_root = Path(__file__).resolve().parent.parent.parent
+    load_dotenv(dotenv_path=project_root / ".env")
+
     flask_app = Flask(__name__, static_folder="static", static_url_path="/static")
 
     # Apply testing configuration if provided
@@ -273,6 +279,120 @@ def create_app(test_config=None):
             docs[doc_name] = content
 
         return render_template("help.html", docs=docs)
+
+    @flask_app.route("/settings", methods=["GET"])
+    def settings_page():
+        env_path = Path(__file__).resolve().parent.parent.parent / ".env"
+        raw_content = ""
+        if env_path.exists():
+            try:
+                with open(env_path, "r", encoding="utf-8") as f:
+                    raw_content = f.read()
+            except Exception as e:
+                logging.error(f"Error reading .env: {e}")
+
+        # Parse key-values for form fields
+        env_vars = {}
+        for line in raw_content.splitlines():
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if "=" in line:
+                key, val = line.split("=", 1)
+                key = key.strip()
+                val = val.strip().strip("\"'")
+                env_vars[key] = val
+
+        return render_template(
+            "settings.html", env_vars=env_vars, raw_content=raw_content
+        )
+
+    @flask_app.route("/api/settings", methods=["POST"])
+    def update_settings():
+        data = request.get_json() or {}
+        mode = data.get("mode")
+        env_path = Path(__file__).resolve().parent.parent.parent / ".env"
+
+        if mode == "raw":
+            raw_content = data.get("raw_content", "")
+            try:
+                with open(env_path, "w", encoding="utf-8") as f:
+                    f.write(raw_content)
+
+                # Re-load env vars into os.environ
+                for line in raw_content.splitlines():
+                    line = line.strip()
+                    if not line or line.startswith("#"):
+                        continue
+                    if "=" in line:
+                        k, v = line.split("=", 1)
+                        k = k.strip()
+                        v = v.strip().strip("\"'")
+                        os.environ[k] = v
+
+                return (
+                    jsonify({"message": "Settings updated successfully"}),
+                    200,
+                )
+            except Exception as e:
+                return (
+                    jsonify({"error": f"Failed to save .env file: {str(e)}"}),
+                    500,
+                )
+
+        elif mode == "form":
+            new_vars = data.get("settings", {})
+            if not isinstance(new_vars, dict):
+                return jsonify({"error": "Invalid settings payload"}), 400
+
+            try:
+                # Read current content to merge/preserve comments
+                current_content = ""
+                if env_path.exists():
+                    with open(env_path, "r", encoding="utf-8") as f:
+                        current_content = f.read()
+
+                lines = current_content.splitlines()
+                updated_keys = set()
+                new_lines = []
+
+                for line in lines:
+                    stripped = line.strip()
+                    if stripped and not stripped.startswith("#") and "=" in stripped:
+                        key, val = stripped.split("=", 1)
+                        key = key.strip()
+                        if key in new_vars:
+                            val_str = str(new_vars[key])
+                            new_lines.append(f'{key}="{val_str}"')
+                            updated_keys.add(key)
+                            # Update in running process environment
+                            os.environ[key] = val_str
+                            continue
+                    new_lines.append(line)
+
+                # Append any new keys
+                for key, val in new_vars.items():
+                    if key not in updated_keys:
+                        val_str = str(val)
+                        new_lines.append(f'{key}="{val_str}"')
+                        os.environ[key] = val_str
+
+                new_content = "\n".join(new_lines) + "\n"
+                with open(env_path, "w", encoding="utf-8") as f:
+                    f.write(new_content)
+
+                return (
+                    jsonify({"message": "Settings updated successfully"}),
+                    200,
+                )
+            except Exception as e:
+                return (
+                    jsonify({"error": f"Failed to update settings: {str(e)}"}),
+                    500,
+                )
+
+        else:
+            return jsonify({"error": "Invalid update mode"}), 400
 
     @flask_app.route("/scan-pis", methods=["POST"])
     def scan_pis():
@@ -427,6 +547,236 @@ def create_app(test_config=None):
                         "messages": [],
                     }
                 ),
+                500,
+            )
+
+    @flask_app.route("/api/proxmox/create-lxc", methods=["POST"])
+    def create_proxmox_lxc():
+        from managers.ssh_manager import SSHManager
+        from utils.proxmox_client import ProxmoxClient
+
+        data = request.get_json() or {}
+        cores = int(data.get("cores", 4))
+        memory = int(data.get("memory", 8192))
+        storage_size = str(data.get("storage_size", "40"))
+        storage_name = str(data.get("storage_name", "local-lvm"))
+        node = str(data.get("node", os.getenv("PROXMOX_NODE", "pve")))
+        password = str(data.get("password", "PiSelfhostLXC2026!"))
+
+        host = os.getenv("PROXMOX_HOST", "https://192.168.178.51:8006")
+        user = os.getenv("PROXMOX_USER", "root@pam")
+        token_id = os.getenv("PROXMOX_TOKEN_ID", "")
+        token_secret = os.getenv("PROXMOX_TOKEN_SECRET", "")
+
+        if not token_id or not token_secret:
+            return (
+                jsonify(
+                    {
+                        "error": (
+                            "Proxmox API token credentials "
+                            "are not configured in your .env file."
+                        )
+                    }
+                ),
+                500,
+            )
+
+        try:
+            client = ProxmoxClient(host, user, token_id, token_secret)
+
+            # 1. Next VMID
+            vmid = client.get_next_vmid()
+
+            # 2. SSH key from SSHManager
+            dummy_manager = SSHManager(
+                hostname="localhost", username="root", password=""
+            )  # nosec B106
+            ssh_key = dummy_manager._get_or_create_key()
+            pubkey = f"{ssh_key.get_name()} {ssh_key.get_base64()}"
+
+            # 3. Locate template
+            storages = ["local"]
+            try:
+                storage_res = client.get(f"nodes/{node}/storage")
+                active_vztmpl_storages = []
+                for store in storage_res.get("data", []):
+                    is_active = store.get("active")
+                    content_types = store.get("content", "")
+                    if is_active and "vztmpl" in content_types:
+                        name = store.get("storage")
+                        if name:
+                            active_vztmpl_storages.append(name)
+                if active_vztmpl_storages:
+                    # Prioritize 'local' but include all others
+                    storages = sorted(
+                        active_vztmpl_storages, key=lambda x: x != "local"
+                    )
+            except Exception as e:
+                logging.warning(f"Failed to list Proxmox storage pools: {e}")
+
+            templates = []
+            for s in storages:
+                try:
+                    res = client.get(
+                        f"nodes/{node}/storage/{s}/content",
+                        params={"content": "vztmpl"},
+                    )
+                    templates.extend(res.get("data", []))
+                except Exception as e:
+                    logging.warning(f"Failed to query templates on storage '{s}': {e}")
+
+            debian_templates = [
+                t for t in templates if "debian" in t.get("volid", "").lower()
+            ]
+            ostemplate = None
+            if debian_templates:
+                debian_templates.sort(key=lambda x: x.get("volid", ""), reverse=True)
+                newest_deb = next(iter(debian_templates), None)
+                if newest_deb:
+                    ostemplate = newest_deb.get("volid")
+
+            if not ostemplate:
+                ubuntu_templates = [
+                    t for t in templates if "ubuntu" in t.get("volid", "").lower()
+                ]
+                if ubuntu_templates:
+                    ubuntu_templates.sort(
+                        key=lambda x: x.get("volid", ""), reverse=True
+                    )
+                    newest_ubu = next(iter(ubuntu_templates), None)
+                    if newest_ubu:
+                        ostemplate = newest_ubu.get("volid")
+
+            if not ostemplate:
+                any_temp = next(iter(templates), None)
+                if any_temp:
+                    ostemplate = any_temp.get("volid")
+
+            if not ostemplate:
+                default_storage = next(iter(storages), "local")
+                ostemplate = (
+                    f"{default_storage}:vztmpl/debian-12-standard_12.2-1_"
+                    f"amd64.tar.zst"
+                )
+
+            # 4. Create LXC
+            net_config = "name=eth0,bridge=vmbr0,firewall=1,ip=dhcp"
+            rootfs_config = f"{storage_name}:{storage_size}"
+            features_config = "nesting=1"
+
+            create_data = {
+                "vmid": vmid,
+                "ostemplate": ostemplate,
+                "cores": cores,
+                "memory": memory,
+                "swap": 512,
+                "rootfs": rootfs_config,
+                "net0": net_config,
+                "features": features_config,
+                "unprivileged": 1,
+                "password": password,
+                "ssh-public-keys": pubkey,
+                "start": 1,
+            }
+
+            client.post(f"nodes/{node}/lxc", data=create_data)
+
+            # 5. Wait for IP address
+            ip_address = None
+            for _ in range(30):
+                try:
+                    res_if = client.get(f"nodes/{node}/lxc/{vmid}/interfaces")
+                    interfaces = res_if.get("data", [])
+                    for iface in interfaces:
+                        if iface.get("name") == "eth0" and iface.get("inet"):
+                            inet = iface.get("inet")
+                            parts = inet.split("/")
+                            ip_addr, *rest = parts
+                            if ip_addr and not ip_addr.startswith("127."):
+                                ip_address = ip_addr
+                                break
+                    if ip_address:
+                        break
+                except Exception:  # nosec B110
+                    pass
+                time.sleep(4)
+
+            if not ip_address:
+                return (
+                    jsonify(
+                        {
+                            "error": (
+                                "LXC container created, but failed "
+                                "to acquire an IP address in time."
+                            )
+                        }
+                    ),
+                    500,
+                )
+
+            # 6. Install Docker via SSH
+            time.sleep(5)
+            ssh = SSHManager(
+                hostname=ip_address,
+                username="root",
+                password=password,
+                allow_auto_add=True,
+            )
+            connected, conn_msg = ssh.connect()
+            if not connected:
+                return (
+                    jsonify(
+                        {
+                            "error": (
+                                f"Failed to connect to container via SSH: "
+                                f"{conn_msg}"
+                            )
+                        }
+                    ),
+                    500,
+                )
+
+            install_commands = [
+                "apt-get update",
+                "apt-get install -y curl ca-certificates gnupg",
+                "curl -fsSL https://get.docker.com -o get-docker.sh",
+                "sh get-docker.sh",
+                "systemctl enable --now docker",
+                "docker network create piselfhosting_net",
+            ]
+
+            for cmd in install_commands:
+                exit_code, stdout = ssh.execute_command(cmd, lambda x: None)
+                if exit_code != 0:
+                    return (
+                        jsonify(
+                            {
+                                "error": (
+                                    f"Provisioning failed on command "
+                                    f"'{cmd}': {stdout}"
+                                )
+                            }
+                        ),
+                        500,
+                    )
+
+            return (
+                jsonify(
+                    {
+                        "status": "success",
+                        "ip": ip_address,
+                        "vmid": vmid,
+                        "username": "root",
+                        "password": password,
+                    }
+                ),
+                201,
+            )
+
+        except Exception as e:
+            logging.error(f"Failed to create Proxmox LXC: {e}", exc_info=True)
+            return (
+                jsonify({"error": f"Proxmox LXC creation failed: {str(e)}"}),
                 500,
             )
 
@@ -693,22 +1043,30 @@ def create_app(test_config=None):
                     if before_colon.isdigit():
                         port = before_colon
                         if port in internal_port_map:
+                            conflict_msg = (
+                                f"Port {port} is used by "
+                                f"'{internal_port_map[port]}' and "
+                                f"'{component.get('name')}'."
+                            )
                             return (
                                 jsonify(
                                     {
                                         "status": "error",
-                                        "internal_conflicts": [
-                                            f"Port {port} is used by "
-                                            f"'{internal_port_map[port]}' and "
-                                            f"'{component.get('name')}'."
-                                        ],
+                                        "error": conflict_msg,
+                                        "internal_conflicts": [conflict_msg],
                                     }
                                 ),
                                 400,
                             )
                         internal_port_map[port] = component.get("name")
 
-        device = devices[0]
+        if not devices:
+            return jsonify({"error": "No target devices provided for analysis."}), 400
+
+        device = next(iter(devices), None)
+        if not device:
+            return jsonify({"error": "No target devices provided for analysis."}), 400
+
         analysis_scanner = PiScanner(
             username=device.get("username"), password=device.get("password")
         )

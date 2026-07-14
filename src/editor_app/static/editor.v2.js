@@ -152,23 +152,34 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Mitigation for DOM text reinterpreted as HTML (DOM-XSS)
     const showAlert = (message, type = 'success') => {
-        if (!feedbackAlert) {
-            console.error('Feedback alert element not found');
-            return;
+        let alertEl = document.getElementById('feedback-alert');
+        if (!alertEl) {
+            alertEl = document.createElement('div');
+            alertEl.id = 'feedback-alert';
+            alertEl.setAttribute('role', 'alert');
+            const mainContainer = document.querySelector('.main-container');
+            if (mainContainer) {
+                document.body.insertBefore(alertEl, mainContainer);
+            } else {
+                document.body.appendChild(alertEl);
+            }
         }
-        feedbackAlert.className = `alert alert-${type} alert-dismissible fade show`;
-        feedbackAlert.textContent = message;
+        alertEl.className = `alert alert-${type} alert-dismissible fade show`;
+        alertEl.textContent = message;
 
         const closeBtn = document.createElement('button');
         closeBtn.type = 'button';
         closeBtn.className = 'btn-close';
         closeBtn.setAttribute('data-bs-dismiss', 'alert');
         closeBtn.setAttribute('aria-label', 'Close');
-        feedbackAlert.appendChild(closeBtn);
+        alertEl.appendChild(closeBtn);
 
         setTimeout(() => {
-            const alertInstance = bootstrap.Alert.getOrCreateInstance(feedbackAlert);
-            if (alertInstance) alertInstance.close();
+            const currentAlert = document.getElementById('feedback-alert');
+            if (currentAlert && currentAlert === alertEl) {
+                const alertInstance = bootstrap.Alert.getOrCreateInstance(currentAlert);
+                if (alertInstance) alertInstance.close();
+            }
         }, 5000);
     };
 
@@ -212,7 +223,10 @@ document.addEventListener('DOMContentLoaded', () => {
             resource_profile: {
                 cpu: document.getElementById('comp-cpu').value,
                 ram: document.getElementById('comp-ram').value,
-                storage_type: document.getElementById('comp-storage').value
+                storage_type: document.getElementById('comp-storage').value,
+                recommended_cores: parseInt(document.getElementById('comp-lxc-cores').value) || null,
+                recommended_ram_mb: parseInt(document.getElementById('comp-lxc-ram').value) || null,
+                recommended_storage_gb: parseInt(document.getElementById('comp-lxc-storage').value) || null
             },
             depends_on: document.getElementById('comp-deps').value
                 .split(',').map(s => s.trim()).filter(Boolean),
@@ -762,6 +776,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     const formText = apiKeyInput.nextElementSibling;
                     if (formText) {
                         formText.textContent = 'The configured GEMINI_API_KEY from the .env file will be used if this is left blank.';
+                    }
+                    if (result.key_saved) {
+                        showAlert('Gemini API key successfully saved to .env file.', 'success');
                     }
                 }
 

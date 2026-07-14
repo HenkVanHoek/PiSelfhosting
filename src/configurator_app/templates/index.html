@@ -99,6 +99,7 @@
                         <li><button class="dropdown-item" data-theme-value="high-contrast-light">High Contrast Light</button></li>
                     </ul>
                 </li>
+                <li class="nav-item"><a class="nav-link" href="/settings"><i class="fa-solid fa-gear me-1"></i> Settings</a></li>
                 <li class="nav-item"><a class="nav-link" href="/help"><i class="fa-solid fa-circle-question me-1"></i> Help</a></li>
                 <li class="nav-item"><a class="nav-link" href="https://piselfhosting.com" target="_blank"><i class="fa-solid fa-globe me-1"></i> Website</a></li>
                 <li class="nav-item"><a class="nav-link" href="https://github.com/HenkVanHoek/piselfhosting/wiki" target="_blank"><i class="fa-solid fa-book-open me-1"></i> Wiki</a></li>
@@ -150,7 +151,7 @@
                             <div class="form-text mt-0 mb-2">Use this if you are on a different VLAN or VPN.</div>
                             <input type="text" class="form-control" id="manualSubnetInput" placeholder="e.g. 192.168.1.0/24" aria-label="Manual Subnet IP" disabled>
                         </div>
-                        <div class="form-check">
+                        <div class="form-check mb-3">
                             <input class="form-check-input" type="radio" name="scanMethod" id="method_direct_ip" value="direct_ip">
                             <label class="form-check-label fw-bold" for="method_direct_ip">
                                 Direct IP / Hostname / MAC Deployment
@@ -158,6 +159,33 @@
                             <div class="form-text mt-0 mb-2">Target a specific host or local MAC address directly, bypassing standard discovery.</div>
                             <div class="mt-2 d-none" id="direct_ip_input_container">
                                 <input type="text" class="form-control" name="direct_target_ip" id="direct_target_ip" placeholder="e.g., 100.121.216.150 or b8:27:eb:01:02:03" aria-label="Direct Target IP">
+                            </div>
+                        </div>
+                        <div class="form-check text-start">
+                            <input class="form-check-input" type="radio" name="scanMethod" id="method_proxmox_lxc" value="proxmox_lxc">
+                            <label class="form-check-label fw-bold" for="method_proxmox_lxc">
+                                Create New Proxmox LXC Target
+                            </label>
+                            <div class="form-text mt-0 mb-2">Provision a brand new LXC container on your Proxmox VE server automatically.</div>
+                            <div class="mt-2 d-none" id="proxmox_lxc_input_container">
+                                <div class="row g-2">
+                                    <div class="col-sm-6">
+                                        <label for="lxc_cores" class="form-label small mb-1">CPU Cores</label>
+                                        <input type="number" class="form-control form-control-sm" id="lxc_cores" value="2" min="1">
+                                    </div>
+                                    <div class="col-sm-6">
+                                        <label for="lxc_memory" class="form-label small mb-1">RAM (MB)</label>
+                                        <input type="number" class="form-control form-control-sm" id="lxc_memory" value="4096" min="512">
+                                    </div>
+                                    <div class="col-sm-6">
+                                        <label for="lxc_storage_size" class="form-label small mb-1">Storage (GB)</label>
+                                        <input type="number" class="form-control form-control-sm" id="lxc_storage_size" value="20" min="5">
+                                    </div>
+                                    <div class="col-sm-6">
+                                        <label for="lxc_storage_name" class="form-label small mb-1">Storage Pool</label>
+                                        <input type="text" class="form-control form-control-sm" id="lxc_storage_name" value="local-lvm">
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>

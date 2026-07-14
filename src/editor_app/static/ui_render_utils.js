@@ -619,6 +619,34 @@ export function renderEditor(details, componentData, markTabDirtyCallback, handl
     rowResources.appendChild(renderProfileSelect('comp-storage', 'Storage Type', profile.storage_type || 'persistent', ['persistent', 'temporary']));
 
     metadataPane.appendChild(rowResources);
+
+    // Recommended LXC Resources Row
+    const rowLxcResources = document.createElement('div');
+    rowLxcResources.className = 'row bg-light p-3 rounded mb-3 mx-0 border-top';
+
+    const renderLxcInput = (id, label, value, placeholder) => {
+        const col = document.createElement('div');
+        col.className = 'col-md-4';
+        const lbl = document.createElement('label');
+        lbl.className = 'form-label small';
+        lbl.textContent = label;
+        const input = document.createElement('input');
+        input.type = 'number';
+        input.className = 'form-control form-control-sm';
+        input.id = id;
+        input.min = '0';
+        input.placeholder = placeholder;
+        input.value = value !== undefined && value !== null ? value : '';
+        col.appendChild(lbl);
+        col.appendChild(input);
+        return col;
+    };
+
+    rowLxcResources.appendChild(renderLxcInput('comp-lxc-cores', 'Recommended Cores', profile.recommended_cores, 'e.g. 2'));
+    rowLxcResources.appendChild(renderLxcInput('comp-lxc-ram', 'Recommended RAM (MB)', profile.recommended_ram_mb, 'e.g. 4096'));
+    rowLxcResources.appendChild(renderLxcInput('comp-lxc-storage', 'Recommended Storage (GB)', profile.recommended_storage_gb, 'e.g. 20'));
+
+    metadataPane.appendChild(rowLxcResources);
     // 3. Setup Metadata Event Listener
     metadataPane.addEventListener('input', () => markTabDirtyCallback('metadata-pane'));
     metadataPane.addEventListener('change', () => markTabDirtyCallback('metadata-pane'));

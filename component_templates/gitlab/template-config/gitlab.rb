@@ -10,7 +10,7 @@ external_url 'http://{{ DOMAIN }}:{{ GITLAB_HTTP_PORT | default(10080) }}'
 
 # --- SSH PORT CONFIGURATION ---
 # If you use a non-standard SSH port (like 10022), you must inform GitLab.
-gitlab_rails['gitlab_shell_ssh_port'] = '{{ GITLAB_SSH_PORT | default(10022) }}'.to_i
+gitlab_rails['gitlab_shell_ssh_port'] = {{ GITLAB_SSH_PORT | default(10022) }}
 
 # --- RESOURCE MANAGEMENT (IMPORTANT FOR RASPBERRY PI) ---
 # These settings are recommended to reduce GitLab's memory and CPU usage.

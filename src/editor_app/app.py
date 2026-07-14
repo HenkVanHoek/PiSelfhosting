@@ -673,16 +673,29 @@ def create_app(test_config=None):
         if api_key:
             api_key = api_key.strip()
 
-        if api_key and save_key:
-            try:
-                save_api_key_to_env(api_key)
-            except Exception as e:
-                logging.error(f"Failed to save API key to .env: {e}")
-
         try:
             generator = AIGenerator(api_key=api_key)
             result = generator.generate_component_data(repo_url, custom_instructions)
-            return jsonify({"status": "success", "data": result}), 200
+
+            key_saved = False
+            # Save API key only if generation succeeded (proving key is valid)
+            if api_key and save_key:
+                try:
+                    save_api_key_to_env(api_key)
+                    key_saved = True
+                except Exception as e:
+                    logging.error(f"Failed to save API key to .env: {e}")
+
+            return (
+                jsonify(
+                    {
+                        "status": "success",
+                        "data": result,
+                        "key_saved": key_saved,
+                    }
+                ),
+                200,
+            )
         except ValueError as ve:
             err_msg = str(ve)
             if "key is not configured" in err_msg:

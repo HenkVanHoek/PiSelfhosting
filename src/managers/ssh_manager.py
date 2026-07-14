@@ -13,11 +13,19 @@ from paramiko import Ed25519Key, SFTPClient, SSHClient
 class SSHManager:
     """Manages SSH connections and command execution on a remote host."""
 
-    def __init__(self, hostname: str, username: str, password: str, port: int = 22):
+    def __init__(
+        self,
+        hostname: str,
+        username: str,
+        password: str,
+        port: int = 22,
+        allow_auto_add: bool = False,
+    ):
         self.hostname = hostname
         self.username = username
         self.password = password
         self.port = port
+        self.allow_auto_add = allow_auto_add
         self.client: Optional[SSHClient] = None
         self.sftp: Optional[SFTPClient] = None
 
@@ -55,9 +63,14 @@ class SSHManager:
         """Establishes the SSH connection, preferring keys to passwords."""
         try:
             client = SSHClient()
-            # Enforce RejectPolicy and load system host keys to prevent MitM
             client.load_system_host_keys()
-            client.set_missing_host_key_policy(paramiko.RejectPolicy())
+            if self.allow_auto_add:
+                client.set_missing_host_key_policy(
+                    paramiko.AutoAddPolicy()
+                )  # nosec B507
+            else:
+                # Enforce RejectPolicy to prevent MitM in general operations
+                client.set_missing_host_key_policy(paramiko.RejectPolicy())
 
             # Attempt key-based authentication first if a key exists
             if self.key_file.exists():

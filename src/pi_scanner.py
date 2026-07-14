@@ -228,25 +228,72 @@ class PiScanner:
     def get_system_snapshot(self, ip_address):
         if not is_port_open(ip_address, 22):
             return None, f"SSH port 22 is not open on {ip_address}."
-        try:
-            command = [
-                "sshpass",
-                "-p",
-                self.password,
-                "ssh",
-                "-o",
-                "StrictHostKeyChecking=no",
-                "-o",
-                "ConnectTimeout=10",
-                f"{self.username}@{ip_address}",
-                self.SSH_SNAPSHOT_COMMAND,
-            ]
-            result = subprocess.run(  # nosec B603
-                command, capture_output=True, text=True, timeout=20, check=False
-            )
-            if result.returncode != 0:
-                return None, f"SSH command failed: {result.stderr.strip()}"
 
+        from pathlib import Path
+
+        from appdirs import user_data_dir
+
+        app_data_dir = Path(user_data_dir("PiSelfhosting", "PiSelfhosting"))
+        key_file = app_data_dir / "id_ed25519_piselfhosting"
+
+        result = None
+        if key_file.exists():
+            try:
+                command = [
+                    "ssh",
+                    "-i",
+                    str(key_file),
+                    "-o",
+                    "StrictHostKeyChecking=no",
+                    "-o",
+                    "ConnectTimeout=10",
+                    "-o",
+                    "PreferredAuthentications=publickey",
+                    f"{self.username}@{ip_address}",
+                    self.SSH_SNAPSHOT_COMMAND,
+                ]
+                res = subprocess.run(  # nosec B603
+                    command, capture_output=True, text=True, timeout=20, check=False
+                )
+                if res.returncode == 0:
+                    result = res
+            except Exception as e:
+                logger.debug(f"SSH key connection attempt failed: {e}")
+
+        if result is None:
+            try:
+                command = [
+                    "sshpass",
+                    "-p",
+                    self.password,
+                    "ssh",
+                    "-o",
+                    "StrictHostKeyChecking=no",
+                    "-o",
+                    "ConnectTimeout=10",
+                    "-o",
+                    "PreferredAuthentications=password,keyboard-interactive",
+                    f"{self.username}@{ip_address}",
+                    self.SSH_SNAPSHOT_COMMAND,
+                ]
+                result = subprocess.run(  # nosec B603
+                    command, capture_output=True, text=True, timeout=20, check=False
+                )
+            except FileNotFoundError:
+                msg = "sshpass is not installed."
+                return None, msg
+            except subprocess.TimeoutExpired:
+                msg = f"SSH command timed out for {ip_address}."
+                return None, msg
+            except Exception as e:
+                msg = f"An unexpected SSH error occurred: {e}"
+                logger.error(msg, exc_info=True)
+                return None, msg
+
+        if result.returncode != 0:
+            return None, f"SSH command failed: {result.stderr.strip()}"
+
+        try:
             output = result.stdout
             os_info_raw = self._parse_section("OS_INFO", output)
             os_info = dict(
@@ -270,12 +317,6 @@ class PiScanner:
                 "resources": self._parse_resource_metrics(ram_raw, disk_raw),
             }
             return snapshot, None
-        except FileNotFoundError:
-            msg = "sshpass is not installed."
-            return None, msg
-        except subprocess.TimeoutExpired:
-            msg = f"SSH command timed out for {ip_address}."
-            return None, msg
         except Exception as e:
             msg = f"An unexpected SSH error occurred: {e}"
             logger.error(msg, exc_info=True)

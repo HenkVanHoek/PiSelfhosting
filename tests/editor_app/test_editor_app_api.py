@@ -100,7 +100,35 @@ class TestEditorAppAPI(unittest.TestCase):
                 )
 
         self.assertEqual(response.status_code, 200)
+        res_data = json.loads(response.data.decode("utf-8"))
+        self.assertTrue(res_data["key_saved"])
         mock_open.assert_called_with(unittest.mock.ANY, "w")
+
+    @patch("builtins.open")
+    @patch("editor_app.app.AIGenerator.generate_component_data")
+    def test_ai_generate_endpoint_save_key_failure(self, mock_generate, mock_open):
+        """Tests that api_key is NOT saved to .env file when generation fails."""
+        mock_generate.side_effect = ValueError("Gemini API key is not configured.")
+
+        payload = {
+            "repo_url": "https://github.com/caddyserver/caddy",
+            "custom_instructions": "none",
+            "api_key": "invalid_gemini_key",
+            "save_key": True,
+        }
+
+        import pathlib
+
+        with patch.dict("os.environ", {}):
+            with patch.object(pathlib.Path, "exists", return_value=False):
+                response = self.client.post(
+                    "/api/ai/generate",
+                    data=json.dumps(payload),
+                    content_type="application/json",
+                )
+
+        self.assertEqual(response.status_code, 400)
+        mock_open.assert_not_called()
 
     @patch("editor_app.app.ComponentManager.create_component")
     @patch("editor_app.app.ComponentManager.update_component_metadata")

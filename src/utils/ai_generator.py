@@ -80,6 +80,12 @@ class AIGenerator:
             "10. Include the primary docker service name (e.g., the key under "
             '"services" in the Docker Compose template, such as '
             '"fluffychat-web") as "docker_service_name" in the metadata.\n'
+            "11. The docker_compose property must start with these exact four "
+            "comment lines at the very beginning of the YAML string:\n"
+            "    # status: beta\n"
+            "    # last_tested_version: <appropriate version, e.g. stable>\n"
+            "    # platform_notes: <brief compatibility notes>\n"
+            "    # breaking_changes: none\n"
         )
 
         user_prompt = (
@@ -114,6 +120,17 @@ class AIGenerator:
                         "tags": {
                             "type": "ARRAY",
                             "items": {"type": "STRING"},
+                        },
+                        "resource_profile": {
+                            "type": "OBJECT",
+                            "properties": {
+                                "cpu": {"type": "STRING"},
+                                "ram": {"type": "STRING"},
+                                "storage_type": {"type": "STRING"},
+                                "recommended_cores": {"type": "INTEGER"},
+                                "recommended_ram_mb": {"type": "INTEGER"},
+                                "recommended_storage_gb": {"type": "INTEGER"},
+                            },
                         },
                         "docker_service_name": {"type": "STRING"},
                     },

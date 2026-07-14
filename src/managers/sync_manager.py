@@ -244,8 +244,11 @@ class SyncManager:
                 local_data["components"] = {}
             local_data["components"][component_id] = remote_comp_meta
         else:
-            if "components" in local_data and component_id in local_data["components"]:
-                del local_data["components"][component_id]
+            logger.warning(
+                f"Component {component_id} does not exist on remote. "
+                "Aborting sync to protect local files."
+            )
+            return False
 
         try:
             self.local_metadata_path.parent.mkdir(parents=True, exist_ok=True)
